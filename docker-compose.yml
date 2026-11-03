@@ -17,6 +17,7 @@ services:
     build: ./backend
     environment:
       ConnectionStrings__Default: Host=db;Database=agentforge;Username=${POSTGRES_USER:-agentforge};Password=${POSTGRES_PASSWORD:-agentforge}
+      Orchestrator__MaxConcurrency: ${ORCHESTRATOR_CONCURRENCY:-1}
       Auth__AdminUsername: ${ADMIN_USERNAME:-admin}
       Auth__AdminPassword: ${ADMIN_PASSWORD:?defina ADMIN_PASSWORD no .env}
       Auth__JwtSecret: ${JWT_SECRET:?defina JWT_SECRET no .env}

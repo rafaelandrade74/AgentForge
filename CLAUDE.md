@@ -20,7 +20,7 @@ Aplicação web auto-hospedada (homelab) que orquestra o ciclo de desenvolviment
 Transições válidas ficam em tabela no código (`WorkflowDefinition`). Revisão reprovada devolve ao Dev com os apontamentos; no terceiro retorno vai para Blocked. Dependências só liberam a tarefa quando estão em Done.
 
 ## Fases (executar uma por vez; parar para validação; commit `fase-N: <resumo>`)
-0 Fundação do repositório (feita) · 1 Autenticação (feita) · 2 Domínio (feita) · 3 CliAgentRunner (feita; ADR 0004) · 4 Workspaces Git (feita; ADR 0005) e persistência (EF Core, CRUD, Swagger) · 3 CliAgentRunner e ClaudeCodeAdapter · 4 Workspaces Git · 5 Orquestrador · 6 Tempo real (SignalR `/hubs/runs`) · 7 Interface web · 8 Deploy homelab · 9 Validação ponta a ponta.
+0 Fundação do repositório (feita) · 1 Autenticação (feita) · 2 Domínio (feita) · 3 CliAgentRunner (feita; ADR 0004) · 4 Workspaces Git (feita; ADR 0005) · 5 Orquestrador (feita; ADR 0006) e persistência (EF Core, CRUD, Swagger) · 3 CliAgentRunner e ClaudeCodeAdapter · 4 Workspaces Git · 5 Orquestrador · 6 Tempo real (SignalR `/hubs/runs`) · 7 Interface web · 8 Deploy homelab · 9 Validação ponta a ponta.
 
 ## Regras
 Siga as fases em ordem; não pule critérios de aceite; código simples e testável; registre decisões em `docs/adr/`; pergunte antes de adicionar dependências fora da stack.

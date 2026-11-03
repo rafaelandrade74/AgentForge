@@ -35,6 +35,8 @@ public class WorkItem
     /// <summary>Quantas vezes a tarefa voltou ao Dev após uma revisão reprovada.</summary>
     public int ReworkCount { get; set; }
     public string? BranchName { get; set; }
+    /// <summary>Por que a tarefa está em Blocked (falha do agente, limite de retrabalho...).</summary>
+    public string? BlockedReason { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public List<WorkItem> Dependencies { get; set; } = [];
 }

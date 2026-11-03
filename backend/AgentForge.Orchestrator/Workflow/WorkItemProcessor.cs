@@ -1,0 +1,270 @@
+using System.Text.RegularExpressions;
+using AgentForge.Domain;
+using AgentForge.Infrastructure.Persistence;
+using AgentForge.Orchestrator.Workspaces;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+
+namespace AgentForge.Orchestrator.Workflow;
+
+/// <summary>
+/// Executa UM passo do WorkItem conforme o estado persistido e grava a transição. O estado é salvo a cada
+/// transição; por isso, depois de um restart, repetir o passo do estado atual retoma o fluxo.
+/// </summary>
+public partial class WorkItemProcessor(
+    AppDbContext db,
+    IWorkspaceManager workspaces,
+    AgentExecutor executor,
+    IWorkQueue queue,
+    IOptions<OrchestratorOptions> options,
+    ILogger<WorkItemProcessor> logger)
+{
+    private const int MaxDiffChars = 100_000;
+
+    [GeneratedRegex("^[0-9a-fA-F]{7,64}$")]
+    private static partial Regex HashPattern();
+
+    // ------------------------------------------------------------------ passos automáticos
+
+    public async Task<StepResult> StepAsync(Guid id, CancellationToken ct)
+    {
+        var item = await db.WorkItems.Include(w => w.Dependencies).FirstOrDefaultAsync(w => w.Id == id, ct);
+        if (item is null) return StepResult.Stop;
+        var demand = await db.Demands.FirstAsync(d => d.Id == item.DemandId, ct);
+        var project = await db.Projects.FirstAsync(p => p.Id == demand.ProjectId, ct);
+
+        return item.State switch
+        {
+            WorkItemState.Backlog or WorkItemState.AwaitingApproval when project.AutoMode =>
+                Continue(await TransitionAsync(item, project, WorkflowEvent.HumanApproved, ct: ct)),
+            WorkItemState.Todo when item.Dependencies.All(d => d.State == WorkItemState.Done) =>
+                Continue(await TransitionAsync(item, project, WorkflowEvent.Started, ct: ct)),
+            WorkItemState.InDevelopment => await DevStepAsync(item, demand, project, ct),
+            WorkItemState.TechLeadReview => await ReviewStepAsync(item, demand, project, ct),
+            WorkItemState.SecurityReview => await SecurityStepAsync(item, demand, project, ct),
+            WorkItemState.Qa => await QaStepAsync(item, demand, project, ct),
+            _ => StepResult.Stop,
+        };
+    }
+
+    private static StepResult Continue(bool advanced) => advanced ? StepResult.Continue : StepResult.Stop;
+
+    private async Task<StepResult> DevStepAsync(WorkItem item, Demand demand, Project project, CancellationToken ct)
+    {
+        var ws = await workspaces.CreateWorktreeAsync(project, item.Id, ct);
+        var open = await db.ReviewFindings.Where(f => f.WorkItemId == item.Id && !f.Resolved).OrderBy(f => f.Role).ToListAsync(ct);
+        var depTitles = item.Dependencies.Select(d => d.Title);
+        var prompt = PromptBuilder.Dev(item, project, depTitles, open);
+
+        var result = await executor.RunAsync(AgentRole.Dev, prompt, ws.Path, demand.Id, item.Id,
+            json => ParseDevAsync(json, ws.Path, project.BaseBranch, ct), ct);
+        if (result.Outcome == ExecOutcome.Cancelled) return StepResult.Stop;
+        if (result.Outcome == ExecOutcome.Failed) return Continue(await BlockAsync(item, project, "Dev", result.Error, ct));
+
+        foreach (var f in open) f.Resolved = true;   // o Dev tratou os apontamentos; a próxima revisão gera novos se faltar algo
+        return Continue(await TransitionAsync(item, project, WorkflowEvent.DevDone,
+            w => w.BranchName = ws.Branch, ct: ct));
+    }
+
+    private async Task<StepResult> ReviewStepAsync(WorkItem item, Demand demand, Project project, CancellationToken ct)
+    {
+        var ws = await workspaces.CreateWorktreeAsync(project, item.Id, ct);
+        var diff = await DiffAsync(ws.Path, project.BaseBranch, ct);
+        var parallel = options.Value.MaxConcurrency > 1;
+
+        var tlTask = executor.RunAsync(AgentRole.TechLead, PromptBuilder.TechLead(item, project, diff), ws.Path,
+            demand.Id, item.Id, json => Task.FromResult(OutputParsers.ParseReview(json)), ct);
+        var secTask = parallel
+            ? executor.RunAsync(AgentRole.Security, PromptBuilder.Security(item, project, diff), ws.Path,
+                demand.Id, item.Id, json => Task.FromResult(OutputParsers.ParseReview(json)), ct)
+            : null;
+
+        var reviews = new List<(AgentRole Role, ExecResult<ReviewReport> Result)> { (AgentRole.TechLead, await tlTask) };
+        if (secTask is not null) reviews.Add((AgentRole.Security, await secTask));
+
+        return await ConcludeReviewsAsync(item, project, reviews, parallel ? WorkflowEvent.ReviewsApproved : WorkflowEvent.TechLeadApproved, ct);
+    }
+
+    private async Task<StepResult> SecurityStepAsync(WorkItem item, Demand demand, Project project, CancellationToken ct)
+    {
+        var ws = await workspaces.CreateWorktreeAsync(project, item.Id, ct);
+        var diff = await DiffAsync(ws.Path, project.BaseBranch, ct);
+        var result = await executor.RunAsync(AgentRole.Security, PromptBuilder.Security(item, project, diff), ws.Path,
+            demand.Id, item.Id, json => Task.FromResult(OutputParsers.ParseReview(json)), ct);
+        return await ConcludeReviewsAsync(item, project, [(AgentRole.Security, result)], WorkflowEvent.SecurityApproved, ct);
+    }
+
+    private async Task<StepResult> ConcludeReviewsAsync(WorkItem item, Project project,
+        List<(AgentRole Role, ExecResult<ReviewReport> Result)> reviews, WorkflowEvent approvedEvent, CancellationToken ct)
+    {
+        if (reviews.Any(r => r.Result.Outcome == ExecOutcome.Cancelled)) return StepResult.Stop;
+        var failed = reviews.FirstOrDefault(r => r.Result.Outcome == ExecOutcome.Failed);
+        if (failed.Result is not null) return Continue(await BlockAsync(item, project, failed.Role.ToString(), failed.Result.Error, ct));
+
+        var findings = reviews
+            .Where(r => !r.Result.Value!.Approved)
+            .SelectMany(r => r.Result.Value!.Findings.Select(f => new ReviewFinding
+            {
+                WorkItemId = item.Id, AgentRunId = r.Result.RunId, Role = r.Role,
+                Severity = f.Severity, File = f.File, Line = f.Line, Message = f.Message,
+            })).ToList();
+
+        return findings.Count == 0
+            ? Continue(await TransitionAsync(item, project, approvedEvent, ct: ct))
+            : await ReworkAsync(item, project, WorkflowEvent.ChangesRequested, findings, ct);
+    }
+
+    private async Task<StepResult> QaStepAsync(WorkItem item, Demand demand, Project project, CancellationToken ct)
+    {
+        var ws = await workspaces.CreateWorktreeAsync(project, item.Id, ct);
+        var result = await executor.RunAsync(AgentRole.Qa, PromptBuilder.Qa(item, project), ws.Path, demand.Id, item.Id,
+            json => Task.FromResult(OutputParsers.ParseQa(json)), ct);
+        if (result.Outcome == ExecOutcome.Cancelled) return StepResult.Stop;
+        if (result.Outcome == ExecOutcome.Failed) return Continue(await BlockAsync(item, project, "QA", result.Error, ct));
+
+        if (result.Value!.Passed) return Continue(await TransitionAsync(item, project, WorkflowEvent.QaPassed, ct: ct));
+
+        var findings = result.Value.Criteria.Where(c => !c.Passed).Select(c => new ReviewFinding
+        {
+            WorkItemId = item.Id, AgentRunId = result.RunId, Role = AgentRole.Qa, Severity = FindingSeverity.Medium,
+            Message = string.IsNullOrWhiteSpace(c.Evidence) ? c.Criterion : $"{c.Criterion} — {c.Evidence}",
+        });
+        return await ReworkAsync(item, project, WorkflowEvent.QaFailed, findings, ct);
+    }
+
+    /// <summary>Devolve ao Dev com os apontamentos; no terceiro retorno a tarefa vai para Blocked.</summary>
+    private async Task<StepResult> ReworkAsync(WorkItem item, Project project, WorkflowEvent evt,
+        IEnumerable<ReviewFinding> findings, CancellationToken ct)
+    {
+        db.ReviewFindings.AddRange(findings);
+        var count = item.ReworkCount + 1;
+        return count >= WorkflowDefinition.MaxRework
+            ? Continue(await TransitionAsync(item, project, WorkflowEvent.ReworkLimitReached, w => w.ReworkCount = count,
+                $"A tarefa voltou ao Dev {WorkflowDefinition.MaxRework} vezes; aguarda decisão humana.", ct))
+            : Continue(await TransitionAsync(item, project, evt, w => w.ReworkCount = count, ct: ct));
+    }
+
+    private Task<bool> BlockAsync(WorkItem item, Project project, string who, string? error, CancellationToken ct) =>
+        TransitionAsync(item, project, WorkflowEvent.AgentFailed, reason: $"{who}: {error ?? "falha desconhecida"}", ct: ct);
+
+    // ------------------------------------------------------------------ validações com git
+
+    private static async Task<Parsed<DevReport>> ParseDevAsync(string? json, string workspacePath, string baseBranch, CancellationToken ct)
+    {
+        var parsed = OutputParsers.ParseDev(json);
+        if (!parsed.Ok) return parsed;
+
+        var hash = parsed.Value!.Commit;
+        if (!HashPattern().IsMatch(hash)) return Parsed<DevReport>.Fail($"\"{hash}\" não é um hash de commit.");
+        try
+        {
+            await GitCli.RunAsync(workspacePath, ["cat-file", "-e", hash + "^{commit}"], ct);
+            await GitCli.RunAsync(workspacePath, ["merge-base", "--is-ancestor", hash, "HEAD"], ct);
+            var ahead = await GitCli.RunAsync(workspacePath, ["rev-list", "--count", $"origin/{baseBranch}..HEAD"], ct);
+            if (ahead.Trim() == "0") return Parsed<DevReport>.Fail("O branch não tem nenhum commit novo em relação ao branch base.");
+        }
+        catch (GitException)
+        {
+            return Parsed<DevReport>.Fail($"O commit {hash} não existe no branch atual do worktree.");
+        }
+        return parsed;
+    }
+
+    private static async Task<string> DiffAsync(string workspacePath, string baseBranch, CancellationToken ct)
+    {
+        try
+        {
+            var diff = await GitCli.RunAsync(workspacePath, ["diff", $"origin/{baseBranch}...HEAD"], ct);
+            return diff.Length <= MaxDiffChars ? diff : diff[..MaxDiffChars] + "\n… (diff truncado; use git diff para ver o resto)";
+        }
+        catch (GitException ex)
+        {
+            return $"(não foi possível gerar o diff: {ex.Message})";
+        }
+    }
+
+    // ------------------------------------------------------------------ transições e ações humanas
+
+    /// <summary>
+    /// Aplica um evento: relê o estado do banco (se a tarefa foi cancelada nesse meio tempo, não faz nada),
+    /// valida na WorkflowDefinition, grava e executa os efeitos da chegada ao novo estado.
+    /// </summary>
+    private async Task<bool> TransitionAsync(WorkItem item, Project project, WorkflowEvent evt,
+        Action<WorkItem>? mutate = null, string? reason = null, CancellationToken ct = default)
+    {
+        var expected = item.State;
+        await db.Entry(item).ReloadAsync(ct);
+        if (item.State != expected) return false;
+
+        var next = WorkflowDefinition.Next(expected, evt)
+                   ?? throw new InvalidOperationException($"Transição inválida: {expected} + {evt}.");
+        mutate?.Invoke(item);
+        item.State = next;
+        item.BlockedReason = next == WorkItemState.Blocked ? reason : null;
+        await db.SaveChangesAsync(CancellationToken.None);
+        logger.LogInformation("WorkItem {Id}: {From} --{Event}--> {To}", item.Id, expected, evt, next);
+
+        await OnEnteredAsync(item, project, next);
+        return true;
+    }
+
+    private async Task OnEnteredAsync(WorkItem item, Project project, WorkItemState state)
+    {
+        switch (state)
+        {
+            case WorkItemState.Done:
+                await workspaces.RemoveWorktreeAsync(project, item.Id, deleteBranch: false, CancellationToken.None);
+                var dependents = await db.WorkItems
+                    .Where(w => w.State == WorkItemState.Todo && w.Dependencies.Any(d => d.Id == item.Id))
+                    .Select(w => w.Id).ToListAsync();
+                foreach (var id in dependents) queue.EnqueueWorkItem(id);
+                await CompleteDemandIfFinishedAsync(item.DemandId);
+                break;
+            case WorkItemState.Cancelled:
+                await queue.CancelRunningAsync(item.Id);
+                await workspaces.RemoveWorktreeAsync(project, item.Id, deleteBranch: true, CancellationToken.None);
+                break;
+        }
+    }
+
+    private async Task CompleteDemandIfFinishedAsync(Guid demandId)
+    {
+        var states = await db.WorkItems.Where(w => w.DemandId == demandId).Select(w => w.State).ToListAsync();
+        if (states.Count == 0 || states.Any(s => !WorkflowDefinition.IsTerminal(s)) || states.All(s => s == WorkItemState.Cancelled)) return;
+        await db.Demands.Where(d => d.Id == demandId && d.Status == DemandStatus.InProgress)
+            .ExecuteUpdateAsync(s => s.SetProperty(d => d.Status, DemandStatus.Done));
+    }
+
+    /// <summary>Evento vindo de uma pessoa (aprovar, rejeitar, retomar, cancelar).</summary>
+    public async Task<ActionOutcome> ApplyHumanEventAsync(Guid id, WorkflowEvent evt, string? comment)
+    {
+        var item = await db.WorkItems.Include(w => w.Dependencies).FirstOrDefaultAsync(w => w.Id == id);
+        if (item is null) return ActionOutcome.NotFound;
+        if (WorkflowDefinition.Next(item.State, evt) is null) return ActionOutcome.InvalidState;
+        var project = await db.Projects.FirstAsync(p => p.Id == db.Demands.First(d => d.Id == item.DemandId).ProjectId);
+
+        if (evt == WorkflowEvent.HumanRejected && !string.IsNullOrWhiteSpace(comment))
+            db.ReviewFindings.Add(new ReviewFinding
+            {
+                WorkItemId = id, Role = AgentRole.Human, Severity = FindingSeverity.High, Message = comment.Trim(),
+            });
+
+        // Retomar um Blocked é uma decisão humana: zera o contador de retrabalho.
+        Action<WorkItem>? mutate = evt == WorkflowEvent.Retry ? w => w.ReworkCount = 0 : null;
+        if (!await TransitionAsync(item, project, evt, mutate)) return ActionOutcome.InvalidState;
+
+        queue.EnqueueWorkItem(id);
+        return ActionOutcome.Ok;
+    }
+
+    /// <summary>Último recurso quando um passo lança exceção inesperada: não deixa o item em loop.</summary>
+    public async Task FailAsync(Guid id, string message)
+    {
+        var item = await db.WorkItems.FirstOrDefaultAsync(w => w.Id == id);
+        if (item is null || WorkflowDefinition.Next(item.State, WorkflowEvent.AgentFailed) is null) return;
+        item.State = WorkItemState.Blocked;
+        item.BlockedReason = "Erro interno: " + message;
+        await db.SaveChangesAsync();
+    }
+}

@@ -41,6 +41,7 @@ builder.Services.AddOptions<AuthOptions>()
     .ValidateOnStart();
 builder.Services.AddAgentRunner();
 builder.Services.AddWorkspaces(builder.Configuration);
+builder.Services.AddOrchestrator(builder.Configuration);
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<AdminCredentials>();
 builder.Services.AddScoped<AuthService>();
@@ -88,6 +89,7 @@ auth.MapGet("/me", (HttpContext ctx) => Results.Ok(new { username = ctx.User.Ide
     .RequireAuthorization();
 
 app.MapCrudEndpoints();
+app.MapWorkflowEndpoints();
 
 app.Run();
 

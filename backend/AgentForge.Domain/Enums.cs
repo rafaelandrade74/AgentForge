@@ -1,8 +1,9 @@
 namespace AgentForge.Domain;
 
-public enum AgentRole { ScrumMaster, Dev, TechLead, Security, Qa }
+/// <summary>Human só aparece em ReviewFinding (comentário de uma rejeição); não é um agente.</summary>
+public enum AgentRole { ScrumMaster, Dev, TechLead, Security, Qa, Human }
 
-public enum DemandStatus { New, Refining, InProgress, Done, Cancelled }
+public enum DemandStatus { New, Refining, InProgress, Done, Cancelled, Failed }
 
 /// <summary>Estados do WorkItem. As transições válidas ficam na WorkflowDefinition (Fase 5).</summary>
 public enum WorkItemState

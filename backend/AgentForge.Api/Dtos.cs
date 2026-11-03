@@ -13,7 +13,8 @@ public record DemandDto(Guid Id, Guid ProjectId, string Title, string Descriptio
 public record WorkItemInput(Guid DemandId, string Title, string Description = "", string AcceptanceCriteria = "",
     int Estimate = 0, WorkItemState State = WorkItemState.Backlog, List<Guid>? DependsOnIds = null);
 public record WorkItemDto(Guid Id, Guid DemandId, string Title, string Description, string AcceptanceCriteria,
-    int Estimate, WorkItemState State, int ReworkCount, string? BranchName, List<Guid> DependsOnIds, DateTime CreatedAt);
+    int Estimate, WorkItemState State, int ReworkCount, string? BranchName, string? BlockedReason,
+    List<Guid> DependsOnIds, DateTime CreatedAt);
 
 public record AgentRunDto(Guid Id, Guid? DemandId, Guid? WorkItemId, AgentRole Role, string Prompt, string Output,
     decimal CostUsd, long DurationMs, AgentRunStatus Status, DateTime StartedAt, DateTime? FinishedAt);

@@ -269,6 +269,9 @@ namespace AgentForge.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<string>("BlockedReason")
+                        .HasColumnType("text");
+
                     b.Property<string>("BranchName")
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");

@@ -1,4 +1,5 @@
 using AgentForge.Orchestrator.Agents;
+using AgentForge.Orchestrator.Workflow;
 using AgentForge.Orchestrator.Workspaces;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -15,6 +16,20 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<AgentAdapterRegistry>();
         services.TryAddSingleton<IAgentEventPublisher, NullAgentEventPublisher>();
         services.TryAddScoped<IAgentRunner, CliAgentRunner>();
+        return services;
+    }
+
+    /// <summary>Registra o orquestrador (BackgroundService), os processadores e as ações humanas. Requer AddAgentRunner e AddWorkspaces.</summary>
+    public static IServiceCollection AddOrchestrator(this IServiceCollection services, IConfiguration configuration)
+    {
+        services.Configure<OrchestratorOptions>(configuration.GetSection(OrchestratorOptions.Section));
+        services.AddSingleton<OrchestratorService>();
+        services.AddSingleton<IWorkQueue>(sp => sp.GetRequiredService<OrchestratorService>());
+        services.AddHostedService(sp => sp.GetRequiredService<OrchestratorService>());
+        services.AddSingleton<AgentExecutor>();
+        services.AddScoped<WorkItemProcessor>();
+        services.AddScoped<DemandProcessor>();
+        services.AddScoped<WorkflowActions>();
         return services;
     }
 

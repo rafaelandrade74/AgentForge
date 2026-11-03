@@ -40,6 +40,7 @@ builder.Services.AddOptions<AuthOptions>()
     .Validate(o => !string.IsNullOrWhiteSpace(o.AdminPassword), "Auth:AdminPassword é obrigatório.")
     .ValidateOnStart();
 builder.Services.AddAgentRunner();
+builder.Services.AddWorkspaces(builder.Configuration);
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<AdminCredentials>();
 builder.Services.AddScoped<AuthService>();

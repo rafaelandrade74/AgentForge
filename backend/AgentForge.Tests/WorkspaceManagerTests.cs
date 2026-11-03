@@ -162,6 +162,88 @@ public sealed class WorkspaceManagerTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Dependent_task_starts_from_the_work_of_its_dependency_and_its_diff_is_only_its_own()
+    {
+        var (a, b, c) = (Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid());
+        var wsA = await _manager.CreateWorktreeAsync(_project, a, default);
+        await CommitAsync(wsA, "da-a.txt", "A\n");
+
+        var wsB = await _manager.CreateWorktreeAsync(_project, b, default, [a]);
+
+        Assert.True(File.Exists(Path.Combine(wsB.Path, "da-a.txt")), "B deve enxergar o código de A");
+        Assert.Equal((await Git(wsB.Path, "rev-parse", "HEAD")).Trim(), wsB.BaseCommit);
+        Assert.NotEqual(await OriginHead(), wsB.BaseCommit);
+
+        await CommitAsync(wsB, "da-b.txt", "B\n");
+        var own = await _manager.GetDiffAsync(_project, b, default, wsB.BaseCommit);
+        var all = await _manager.GetDiffAsync(_project, b, default);
+        Assert.Contains("da-b.txt", own);
+        Assert.DoesNotContain("da-a.txt", own);                       // só o trabalho próprio
+        Assert.Contains("da-a.txt", all);                             // contra o base, aparece tudo
+        Assert.False(File.Exists(Path.Combine(wsA.Path, "da-b.txt")), "A não é afetada");
+
+        // cadeia: C depende de B, que já traz o trabalho de A
+        var wsC = await _manager.CreateWorktreeAsync(_project, c, default, [b]);
+        Assert.True(File.Exists(Path.Combine(wsC.Path, "da-a.txt")));
+        Assert.True(File.Exists(Path.Combine(wsC.Path, "da-b.txt")));
+    }
+
+    [Fact]
+    public async Task Task_with_two_dependencies_gets_both()
+    {
+        var (a, b, c) = (Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid());
+        await CommitAsync(await _manager.CreateWorktreeAsync(_project, a, default), "x.txt", "x\n");
+        await CommitAsync(await _manager.CreateWorktreeAsync(_project, b, default), "y.txt", "y\n");
+
+        var wsC = await _manager.CreateWorktreeAsync(_project, c, default, [a, b]);
+
+        Assert.True(File.Exists(Path.Combine(wsC.Path, "x.txt")));
+        Assert.True(File.Exists(Path.Combine(wsC.Path, "y.txt")));
+    }
+
+    [Fact]
+    public async Task Conflicting_dependencies_fail_cleanly_and_leave_nothing_behind()
+    {
+        var (a, b, c) = (Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid());
+        await CommitAsync(await _manager.CreateWorktreeAsync(_project, a, default), "mesmo.txt", "versão da A\n");
+        await CommitAsync(await _manager.CreateWorktreeAsync(_project, b, default), "mesmo.txt", "versão da B\n");
+        var repo = await _manager.EnsureRepositoryAsync(_project, default);
+
+        var ex = await Assert.ThrowsAsync<WorkspaceException>(() => _manager.CreateWorktreeAsync(_project, c, default, [a, b]));
+
+        Assert.Contains("Conflito", ex.Message);
+        Assert.False(Directory.Exists(Path.Combine(_temp, "repos", _project.Id.ToString(), "worktrees", c.ToString())));
+        Assert.Equal("", (await Git(repo, "branch", "--list", $"agentforge/task-{c}")).Trim());
+        // sem lixo: criar de novo só com a dependência que não conflita funciona
+        var again = await _manager.CreateWorktreeAsync(_project, c, default, [a]);
+        Assert.True(File.Exists(Path.Combine(again.Path, "mesmo.txt")));
+    }
+
+    [Fact]
+    public async Task Missing_dependency_branch_is_reported_and_cleaned_up()
+    {
+        var c = Guid.NewGuid();
+
+        var ex = await Assert.ThrowsAsync<WorkspaceException>(() => _manager.CreateWorktreeAsync(_project, c, default, [Guid.NewGuid()]));
+
+        Assert.Contains("não existe mais", ex.Message);
+        Assert.False(Directory.Exists(Path.Combine(_temp, "repos", _project.Id.ToString(), "worktrees", c.ToString())));
+    }
+
+    [Fact]
+    public async Task Existing_worktree_keeps_the_recorded_base_commit_and_legacy_ones_fall_back_to_the_merge_base()
+    {
+        var (a, b) = (Guid.NewGuid(), Guid.NewGuid());
+        await CommitAsync(await _manager.CreateWorktreeAsync(_project, a, default), "a.txt", "a\n");
+        var wsB = await _manager.CreateWorktreeAsync(_project, b, default, [a]);
+
+        var again = await _manager.CreateWorktreeAsync(_project, b, default, [a], wsB.BaseCommit);
+        var legacy = await _manager.CreateWorktreeAsync(_project, b, default);   // sem BaseCommit conhecido
+
+        Assert.Equal(wsB.BaseCommit, again.BaseCommit);
+        Assert.Equal(await OriginHead(), legacy.BaseCommit);                      // volta ao comportamento antigo
+    }
+    [Fact]
     public async Task Removing_something_that_does_not_exist_is_a_noop()
     {
         await _manager.RemoveWorktreeAsync(_project, Guid.NewGuid(), true, default);

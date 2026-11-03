@@ -21,14 +21,14 @@ depois de ler o plano, o diff e o relatório do QA.
 - Relatório do QA (JSON com veredito e evidência por critério), apontamentos do Tech Lead, diff do branch, custo e linha do tempo
   aparecem na tela da tarefa.
 
-## Lacunas que a validação expôs (a fazer)
+## Lacunas que a validação expôs (item 1 e 2 corrigidos depois; ver ADR 0005)
 1. **Tarefas dependentes não enxergam o trabalho das dependências.** O worktree de toda tarefa nasce de `origin/<base>`, então a
    tarefa 3 (testes) e a 4 (README) tiveram de **reimplementar** o filtro para fazer sentido, e as 4 branches se sobrepõem em
-   `Program.cs`/`TaskItem.cs` (conflitos no merge manual). Correção prevista: criar o worktree de uma tarefa com dependências a
-   partir das branches das dependências já em Done (mesclando-as, e bloqueando a tarefa se houver conflito).
-2. **Dependências no plano.** O Scrum Master declarou a cadeia 1 → 2 → 3 mas deixou o README (4) independente; o prompt do
-   Scrum Master deve pedir que tarefas que referenciam o comportamento de outras declarem a dependência.
-3. Sem o item 1, o merge das branches é trabalho humano e sujeito a conflito; a Fase "PR automático" (fora do MVP) depende disto.
+   `Program.cs`/`TaskItem.cs` (conflitos no merge manual). **Corrigido:** o worktree de uma tarefa com dependências agora combina as branches das dependências já em Done (conflito bloqueia
+   a tarefa com o motivo) e as revisões veem só o diff próprio (`WorkItem.BaseCommit`).
+2. **Dependências no plano.** O Scrum Master declarou a cadeia 1 → 2 → 3 mas deixou o README (4) independente. **Corrigido:** o prompt
+   do Scrum Master (arquivo e instrução da aplicação) pede `dependsOn` sempre que uma tarefa usa, testa ou documenta código de outra.
+3. O merge das branches para o base continua sendo humano (fora do MVP); agora as branches encadeadas se mesclam sem sobreposição.
 
 ## Ajustes feitos por causa da validação
 - Projeto de exemplo compila no SDK 8 (container) e no SDK 10 (computador): `TargetFramework` e `Mvc.Testing` seguem o SDK em uso.

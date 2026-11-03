@@ -33,6 +33,8 @@ public class ScriptedAdapter : ICliAgentAdapter
     public ConcurrentDictionary<AgentRole, string> Defaults { get; } = new();
     /// <summary>Trecho de shell que substitui a resposta normal (ex.: "exec sleep 120" para travar).</summary>
     public ConcurrentDictionary<AgentRole, string> RawShell { get; } = new();
+    /// <summary>Script do Dev calculado por pedido (ex.: todos escrevem o mesmo arquivo, para provocar conflito).</summary>
+    public Func<AgentRequest, string>? DevShell { get; set; }
 
     public void Enqueue(AgentRole role, params string[] responses)
     {
@@ -54,9 +56,13 @@ public class ScriptedAdapter : ICliAgentAdapter
 
         if (request.Role == AgentRole.Dev)
         {
+            if (DevShell is not null) return DevShell(request);
             if (Queued.TryGetValue(AgentRole.Dev, out var devQ) && devQ.TryDequeue(out var junk))
                 return $"echo '{junk}'";   // saída sem JSON, para testar a reexecução
-            return """f="dev-$(date +%s%N).txt"; echo x > "$f"; git add -A; git commit -qm "dev: $f"; H=$(git rev-parse HEAD); printf 'result:{"summary":"ok","files":["%s"],"commit":"%s"}\n' "$f" "$H" """;
+            // o arquivo leva o título da tarefa (1ª linha do prompt: "Tarefa: X"), para os testes saberem quem criou o quê
+            var title = request.Prompt.Split('\n')[0].Replace("Tarefa:", "").Trim();
+            var slug = new string(title.Where(char.IsLetterOrDigit).ToArray());
+            return $$"""f="dev-{{slug}}-$(date +%s%N).txt"; echo x > "$f"; git add -A; git commit -qm "dev: $f"; H=$(git rev-parse HEAD); printf 'result:{"summary":"ok","files":["%s"],"commit":"%s"}\n' "$f" "$H" """;
         }
 
         string? json = null;

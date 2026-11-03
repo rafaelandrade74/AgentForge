@@ -53,15 +53,39 @@ public partial class WorkItemProcessor(
 
     private static StepResult Continue(bool advanced) => advanced ? StepResult.Continue : StepResult.Stop;
 
+    /// <summary>
+    /// Worktree da tarefa. Na primeira vez ele nasce do branch base e combina o trabalho das dependências; o ponto de
+    /// partida (BaseCommit) é guardado para as revisões olharem só o que a tarefa mudou.
+    /// </summary>
+    private async Task<Workspace> OpenWorkspaceAsync(WorkItem item, Project project, CancellationToken ct)
+    {
+        var dependencyIds = item.Dependencies.Select(d => d.Id).ToList();
+        var ws = await workspaces.CreateWorktreeAsync(project, item.Id, ct, dependencyIds, item.BaseCommit);
+        if (item.BaseCommit != ws.BaseCommit)
+        {
+            item.BaseCommit = ws.BaseCommit;
+            await db.SaveChangesAsync(CancellationToken.None);
+        }
+        return ws;
+    }
+
     private async Task<StepResult> DevStepAsync(WorkItem item, Demand demand, Project project, CancellationToken ct)
     {
-        var ws = await workspaces.CreateWorktreeAsync(project, item.Id, ct);
+        Workspace ws;
+        try
+        {
+            ws = await OpenWorkspaceAsync(item, project, ct);
+        }
+        catch (WorkspaceException ex)
+        {
+            return Continue(await BlockAsync(item, project, "Workspace", ex.Message, ct));
+        }
         var open = await db.ReviewFindings.Where(f => f.WorkItemId == item.Id && !f.Resolved).OrderBy(f => f.Role).ToListAsync(ct);
         var depTitles = item.Dependencies.Select(d => d.Title);
         var prompt = PromptBuilder.Dev(item, project, depTitles, open);
 
         var result = await executor.RunAsync(AgentRole.Dev, prompt, ws.Path, project.Id, demand.Id, item.Id,
-            json => ParseDevAsync(json, ws.Path, project.BaseBranch, ct), ct);
+            json => ParseDevAsync(json, ws.Path, ws.BaseCommit, ct), ct);
         if (result.Outcome == ExecOutcome.Cancelled) return StepResult.Stop;
         if (result.Outcome == ExecOutcome.Failed) return Continue(await BlockAsync(item, project, "Dev", result.Error, ct));
 
@@ -72,8 +96,8 @@ public partial class WorkItemProcessor(
 
     private async Task<StepResult> ReviewStepAsync(WorkItem item, Demand demand, Project project, CancellationToken ct)
     {
-        var ws = await workspaces.CreateWorktreeAsync(project, item.Id, ct);
-        var diff = await DiffAsync(ws.Path, project.BaseBranch, ct);
+        var ws = await OpenWorkspaceAsync(item, project, ct);
+        var diff = await DiffAsync(ws.Path, ws.BaseCommit, ct);
         var parallel = options.Value.MaxConcurrency > 1;
 
         var tlTask = executor.RunAsync(AgentRole.TechLead, PromptBuilder.TechLead(item, project, diff), ws.Path,
@@ -91,8 +115,8 @@ public partial class WorkItemProcessor(
 
     private async Task<StepResult> SecurityStepAsync(WorkItem item, Demand demand, Project project, CancellationToken ct)
     {
-        var ws = await workspaces.CreateWorktreeAsync(project, item.Id, ct);
-        var diff = await DiffAsync(ws.Path, project.BaseBranch, ct);
+        var ws = await OpenWorkspaceAsync(item, project, ct);
+        var diff = await DiffAsync(ws.Path, ws.BaseCommit, ct);
         var result = await executor.RunAsync(AgentRole.Security, PromptBuilder.Security(item, project, diff), ws.Path,
             project.Id, demand.Id, item.Id, json => Task.FromResult(OutputParsers.ParseReview(json)), ct);
         return await ConcludeReviewsAsync(item, project, [(AgentRole.Security, result)], WorkflowEvent.SecurityApproved, ct);
@@ -120,7 +144,7 @@ public partial class WorkItemProcessor(
 
     private async Task<StepResult> QaStepAsync(WorkItem item, Demand demand, Project project, CancellationToken ct)
     {
-        var ws = await workspaces.CreateWorktreeAsync(project, item.Id, ct);
+        var ws = await OpenWorkspaceAsync(item, project, ct);
         var result = await executor.RunAsync(AgentRole.Qa, PromptBuilder.Qa(item, project), ws.Path, project.Id, demand.Id, item.Id,
             json => Task.FromResult(OutputParsers.ParseQa(json)), ct);
         if (result.Outcome == ExecOutcome.Cancelled) return StepResult.Stop;
@@ -153,7 +177,7 @@ public partial class WorkItemProcessor(
 
     // ------------------------------------------------------------------ validações com git
 
-    private async Task<Parsed<DevReport>> ParseDevAsync(string? json, string workspacePath, string baseBranch, CancellationToken ct)
+    private async Task<Parsed<DevReport>> ParseDevAsync(string? json, string workspacePath, string baseCommit, CancellationToken ct)
     {
         var parsed = OutputParsers.ParseDev(json);
         if (!parsed.Ok) return parsed;
@@ -164,8 +188,8 @@ public partial class WorkItemProcessor(
         {
             await GitCli.RunAsync(launcher, workspacePath, ["cat-file", "-e", hash + "^{commit}"], ct);
             await GitCli.RunAsync(launcher, workspacePath, ["merge-base", "--is-ancestor", hash, "HEAD"], ct);
-            var ahead = await GitCli.RunAsync(launcher, workspacePath, ["rev-list", "--count", $"origin/{baseBranch}..HEAD"], ct);
-            if (ahead.Trim() == "0") return Parsed<DevReport>.Fail("O branch não tem nenhum commit novo em relação ao branch base.");
+            var ahead = await GitCli.RunAsync(launcher, workspacePath, ["rev-list", "--count", $"{baseCommit}..HEAD"], ct);
+            if (ahead.Trim() == "0") return Parsed<DevReport>.Fail("O branch não tem nenhum commit novo da tarefa (depois do ponto de partida).");
         }
         catch (GitException)
         {
@@ -174,11 +198,12 @@ public partial class WorkItemProcessor(
         return parsed;
     }
 
-    private async Task<string> DiffAsync(string workspacePath, string baseBranch, CancellationToken ct)
+    /// <summary>O que a tarefa mudou: do ponto de partida (base + dependências) até o HEAD do worktree.</summary>
+    private async Task<string> DiffAsync(string workspacePath, string baseCommit, CancellationToken ct)
     {
         try
         {
-            var diff = await GitCli.RunAsync(launcher, workspacePath, ["diff", $"origin/{baseBranch}...HEAD"], ct);
+            var diff = await GitCli.RunAsync(launcher, workspacePath, ["diff", baseCommit, "HEAD"], ct);
             return diff.Length <= MaxDiffChars ? diff : diff[..MaxDiffChars] + "\n… (diff truncado; use git diff para ver o resto)";
         }
         catch (GitException ex)

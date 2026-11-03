@@ -1,5 +1,6 @@
 using AgentForge.Domain;
 using AgentForge.Orchestrator.Workflow;
+using AgentForge.Orchestrator.Workspaces;
 using Microsoft.EntityFrameworkCore;
 
 namespace AgentForge.Tests;
@@ -303,6 +304,56 @@ public sealed class OrchestratorTests(PostgresFixture pg) : IAsyncLifetime
         Assert.Equal(1, (await Item(h, demand.Id)).ReworkCount);   // as duas revisões juntas contam como 1 retorno
     }
 
+    [PosixFact]
+    public async Task Dependent_task_builds_on_its_dependency_and_reviewers_see_only_its_own_diff()
+    {
+        var h = await StartAsync();
+        h.Adapter.PlanJson = """{"tasks":[{"key":"a","title":"Tarefa A","dependsOn":[]},{"key":"b","title":"Tarefa B","dependsOn":["a"]}]}""";
+        var (project, demand) = await h.CreateDemandAsync(_origin, autoMode: true);
+        await h.WithActions(x => x.StartDemandAsync(demand.Id));
+
+        Assert.True(await h.UntilItems(demand.Id, i => i.Count == 2 && i.All(x => x.State == WorkItemState.Done)));
+
+        var a = await Item(h, demand.Id, "Tarefa A");
+        var b = await Item(h, demand.Id, "Tarefa B");
+        var repo = $"{Repos}/{project.Id}/repo";
+        var treeB = await GitCli.RunAsync(repo, ["ls-tree", "-r", "--name-only", b.BranchName!], default);
+        Assert.Contains("dev-TarefaA-", treeB);   // o branch de B nasceu com o trabalho de A
+        Assert.Contains("dev-TarefaB-", treeB);
+
+        Assert.Equal((await GitCli.RunAsync(repo, ["rev-parse", "origin/main"], default)).Trim(), a.BaseCommit);
+        Assert.NotEqual(a.BaseCommit, b.BaseCommit);
+
+        // o Tech Lead de B recebe só o diff de B (o de A não entra), e o Dev de B foi avisado de que o código já está lá
+        var tlPrompts = h.Adapter.Requests.Where(r => r.Role == AgentRole.TechLead).Select(r => r.Prompt).ToList();
+        var forB = tlPrompts.Single(p => p.Contains("Tarefa B"));
+        Assert.Contains("dev-TarefaB-", forB);
+        Assert.DoesNotContain("dev-TarefaA-", forB);
+        Assert.Contains("JÁ ESTÁ no seu branch", h.Adapter.Requests.Single(r => r.Role == AgentRole.Dev && r.Prompt.Contains("Tarefa: Tarefa B")).Prompt);
+    }
+
+    [PosixFact]
+    public async Task Conflicting_dependencies_block_the_dependent_task_with_a_clear_reason()
+    {
+        var h = await StartAsync();
+        h.Adapter.PlanJson = """{"tasks":[{"key":"a","title":"Tarefa A","dependsOn":[]},{"key":"b","title":"Tarefa B","dependsOn":[]},{"key":"c","title":"Tarefa C","dependsOn":["a","b"]}]}""";
+        // A e B escrevem o mesmo arquivo com conteúdos diferentes: C não consegue combiná-los
+        h.Adapter.DevShell = req =>
+        {
+            var slug = new string(req.Prompt.Split('\n')[0].Where(char.IsLetterOrDigit).ToArray());
+            return $$"""echo "conteudo-{{slug}}" > mesmo.txt; git add -A; git commit -qm dev; H=$(git rev-parse HEAD); printf 'result:{"summary":"ok","files":["mesmo.txt"],"commit":"%s"}\n' "$H" """;
+        };
+        var (_, demand) = await h.CreateDemandAsync(_origin, autoMode: true);
+        await h.WithActions(x => x.StartDemandAsync(demand.Id));
+
+        Assert.True(await h.UntilItems(demand.Id, i => i.Count == 3 && i.Single(x => x.Title == "Tarefa C").State == WorkItemState.Blocked));
+
+        var c = await Item(h, demand.Id, "Tarefa C");
+        Assert.Contains("Conflito", c.BlockedReason);
+        Assert.Equal(WorkItemState.Done, (await Item(h, demand.Id, "Tarefa A")).State);
+        Assert.Equal(WorkItemState.Done, (await Item(h, demand.Id, "Tarefa B")).State);
+        Assert.Equal(0, h.Adapter.Requests.Count(r => r.Role == AgentRole.Dev && r.Prompt.Contains("Tarefa: Tarefa C")));   // nenhum agente rodou
+    }
     [PosixFact]
     public async Task Dependent_task_waits_for_its_dependency_even_after_plan_approval()
     {

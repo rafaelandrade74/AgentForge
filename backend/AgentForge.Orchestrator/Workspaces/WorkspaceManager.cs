@@ -16,21 +16,33 @@ public class WorkspaceOptions
     public string Root { get; set; } = "/data/repos";
 }
 
-public record Workspace(string Path, string Branch);
+/// <param name="BaseCommit">Commit de onde o trabalho da tarefa começa (o base, mais o trabalho das dependências já combinado).</param>
+public record Workspace(string Path, string Branch, string BaseCommit);
+
+/// <summary>Não foi possível montar o workspace (ex.: conflito ao combinar o trabalho das dependências).</summary>
+public class WorkspaceException(string message) : Exception(message);
 
 public interface IWorkspaceManager
 {
     /// <summary>Clona o repositório do projeto na primeira vez; nas seguintes, só atualiza (fetch).</summary>
     Task<string> EnsureRepositoryAsync(Project project, CancellationToken ct);
 
-    /// <summary>Cria (ou reaproveita, em retrabalho) o worktree da tarefa no branch agentforge/task-&lt;id&gt;.</summary>
-    Task<Workspace> CreateWorktreeAsync(Project project, Guid workItemId, CancellationToken ct);
+    /// <summary>
+    /// Cria (ou reaproveita, em retrabalho) o worktree da tarefa no branch agentforge/task-&lt;id&gt;. Uma tarefa nova nasce
+    /// do branch base e **combina o trabalho das dependências** (os branches delas, já concluídas), para enxergar o código
+    /// que depende; conflito aborta a criação (nada fica para trás) com <see cref="WorkspaceException"/>.
+    /// </summary>
+    Task<Workspace> CreateWorktreeAsync(Project project, Guid workItemId, CancellationToken ct,
+        IReadOnlyList<Guid>? dependsOn = null, string? baseCommit = null);
 
     /// <summary>Remove o worktree. O branch é mantido (guarda o trabalho para o merge), salvo se deleteBranch.</summary>
     Task RemoveWorktreeAsync(Project project, Guid workItemId, bool deleteBranch, CancellationToken ct);
 
-    /// <summary>Diff do branch da tarefa contra o branch base (vazio se o branch ainda não existe).</summary>
-    Task<string> GetDiffAsync(Project project, Guid workItemId, CancellationToken ct);
+    /// <summary>
+    /// Diff do que a tarefa mudou: do <paramref name="baseCommit"/> (se informado) ou do branch base até o branch da tarefa.
+    /// Vazio se o branch ainda não existe.
+    /// </summary>
+    Task<string> GetDiffAsync(Project project, Guid workItemId, CancellationToken ct, string? baseCommit = null);
 }
 
 /// <summary>
@@ -96,25 +108,63 @@ public class WorkspaceManager(IOptions<WorkspaceOptions> options, IProcessLaunch
         return repo;
     }
 
-    public Task<Workspace> CreateWorktreeAsync(Project project, Guid workItemId, CancellationToken ct) =>
+    public Task<Workspace> CreateWorktreeAsync(Project project, Guid workItemId, CancellationToken ct,
+        IReadOnlyList<Guid>? dependsOn = null, string? baseCommit = null) =>
         LockedAsync(project, ct, async () =>
         {
             var repo = await EnsureCoreAsync(project, ct);
             var branch = BranchName(workItemId);
             var dir = WorktreePath(project, workItemId);
 
-            if (await launcher.DirectoryExistsAsync(dir, ct)) return new Workspace(dir, branch);
+            // retrabalho / retomada: o worktree (ou o branch) já existe com o trabalho feito
+            if (await launcher.DirectoryExistsAsync(dir, ct))
+                return new Workspace(dir, branch, baseCommit ?? await MergeBaseAsync(repo, project, branch, ct));
 
             await launcher.CreateDirectoryAsync(Parent(dir), ct);
             await Git(repo, ["worktree", "prune"], ct);
-            var branchExists = await BranchExistsAsync(repo, branch, ct);
-            string[] args = branchExists
-                ? ["worktree", "add", dir, branch]
-                : ["worktree", "add", "-b", branch, dir, $"origin/{project.BaseBranch}"];
-            await Git(repo, args, ct);
-            return new Workspace(dir, branch);
+            if (await BranchExistsAsync(repo, branch, ct))
+            {
+                await Git(repo, ["worktree", "add", dir, branch], ct);
+                return new Workspace(dir, branch, baseCommit ?? await MergeBaseAsync(repo, project, branch, ct));
+            }
+
+            await Git(repo, ["worktree", "add", "-b", branch, dir, $"origin/{project.BaseBranch}"], ct);
+            try
+            {
+                foreach (var dependency in dependsOn ?? [])
+                    await MergeDependencyAsync(repo, dir, dependency, ct);
+            }
+            catch (WorkspaceException)
+            {
+                // não deixa worktree nem branch pela metade: a próxima tentativa começa limpa
+                await Git(repo, ["worktree", "remove", "--force", dir], CancellationToken.None);
+                await Git(repo, ["branch", "-D", branch], CancellationToken.None);
+                throw;
+            }
+
+            return new Workspace(dir, branch, (await Git(dir, ["rev-parse", "HEAD"], ct)).Trim());
         });
 
+    private async Task MergeDependencyAsync(string repo, string dir, Guid dependencyId, CancellationToken ct)
+    {
+        var dependencyBranch = BranchName(dependencyId);
+        if (!await BranchExistsAsync(repo, dependencyBranch, ct))
+            throw new WorkspaceException($"O branch da dependência ({dependencyBranch}) não existe mais; não dá para partir do trabalho dela.");
+        try
+        {
+            await Git(dir, ["merge", "--no-edit", dependencyBranch], ct);
+        }
+        catch (GitException)
+        {
+            try { await Git(dir, ["merge", "--abort"], CancellationToken.None); } catch (GitException) { }
+            throw new WorkspaceException(
+                $"Conflito ao combinar o trabalho da dependência ({dependencyBranch}) com o branch base: resolva manualmente ou ajuste o plano.");
+        }
+    }
+
+    /// <summary>Ponto de partida de um branch criado antes do BaseCommit existir: onde ele se separa do branch base.</summary>
+    private async Task<string> MergeBaseAsync(string repo, Project project, string branch, CancellationToken ct) =>
+        (await Git(repo, ["merge-base", $"origin/{project.BaseBranch}", branch], ct)).Trim();
     public Task RemoveWorktreeAsync(Project project, Guid workItemId, bool deleteBranch, CancellationToken ct) =>
         LockedAsync(project, ct, async () =>
         {
@@ -134,7 +184,7 @@ public class WorkspaceManager(IOptions<WorkspaceOptions> options, IProcessLaunch
 
     public const int MaxDiffChars = 500_000;
 
-    public async Task<string> GetDiffAsync(Project project, Guid workItemId, CancellationToken ct)
+    public async Task<string> GetDiffAsync(Project project, Guid workItemId, CancellationToken ct, string? baseCommit = null)
     {
         var repo = RepoPath(project);
         if (!await HasRepoAsync(repo, ct)) return "";
@@ -142,7 +192,9 @@ public class WorkspaceManager(IOptions<WorkspaceOptions> options, IProcessLaunch
         if (!await BranchExistsAsync(repo, branch, ct)) return "";
         try
         {
-            var diff = await Git(repo, ["diff", $"origin/{project.BaseBranch}...{branch}"], ct);
+            var diff = await Git(repo, baseCommit is null
+                ? ["diff", $"origin/{project.BaseBranch}...{branch}"]
+                : ["diff", baseCommit, branch], ct);
             return diff.Length <= MaxDiffChars ? diff : diff[..MaxDiffChars] + "\n… (diff truncado)";
         }
         catch (GitException ex)

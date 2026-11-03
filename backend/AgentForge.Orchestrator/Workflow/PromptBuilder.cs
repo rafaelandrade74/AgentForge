@@ -11,6 +11,9 @@ public static class PromptBuilder
         {"tasks":[{"key":"t1","title":"...","description":"...","acceptanceCriteria":["..."],"dependsOn":[],"estimate":3}]}
         - "key" é um identificador curto e único; "dependsOn" lista as keys das tarefas que precisam estar prontas antes.
         - Tarefas pequenas e independentes sempre que possível; sem ciclos de dependência; no máximo 30 tarefas.
+        - Declare em "dependsOn" TODA tarefa cujo trabalho usa, testa ou documenta o código de outra: o branch da tarefa dependente
+          já nasce com o trabalho das dependências, então ela não deve reimplementar o que a outra entrega. Duas tarefas que
+          alteram as mesmas linhas não devem ser independentes.
         """;
 
     private const string DevFormat = """
@@ -51,7 +54,9 @@ public static class PromptBuilder
         if (!string.IsNullOrWhiteSpace(project.BuildCommand)) sb.AppendLine($"Build: {project.BuildCommand}");
         if (!string.IsNullOrWhiteSpace(project.TestCommand)) sb.AppendLine($"Testes: {project.TestCommand}");
         var deps = dependencyTitles.ToList();
-        if (deps.Count > 0) sb.AppendLine("Tarefas anteriores já concluídas (contexto): " + string.Join("; ", deps));
+        if (deps.Count > 0)
+            sb.AppendLine("Tarefas das quais esta depende, já concluídas: " + string.Join("; ", deps) +
+                          ". O código delas JÁ ESTÁ no seu branch: use-o e não o reimplemente.");
 
         if (openFindings.Count > 0)
         {
@@ -70,7 +75,7 @@ public static class PromptBuilder
         Critérios de aceite:
         {item.AcceptanceCriteria}
 
-        Diff do branch contra {project.BaseBranch} (use git para ver mais contexto se precisar):
+        Diff do que ESTA tarefa mudou (o trabalho das tarefas das quais ela depende já faz parte do ponto de partida do branch; use git para ver mais contexto):
         ```diff
         {diff}
         ```
@@ -83,7 +88,7 @@ public static class PromptBuilder
 
         Tarefa: {item.Title}
 
-        Diff do branch contra {project.BaseBranch}:
+        Diff do que ESTA tarefa mudou (sem o trabalho das dependências):
         ```diff
         {diff}
         ```

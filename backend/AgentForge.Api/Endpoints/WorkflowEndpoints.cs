@@ -26,7 +26,7 @@ public static class WorkflowEndpoints
                 if (item is null) return Results.NotFound();
                 var project = await db.Projects.AsNoTracking()
                     .FirstAsync(p => p.Id == db.Demands.First(d => d.Id == item.DemandId).ProjectId, ct);
-                return Results.Text(await workspaces.GetDiffAsync(project, id, ct), "text/plain; charset=utf-8");
+                return Results.Text(await workspaces.GetDiffAsync(project, id, ct, item.BaseCommit), "text/plain; charset=utf-8");
             })
             .WithSummary("Diff do branch da tarefa contra o branch base (texto).");
         items.MapPost("/{id:guid}/approve", async (Guid id, WorkflowActions a) => Reply(await a.ApproveAsync(id)))

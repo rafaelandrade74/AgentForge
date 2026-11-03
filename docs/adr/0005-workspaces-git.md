@@ -14,3 +14,12 @@
 - A imagem da API agora instala `git` e `/data/repos` pertence ao usuário da API (não root). Um volume `repos` criado antes dessa mudança continua com dono root: remova-o (`docker volume rm agentforge_repos`).
 - Repositórios privados ainda não têm autenticação: ficará para a Fase 8 (montar credenciais/chave SSH no container).
 - O orquestrador (Fase 5) chama `CreateWorktreeAsync` ao iniciar a tarefa, grava `WorkItem.BranchName` e chama `RemoveWorktreeAsync` ao terminar ou cancelar.
+
+## Atualização — tarefas dependentes (ADR 0011)
+Um worktree novo nasce de `origin/<base>` e **combina o branch de cada dependência** (`git merge --no-edit`, todas já em Done e
+com o branch mantido). Cada branch de dependência já carrega o trabalho das suas, então a cadeia 1 → 2 → 3 funciona só com as
+dependências diretas. Conflito (ou branch de dependência ausente) aborta: o worktree e o branch recém-criados são removidos e o
+`WorkspaceManager` lança `WorkspaceException`; o orquestrador bloqueia a tarefa com o motivo, sem rodar nenhum agente.
+O ponto de partida resultante é guardado em `WorkItem.BaseCommit` (migration `AddWorkItemBaseCommit`) e usado para:
+o diff das revisões e da tela (`git diff <BaseCommit> HEAD`, só o que a tarefa mudou), e a conferência do commit do Dev
+(deve haver commit novo depois do ponto de partida). Branches criados antes do campo existir voltam ao ponto de separação do base.

@@ -3,6 +3,7 @@ using System.Text.Json.Serialization;
 using AgentForge.Api.Endpoints;
 using AgentForge.Infrastructure.Auth;
 using AgentForge.Infrastructure.Persistence;
+using AgentForge.Orchestrator;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -38,6 +39,7 @@ builder.Services.AddOptions<AuthOptions>()
     .Validate(o => o.JwtSecret.Length >= 32, "Auth:JwtSecret deve ter ao menos 32 caracteres.")
     .Validate(o => !string.IsNullOrWhiteSpace(o.AdminPassword), "Auth:AdminPassword é obrigatório.")
     .ValidateOnStart();
+builder.Services.AddAgentRunner();
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<AdminCredentials>();
 builder.Services.AddScoped<AuthService>();

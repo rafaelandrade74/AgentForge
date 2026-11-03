@@ -20,13 +20,14 @@ Aplicação web auto-hospedada (homelab) que orquestra o ciclo de desenvolviment
 Transições válidas ficam em tabela no código (`WorkflowDefinition`). Revisão reprovada devolve ao Dev com os apontamentos; no terceiro retorno vai para Blocked. Dependências só liberam a tarefa quando estão em Done.
 
 ## Fases (executar uma por vez; parar para validação; commit `fase-N: <resumo>`)
-0 Fundação do repositório (feita) · 1 Autenticação (feita) · 2 Domínio (feita) e persistência (EF Core, CRUD, Swagger) · 3 CliAgentRunner e ClaudeCodeAdapter · 4 Workspaces Git · 5 Orquestrador · 6 Tempo real (SignalR `/hubs/runs`) · 7 Interface web · 8 Deploy homelab · 9 Validação ponta a ponta.
+0 Fundação do repositório (feita) · 1 Autenticação (feita) · 2 Domínio (feita) · 3 CliAgentRunner (feita; ver ADR 0004) e persistência (EF Core, CRUD, Swagger) · 3 CliAgentRunner e ClaudeCodeAdapter · 4 Workspaces Git · 5 Orquestrador · 6 Tempo real (SignalR `/hubs/runs`) · 7 Interface web · 8 Deploy homelab · 9 Validação ponta a ponta.
 
 ## Regras
 Siga as fases em ordem; não pule critérios de aceite; código simples e testável; registre decisões em `docs/adr/`; pergunte antes de adicionar dependências fora da stack.
 
 ## Comandos
 - Testes backend (precisam do Docker para o Postgres via Testcontainers; o TestServer 8 quebra no runtime 10, então rode no SDK 8): `docker run --rm -v "${PWD}/backend:/src" -v //var/run/docker.sock:/var/run/docker.sock -e TESTCONTAINERS_HOST_OVERRIDE=host.docker.internal -e TESTCONTAINERS_RYUK_DISABLED=true -w /src mcr.microsoft.com/dotnet/sdk:8.0 dotnet test -o /tmp/out`
+- Teste real do Claude (gasta créditos): `AGENTFORGE_CLAUDE_INTEGRATION=1` + `AGENTFORGE_TEST_DB=<postgres>` e `dotnet test --filter Real_claude` (com `DOTNET_ROLL_FORWARD=Major` no SDK 10).
 - Nova migration: `dotnet ef migrations add <Nome> --project backend/AgentForge.Infrastructure --output-dir Persistence/Migrations` (com `DOTNET_ROLL_FORWARD=Major` se só houver o SDK 10). Swagger em `/swagger`.
 - Se mudar `POSTGRES_PASSWORD` depois do primeiro start, recrie o volume (`docker compose down -v`): o Postgres só lê a senha ao inicializar.
 - Testes frontend: `cd frontend; ng test --watch=false --browsers=ChromeHeadless` (defina `CHROME_BIN` se não houver Chrome)

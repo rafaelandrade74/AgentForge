@@ -26,5 +26,7 @@ Transições válidas ficam em tabela no código (`WorkflowDefinition`). Revisã
 Siga as fases em ordem; não pule critérios de aceite; código simples e testável; registre decisões em `docs/adr/`; pergunte antes de adicionar dependências fora da stack.
 
 ## Comandos
-- Testes backend (máquina só com SDK 10): `$env:DOTNET_ROLL_FORWARD='Major'; dotnet test backend`
+- Testes backend (máquina só com SDK 10; o TestServer 8 quebra no runtime 10, então use Docker): `docker run --rm -v "${PWD}/backend:/src" -w /src mcr.microsoft.com/dotnet/sdk:8.0 dotnet test -o /tmp/out`
+- Testes frontend: `cd frontend; ng test --watch=false --browsers=ChromeHeadless` (defina `CHROME_BIN` se não houver Chrome)
+- Auth (Fase 1): usuário admin e JWT vêm de `ADMIN_USERNAME`, `ADMIN_PASSWORD`, `JWT_SECRET` no `.env`; refresh tokens ficam em memória até a Fase 2 trazer o banco
 - Subir tudo: `cp .env.example .env && docker compose up --build` (front em http://localhost:8080)

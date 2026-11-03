@@ -1,7 +1,7 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
-import { Observable, finalize, map, shareReplay, tap } from 'rxjs';
+import { Observable, finalize, firstValueFrom, map, shareReplay, tap } from 'rxjs';
 
 interface TokenPair {
   accessToken: string;
@@ -49,6 +49,31 @@ export class AuthService {
         shareReplay(1),
       );
     return this.refreshing$;
+  }
+
+  /** Token de acesso válido para abrir/reabrir a conexão do SignalR: renova antes se estiver para vencer. */
+  async freshAccessToken(): Promise<string> {
+    const current = this.tokens();
+    if (!current) return '';
+    const expiresAt = Date.parse(current.expiresAtUtc);
+    if (Number.isNaN(expiresAt) || expiresAt - Date.now() > 30_000) return current.accessToken;
+    try {
+      return await firstValueFrom(this.refresh());
+    } catch {
+      this.logout();
+      return '';
+    }
+  }
+
+  username(): string | null {
+    const token = this.accessToken;
+    if (!token) return null;
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
+      return payload.sub ?? payload.unique_name ?? null;
+    } catch {
+      return null;
+    }
   }
 
   logout(returnUrl?: string): void {

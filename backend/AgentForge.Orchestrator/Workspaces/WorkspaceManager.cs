@@ -24,6 +24,9 @@ public interface IWorkspaceManager
 
     /// <summary>Remove o worktree. O branch é mantido (guarda o trabalho para o merge), salvo se deleteBranch.</summary>
     Task RemoveWorktreeAsync(Project project, Guid workItemId, bool deleteBranch, CancellationToken ct);
+
+    /// <summary>Diff do branch da tarefa contra o branch base (vazio se o branch ainda não existe).</summary>
+    Task<string> GetDiffAsync(Project project, Guid workItemId, CancellationToken ct);
 }
 
 /// <summary>
@@ -119,6 +122,25 @@ public class WorkspaceManager(IOptions<WorkspaceOptions> options) : IWorkspaceMa
                 await GitCli.RunAsync(repo, ["branch", "-D", branch], ct);
             return true;
         });
+
+    public const int MaxDiffChars = 500_000;
+
+    public async Task<string> GetDiffAsync(Project project, Guid workItemId, CancellationToken ct)
+    {
+        var repo = RepoPath(project);
+        if (!Directory.Exists(Path.Combine(repo, ".git"))) return "";
+        var branch = BranchName(workItemId);
+        if (!await BranchExistsAsync(repo, branch, ct)) return "";
+        try
+        {
+            var diff = await GitCli.RunAsync(repo, ["diff", $"origin/{project.BaseBranch}...{branch}"], ct);
+            return diff.Length <= MaxDiffChars ? diff : diff[..MaxDiffChars] + "\n… (diff truncado)";
+        }
+        catch (GitException ex)
+        {
+            return $"(não foi possível gerar o diff: {ex.Message})";
+        }
+    }
 
     private static async Task<bool> BranchExistsAsync(string repo, string branch, CancellationToken ct)
     {

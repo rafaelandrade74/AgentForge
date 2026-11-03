@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace AgentForge.Tests;
 
@@ -98,6 +99,63 @@ public class CrudApiTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.BadRequest, self.StatusCode);
         Assert.Equal(HttpStatusCode.NoContent, delA.StatusCode);
         Assert.Equal(0, afterDel.GetProperty("dependsOnIds").GetArrayLength());
+    }
+
+    [Fact]
+    public async Task WorkItems_can_be_listed_by_project()
+    {
+        var p1 = await NewProject();
+        var p2 = await NewProject();
+        var d1 = await CreateAsync("/api/demands", new { projectId = p1, title = "D1" });
+        var d2 = await CreateAsync("/api/demands", new { projectId = p2, title = "D2" });
+        await CreateAsync("/api/work-items", new { demandId = d1, title = "do projeto 1" });
+        await CreateAsync("/api/work-items", new { demandId = d2, title = "do projeto 2" });
+
+        var list = await _http.GetFromJsonAsync<JsonElement>($"/api/work-items?projectId={p1}");
+
+        Assert.Equal(1, list.GetArrayLength());
+        Assert.Equal("do projeto 1", list[0].GetProperty("title").GetString());
+    }
+
+    [Fact]
+    public async Task Agent_run_list_is_lightweight_and_full_run_is_by_id()
+    {
+        var project = await NewProject();
+        var demand = await CreateAsync("/api/demands", new { projectId = project, title = "D" });
+        Guid runId;
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AgentForge.Infrastructure.Persistence.AppDbContext>();
+            var run = new AgentForge.Domain.AgentRun { DemandId = demand, Role = AgentForge.Domain.AgentRole.ScrumMaster, Prompt = "PROMPT", Output = "SAIDA", CostUsd = 0.5m };
+            db.AgentRuns.Add(run);
+            await db.SaveChangesAsync();
+            runId = run.Id;
+        }
+
+        var list = await _http.GetFromJsonAsync<JsonElement>($"/api/agent-runs?demandId={demand}");
+        var full = await _http.GetFromJsonAsync<JsonElement>($"/api/agent-runs/{runId}");
+
+        Assert.Equal(1, list.GetArrayLength());
+        Assert.False(list[0].TryGetProperty("prompt", out _));
+        Assert.False(list[0].TryGetProperty("output", out _));
+        Assert.Equal(0.5m, list[0].GetProperty("costUsd").GetDecimal());
+        Assert.Equal("SAIDA", full.GetProperty("output").GetString());
+    }
+
+    [Fact]
+    public async Task Work_item_diff_endpoint_returns_text_or_404()
+    {
+        var project = await NewProject();
+        var demand = await CreateAsync("/api/demands", new { projectId = project, title = "D" });
+        var item = await CreateAsync("/api/work-items", new { demandId = demand, title = "A" });
+
+        var ok = await _http.GetAsync($"/api/work-items/{item}/diff");
+        var missing = await _http.GetAsync($"/api/work-items/{Guid.NewGuid()}/diff");
+
+        Assert.Equal(HttpStatusCode.OK, ok.StatusCode);
+        Assert.Equal("text/plain", ok.Content.Headers.ContentType!.MediaType);
+        Assert.Equal("", await ok.Content.ReadAsStringAsync());
+        Assert.Equal(HttpStatusCode.NotFound, missing.StatusCode);
     }
 
     [Fact]

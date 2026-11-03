@@ -143,6 +143,25 @@ public sealed class WorkspaceManagerTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Diff_shows_the_task_branch_against_base_even_after_the_worktree_is_removed()
+    {
+        var id = Guid.NewGuid();
+        Assert.Equal("", await _manager.GetDiffAsync(_project, id, default));   // sem clone ainda
+
+        var ws = await _manager.CreateWorktreeAsync(_project, id, default);
+        Assert.Equal("", await _manager.GetDiffAsync(_project, id, default));   // branch sem mudanças
+        await CommitAsync(ws, "novo.txt", "conteudo novo\n");
+
+        var diff = await _manager.GetDiffAsync(_project, id, default);
+        Assert.Contains("+++ b/novo.txt", diff);
+        Assert.Contains("+conteudo novo", diff);
+
+        await _manager.RemoveWorktreeAsync(_project, id, deleteBranch: false, default);
+        Assert.Contains("+++ b/novo.txt", await _manager.GetDiffAsync(_project, id, default));
+        Assert.Equal("", await _manager.GetDiffAsync(_project, Guid.NewGuid(), default));
+    }
+
+    [Fact]
     public async Task Removing_something_that_does_not_exist_is_a_noop()
     {
         await _manager.RemoveWorktreeAsync(_project, Guid.NewGuid(), true, default);

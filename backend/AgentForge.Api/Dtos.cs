@@ -19,6 +19,10 @@ public record WorkItemDto(Guid Id, Guid DemandId, string Title, string Descripti
 public record AgentRunDto(Guid Id, Guid? DemandId, Guid? WorkItemId, AgentRole Role, string Prompt, string Output,
     decimal CostUsd, long DurationMs, AgentRunStatus Status, DateTime StartedAt, DateTime? FinishedAt);
 
+/// <summary>Versão leve para listas e timelines: sem prompt e sem saída (GET por id traz tudo).</summary>
+public record AgentRunSummaryDto(Guid Id, Guid? DemandId, Guid? WorkItemId, AgentRole Role, decimal CostUsd,
+    long DurationMs, AgentRunStatus Status, DateTime StartedAt, DateTime? FinishedAt);
+
 public record ReviewFindingInput(Guid WorkItemId, AgentRole Role, FindingSeverity Severity, string Message,
     string? File = null, int? Line = null, Guid? AgentRunId = null, bool Resolved = false);
 public record ReviewFindingDto(Guid Id, Guid WorkItemId, Guid? AgentRunId, AgentRole Role, FindingSeverity Severity,

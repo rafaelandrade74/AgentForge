@@ -121,9 +121,10 @@ public static class CrudEndpoints
 
     private static void MapWorkItems(RouteGroupBuilder g)
     {
-        g.MapGet("/", async (Guid? demandId, WorkItemState? state, AppDbContext db) =>
+        g.MapGet("/", async (Guid? demandId, Guid? projectId, WorkItemState? state, AppDbContext db) =>
             (await db.WorkItems.Include(w => w.Dependencies)
-                .Where(w => (demandId == null || w.DemandId == demandId) && (state == null || w.State == state))
+                .Where(w => (demandId == null || w.DemandId == demandId) && (state == null || w.State == state)
+                            && (projectId == null || db.Demands.Any(d => d.Id == w.DemandId && d.ProjectId == projectId)))
                 .OrderBy(w => w.CreatedAt).ToListAsync()).Select(ToDto));
         g.MapGet("/{id:guid}", async (Guid id, AppDbContext db) =>
             await db.WorkItems.Include(w => w.Dependencies).FirstOrDefaultAsync(w => w.Id == id) is { } w
@@ -175,7 +176,10 @@ public static class CrudEndpoints
         g.MapGet("/", async (Guid? workItemId, Guid? demandId, AppDbContext db) =>
             (await db.AgentRuns
                 .Where(r => (workItemId == null || r.WorkItemId == workItemId) && (demandId == null || r.DemandId == demandId))
-                .OrderByDescending(r => r.StartedAt).ToListAsync()).Select(ToDto));
+                .OrderBy(r => r.StartedAt)
+                .Select(r => new { r.Id, r.DemandId, r.WorkItemId, r.Role, r.CostUsd, r.DurationMs, r.Status, r.StartedAt, r.FinishedAt })
+                .ToListAsync())
+            .Select(r => new AgentRunSummaryDto(r.Id, r.DemandId, r.WorkItemId, r.Role, r.CostUsd, r.DurationMs, r.Status, r.StartedAt, r.FinishedAt)));
         g.MapGet("/{id:guid}", async (Guid id, AppDbContext db) =>
             await db.AgentRuns.FindAsync(id) is { } r ? Results.Ok(ToDto(r)) : Results.NotFound());
     }

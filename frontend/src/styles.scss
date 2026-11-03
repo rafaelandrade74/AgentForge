@@ -1,2 +1,40 @@
-:root { color-scheme: dark; }
-body { margin: 0; background: #121212; color: #e6e6e6; font-family: system-ui, sans-serif; }
+@use '@angular/material' as mat;
+
+@include mat.core();
+
+$theme: mat.define-theme((
+  color: (theme-type: dark, primary: mat.$violet-palette),
+  typography: (plain-family: 'system-ui, -apple-system, Segoe UI, Roboto, sans-serif', brand-family: 'system-ui, sans-serif'),
+  density: (scale: 0),
+));
+
+html {
+  color-scheme: dark;
+  @include mat.all-component-themes($theme);
+  @include mat.system-level-colors($theme);
+  @include mat.system-level-typography($theme);
+}
+body {
+  margin: 0;
+  background: var(--mat-sys-surface, #121212);
+  color: var(--mat-sys-on-surface, #e6e6e6);
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}
+
+a { color: var(--mat-sys-primary, #b69df8); }
+
+/* utilitários usados pelas telas */
+.page { padding: 1rem 1.5rem; max-width: 1400px; margin: 0 auto; }
+.row { display: flex; gap: .75rem; align-items: center; flex-wrap: wrap; }
+.spacer { flex: 1; }
+.muted { color: var(--mat-sys-on-surface-variant, #aaa); }
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+pre.block { margin: 0; padding: .75rem; background: #0d0d0d; border-radius: 6px; overflow: auto; max-height: 28rem; white-space: pre-wrap; word-break: break-word; font-size: .8rem; }
+
+/* selos de estado */
+.badge { display: inline-block; padding: .1rem .55rem; border-radius: 999px; font-size: .75rem; background: #333; color: #ddd; white-space: nowrap; }
+.badge.ok { background: #1f4d2b; color: #b7f0c4; }
+.badge.warn { background: #5a4a14; color: #ffe08a; }
+.badge.bad { background: #5c1f1f; color: #ffb4b4; }
+.badge.info { background: #1f3a5c; color: #b4d4ff; }
+.badge.idle { background: #333; color: #ccc; }

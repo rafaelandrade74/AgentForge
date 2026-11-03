@@ -1,31 +1,28 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
-using Microsoft.AspNetCore.Mvc.Testing;
 
 namespace AgentForge.Tests;
 
-public class AuthTests : IClassFixture<AuthTests.Factory>
+[Collection(PostgresCollection.Name)]
+public class AuthTests : IDisposable
 {
-    public class Factory : WebApplicationFactory<Program>
-    {
-        protected override void ConfigureWebHost(Microsoft.AspNetCore.Hosting.IWebHostBuilder builder)
-        {
-            builder.UseSetting("Auth:JwtSecret", new string('k', 40));
-            builder.UseSetting("Auth:AdminUsername", "admin");
-            builder.UseSetting("Auth:AdminPassword", "s3nha-de-teste");
-        }
-    }
-
     private record Tokens(string AccessToken, string RefreshToken);
 
+    private readonly ApiFactory _factory;
     private readonly HttpClient _client;
 
-    public AuthTests(Factory factory) => _client = factory.CreateClient();
+    public AuthTests(PostgresFixture pg)
+    {
+        _factory = new ApiFactory(pg.NewConnectionString());
+        _client = _factory.CreateClient();
+    }
+
+    public void Dispose() => _factory.Dispose();
 
     private async Task<Tokens> LoginAsync()
     {
-        var res = await _client.PostAsJsonAsync("/api/auth/login", new { username = "admin", password = "s3nha-de-teste" });
+        var res = await _client.PostAsJsonAsync("/api/auth/login", new { username = "admin", password = ApiFactory.AdminPassword });
         res.EnsureSuccessStatusCode();
         return (await res.Content.ReadFromJsonAsync<Tokens>())!;
     }

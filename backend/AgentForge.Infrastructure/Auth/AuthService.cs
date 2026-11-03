@@ -1,8 +1,10 @@
-using System.Collections.Concurrent;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
+using AgentForge.Domain;
+using AgentForge.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 
@@ -10,45 +12,41 @@ namespace AgentForge.Infrastructure.Auth;
 
 public record TokenPair(string AccessToken, string RefreshToken, DateTime ExpiresAtUtc);
 
-/// <summary>
-/// Usuário único semeado por variável de ambiente. O hash BCrypt é gerado no start;
-/// refresh tokens ficam em memória (rotacionados a cada uso) até a Fase 2 trazer o banco.
-/// </summary>
-public class AuthService
+/// <summary>Hash BCrypt do administrador semeado por variável de ambiente; calculado uma vez por processo.</summary>
+public class AdminCredentials(IOptions<AuthOptions> options)
 {
-    private record RefreshEntry(string Username, DateTime ExpiresAtUtc);
+    public string Username { get; } = options.Value.AdminUsername;
+    public string PasswordHash { get; } = BCrypt.Net.BCrypt.HashPassword(options.Value.AdminPassword);
+}
 
-    private readonly AuthOptions _options;
-    private readonly TimeProvider _time;
-    private readonly string _adminHash;
-    private readonly ConcurrentDictionary<string, RefreshEntry> _refreshTokens = new();
+/// <summary>Login e renovação de tokens. Refresh tokens ficam no banco (só o hash) e são rotacionados a cada uso.</summary>
+public class AuthService(IOptions<AuthOptions> options, AdminCredentials admin, AppDbContext db, TimeProvider time)
+{
+    private readonly AuthOptions _options = options.Value;
 
-    public AuthService(IOptions<AuthOptions> options, TimeProvider time)
-    {
-        _options = options.Value;
-        _time = time;
-        _adminHash = BCrypt.Net.BCrypt.HashPassword(_options.AdminPassword);
-    }
-
-    public TokenPair? Login(string username, string password)
+    public async Task<TokenPair?> LoginAsync(string username, string password, CancellationToken ct = default)
     {
         // Sempre verifica o hash, para não distinguir usuário inexistente por tempo de resposta.
-        var passwordOk = BCrypt.Net.BCrypt.Verify(password, _adminHash);
-        var userOk = string.Equals(username, _options.AdminUsername, StringComparison.Ordinal);
-        return passwordOk && userOk ? Issue(_options.AdminUsername) : null;
+        var passwordOk = BCrypt.Net.BCrypt.Verify(password, admin.PasswordHash);
+        var userOk = string.Equals(username, admin.Username, StringComparison.Ordinal);
+        return passwordOk && userOk ? await IssueAsync(admin.Username, ct) : null;
     }
 
-    public TokenPair? Refresh(string refreshToken)
+    public async Task<TokenPair?> RefreshAsync(string refreshToken, CancellationToken ct = default)
     {
-        var key = Hash(refreshToken);
-        if (!_refreshTokens.TryRemove(key, out var entry)) return null;
-        if (entry.ExpiresAtUtc <= _time.GetUtcNow().UtcDateTime) return null;
-        return Issue(entry.Username);
+        var hash = Hash(refreshToken);
+        var now = time.GetUtcNow().UtcDateTime;
+        // Remoção atômica: um refresh token só pode ser usado uma vez, mesmo com requisições concorrentes.
+        var entry = await db.RefreshTokens.Where(t => t.TokenHash == hash).FirstOrDefaultAsync(ct);
+        if (entry is null) return null;
+        var deleted = await db.RefreshTokens.Where(t => t.Id == entry.Id).ExecuteDeleteAsync(ct);
+        if (deleted == 0 || entry.ExpiresAtUtc <= now) return null;
+        return await IssueAsync(entry.Username, ct);
     }
 
-    private TokenPair Issue(string username)
+    private async Task<TokenPair> IssueAsync(string username, CancellationToken ct)
     {
-        var now = _time.GetUtcNow().UtcDateTime;
+        var now = time.GetUtcNow().UtcDateTime;
         var expires = now.AddMinutes(_options.AccessTokenMinutes);
 
         var credentials = new SigningCredentials(
@@ -63,7 +61,15 @@ public class AuthService
             signingCredentials: credentials);
 
         var refresh = Convert.ToBase64String(RandomNumberGenerator.GetBytes(48));
-        _refreshTokens[Hash(refresh)] = new RefreshEntry(username, now.AddDays(_options.RefreshTokenDays));
+        db.RefreshTokens.Add(new RefreshToken
+        {
+            TokenHash = Hash(refresh),
+            Username = username,
+            ExpiresAtUtc = now.AddDays(_options.RefreshTokenDays),
+        });
+        // Aproveita para limpar tokens vencidos.
+        await db.RefreshTokens.Where(t => t.ExpiresAtUtc <= now).ExecuteDeleteAsync(ct);
+        await db.SaveChangesAsync(ct);
 
         return new TokenPair(new JwtSecurityTokenHandler().WriteToken(jwt), refresh, expires);
     }

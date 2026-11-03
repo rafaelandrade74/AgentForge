@@ -7,6 +7,6 @@
 - Angular: `AuthService` (signals), `authGuard` com `returnUrl`, interceptor que anexa o token e, num 401, renova uma vez e repete; se falhar, volta ao login.
 
 ## Consequências
-- Refresh tokens ficam em memória: reiniciar a API desloga os usuários. Passam para o banco na Fase 2.
+- Refresh tokens começaram em memória e passaram para o banco na Fase 2 (ver ADR 0003).
 - Dependências novas (necessárias para o escopo da fase): `BCrypt.Net-Next`, `Microsoft.AspNetCore.Authentication.JwtBearer`, `System.IdentityModel.Tokens.Jwt`.
 - Tokens no `localStorage`: aceitável no MVP de usuário único em homelab; cookies HttpOnly ficam como evolução.

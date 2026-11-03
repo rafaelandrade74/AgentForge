@@ -22,6 +22,7 @@ services:
       Auth__JwtSecret: ${JWT_SECRET:?defina JWT_SECRET no .env}
     volumes:
       - repos:/data/repos
+      - ./prompts:/app/prompts:ro
     depends_on:
       db:
         condition: service_healthy

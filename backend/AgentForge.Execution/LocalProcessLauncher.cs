@@ -13,6 +13,12 @@ public sealed class LocalProcessLauncher : IProcessLauncher
     /// </summary>
     public IReadOnlyDictionary<string, string>? Executables { get; init; }
 
+    /// <summary>
+    /// Pasta da chave SSH gerada pelo AgentForge. Quando existe um id_ed25519 nela, todo `git` iniciado por este launcher usa
+    /// essa chave (e o known_hosts da pasta), sem tocar no ~/.ssh do usuário.
+    /// </summary>
+    public string? GitSshDirectory { get; init; }
+
     public string Mode => "local";
     public string Description => "neste computador/container";
 
@@ -29,7 +35,7 @@ public sealed class LocalProcessLauncher : IProcessLauncher
         Process process;
         try
         {
-            process = Process.Start(StartInfo(executable, spec.Arguments, spec.WorkingDirectory))
+            process = Process.Start(StartInfo(executable, spec.Arguments, spec.WorkingDirectory, GitSshDirectory))
                       ?? throw new ProcessStartException($"Não foi possível iniciar '{spec.Executable}'.");
         }
         catch (Win32Exception ex)
@@ -61,7 +67,7 @@ public sealed class LocalProcessLauncher : IProcessLauncher
         return Task.CompletedTask;
     }
 
-    public static ProcessStartInfo StartInfo(string executable, IEnumerable<string> args, string workingDirectory)
+    public static ProcessStartInfo StartInfo(string executable, IEnumerable<string> args, string workingDirectory, string? gitSshDirectory = null)
     {
         var psi = new ProcessStartInfo(executable)
         {
@@ -80,12 +86,23 @@ public sealed class LocalProcessLauncher : IProcessLauncher
         {
             psi.Environment["GIT_TERMINAL_PROMPT"] = "0";   // nunca fica preso pedindo credencial
             psi.Environment["LC_ALL"] = "C";                // mensagens previsíveis
+            if (gitSshDirectory is not null && GitSshCommand(gitSshDirectory) is { } ssh) psi.Environment["GIT_SSH_COMMAND"] = ssh;
         }
         // Compose repassa ANTHROPIC_API_KEY="" quando a chave não foi definida; um valor vazio não deve chegar ao CLI
         // (ele poderia tratá-lo como "chave definida" e não usar o login salvo).
         foreach (var key in psi.Environment.Where(e => e.Key.StartsWith("ANTHROPIC_", StringComparison.Ordinal) && string.IsNullOrEmpty(e.Value)).Select(e => e.Key).ToList())
             psi.Environment.Remove(key);
         return psi;
+    }
+
+    /// <summary>O comando ssh que o git deve usar com a chave do AgentForge; null se não há chave gerada (ou a pasta é inválida).</summary>
+    public static string? GitSshCommand(string sshDirectory)
+    {
+        var dir = sshDirectory.Replace('\\', '/').TrimEnd('/');
+        if (dir.Contains('\'') || !File.Exists(Path.Combine(sshDirectory, "id_ed25519"))) return null;
+        // accept-new: confia no host na primeira vez e depois exige a mesma chave (fica no known_hosts da pasta)
+        return $"ssh -i '{dir}/id_ed25519' -o IdentitiesOnly=yes -o UserKnownHostsFile='{dir}/known_hosts' " +
+               "-o StrictHostKeyChecking=accept-new -o BatchMode=yes";
     }
 
     private sealed class LocalRunningProcess(Process process) : IRunningProcess

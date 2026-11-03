@@ -126,6 +126,7 @@ app.MapCrudEndpoints();
 app.MapWorkflowEndpoints();
 app.MapAgentEndpoints();
 app.MapTokenEndpoints();
+app.MapGitEndpoints();
 app.MapMcp();
 app.MapHub<RunsHub>("/hubs/runs");
 

@@ -17,7 +17,10 @@ public static class ServiceCollectionExtensions
     public static IServiceCollection AddAgentRunner(this IServiceCollection services, IConfiguration? configuration = null)
     {
         var agents = configuration?.GetSection(AgentsOptions.Section).Get<AgentsOptions>() ?? new AgentsOptions();
-        services.TryAddSingleton<IProcessLauncher>(_ => agents.CreateLauncher());
+        var git = configuration?.GetSection(GitOptions.Section).Get<GitOptions>() ?? new GitOptions();
+        services.TryAddSingleton(git);
+        services.TryAddSingleton<IProcessLauncher>(_ => agents.CreateLauncher(git.SshDir));
+        services.TryAddSingleton<GitCredentialService>();
         services.AddSingleton<ICliAgentAdapter, ClaudeCodeAdapter>();
         services.TryAddSingleton<AgentAdapterRegistry>();
         services.TryAddSingleton<IAgentEventPublisher, NullAgentEventPublisher>();

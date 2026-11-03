@@ -44,7 +44,8 @@ ENV HOME=/home/app \
     DISABLE_AUTOUPDATER=1 \
     DOTNET_CLI_TELEMETRY_OPTOUT=1 \
     DOTNET_NOLOGO=1
-RUN mkdir -p /data/repos /home/app/.claude \
+RUN mkdir -p /data/repos /home/app/.claude /home/app/.ssh \
+    && chmod 700 /home/app/.ssh \
     && chown -R $APP_UID /data/repos /home/app
 
 WORKDIR /app

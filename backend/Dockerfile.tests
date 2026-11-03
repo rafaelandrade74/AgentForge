@@ -1,0 +1,4 @@
+# Imagem para rodar os testes do backend: o SDK 8 + o cliente OpenSSH (os testes de credenciais Git usam ssh-keygen).
+#   docker build -f backend/Dockerfile.tests -t agentforge-tests backend
+FROM mcr.microsoft.com/dotnet/sdk:8.0
+RUN apt-get update && apt-get install -y --no-install-recommends openssh-client && apt-get clean

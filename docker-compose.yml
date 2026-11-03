@@ -30,12 +30,15 @@ services:
       Auth__JwtSecret: ${JWT_SECRET:?defina JWT_SECRET no .env (cp .env.example .env)}
       Orchestrator__MaxConcurrency: ${ORCHESTRATOR_CONCURRENCY:-1}
       Swagger__Enabled: ${SWAGGER_ENABLED:-true}
+      Git__SshDir: /home/app/.ssh
       ASPNETCORE_FORWARDEDHEADERS_ENABLED: "true"
       # Login do Claude Code: pela tela "Agentes" da aplicação (link, sem chave) ou, se preferir, esta chave de API.
       # O login fica no volume claude-config. O backend só repassa o ambiente ao CLI; nunca lê nem guarda credenciais.
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
     volumes:
       - repos:/data/repos
+      # chave SSH gerada pela tela "Credenciais Git" (a privada fica aqui, nunca sai do servidor)
+      - git-ssh:/home/app/.ssh
       # volume nomeado por padrão; CLAUDE_CONFIG_SOURCE=<pasta do computador> reaproveita um login já existente (ver README)
       - ${CLAUDE_CONFIG_SOURCE:-claude-config}:/home/app/.claude
       - ./prompts:/app/prompts:ro
@@ -82,3 +85,4 @@ volumes:
   pgdata:
   repos:
   claude-config:
+  git-ssh:

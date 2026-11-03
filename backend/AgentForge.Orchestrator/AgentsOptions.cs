@@ -11,9 +11,9 @@ public class AgentsOptions
 
     public HostAgentOptions HostAgent { get; set; } = new();
 
-    public IProcessLauncher CreateLauncher() => Launcher.Trim().ToLowerInvariant() switch
+    public IProcessLauncher CreateLauncher(string? gitSshDirectory = null) => Launcher.Trim().ToLowerInvariant() switch
     {
-        "local" or "" => new LocalProcessLauncher(),
+        "local" or "" => new LocalProcessLauncher { GitSshDirectory = gitSshDirectory },
         "host" => HostAgent.Url.Length == 0 || HostAgent.Token.Length == 0
             ? throw new InvalidOperationException("Agents:Launcher=host exige Agents:HostAgent:Url e Agents:HostAgent:Token.")
             : new RemoteProcessLauncher(new HttpClient(), HostAgent.Url, HostAgent.Token),

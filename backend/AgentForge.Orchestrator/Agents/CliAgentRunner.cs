@@ -121,6 +121,10 @@ public class CliAgentRunner(
             StandardErrorEncoding = Encoding.UTF8,
         };
         foreach (var arg in adapter.BuildArguments(request)) psi.ArgumentList.Add(arg);
+        // Compose repassa ANTHROPIC_API_KEY="" quando a chave não foi definida; um valor vazio não deve chegar ao CLI
+        // (ele poderia tratá-lo como "chave definida" e não usar o login salvo).
+        foreach (var key in psi.Environment.Where(e => e.Key.StartsWith("ANTHROPIC_", StringComparison.Ordinal) && string.IsNullOrEmpty(e.Value)).Select(e => e.Key).ToList())
+            psi.Environment.Remove(key);
         return Process.Start(psi) ?? throw new InvalidOperationException($"Não foi possível iniciar '{adapter.Executable}'.");
     }
 

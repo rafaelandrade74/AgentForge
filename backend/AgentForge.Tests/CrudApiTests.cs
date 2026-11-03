@@ -186,6 +186,16 @@ public class CrudApiTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Swagger_can_be_turned_off_by_configuration()
+    {
+        await using var off = _factory.WithWebHostBuilder(b => b.UseSetting("Swagger:Enabled", "false"));
+        var client = off.CreateClient();
+
+        Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync("/swagger/v1/swagger.json")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/health")).StatusCode);
+    }
+
+    [Fact]
     public async Task Swagger_documents_the_endpoints()
     {
         var doc = await _factory.CreateClient().GetStringAsync("/swagger/v1/swagger.json");

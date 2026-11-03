@@ -92,8 +92,17 @@ using (var scope = app.Services.CreateScope())
     await RoleConfigSeeder.SeedAsync(db, promptsDir);
 }
 
-app.UseSwagger();
-app.UseSwaggerUI();
+if (app.Configuration.GetValue("Swagger:Enabled", true))
+{
+    app.UseSwagger();
+    app.UseSwaggerUI();
+}
+
+// Os valores do .env.example funcionam para experimentar, mas não devem ir para produção.
+var authOptions = app.Services.GetRequiredService<IOptions<AuthOptions>>().Value;
+if (authOptions.JwtSecret.StartsWith("change-me", StringComparison.OrdinalIgnoreCase) ||
+    authOptions.AdminPassword.StartsWith("change-me", StringComparison.OrdinalIgnoreCase))
+    app.Logger.LogWarning("ADMIN_PASSWORD/JWT_SECRET ainda têm os valores de exemplo (change-me...). Troque-os no .env antes de expor o sistema.");
 
 app.UseAuthentication();
 app.UseAuthorization();

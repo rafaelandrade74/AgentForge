@@ -141,6 +141,26 @@ public class AgentRunnerTests(PostgresFixture pg)
         Assert.Contains("Tempo limite", (await db.AgentRuns.SingleAsync()).Output);
     }
 
+    [PosixFact]
+    public async Task Empty_anthropic_variables_are_not_passed_to_the_cli()
+    {
+        var (runner, events, _) = await Create(new FakeCliAgentAdapter(
+            """cat >/dev/null; echo "evt:key=[${ANTHROPIC_API_KEY-ausente}] url=[${ANTHROPIC_BASE_URL-ausente}]" """));
+        Environment.SetEnvironmentVariable("ANTHROPIC_API_KEY", "");
+        Environment.SetEnvironmentVariable("ANTHROPIC_BASE_URL", "https://exemplo.local");
+        try
+        {
+            await runner.RunAsync(Request(), CancellationToken.None);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("ANTHROPIC_API_KEY", null);
+            Environment.SetEnvironmentVariable("ANTHROPIC_BASE_URL", null);
+        }
+
+        Assert.Equal("key=[ausente] url=[https://exemplo.local]", events.Events.Single().Text);
+    }
+
     [Fact]
     public async Task Missing_executable_fails_instead_of_throwing()
     {

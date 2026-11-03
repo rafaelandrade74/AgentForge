@@ -21,6 +21,7 @@ services:
       context: ./backend
       args:
         CLAUDE_CODE_VERSION: ${CLAUDE_CODE_VERSION:-2.1.316}
+        API_BASE_IMAGE: ${API_BASE_IMAGE:-mcr.microsoft.com/dotnet/sdk:8.0}
     restart: unless-stopped
     environment:
       ConnectionStrings__Default: Host=db;Database=agentforge;Username=${POSTGRES_USER:-agentforge};Password=${POSTGRES_PASSWORD:-agentforge}
@@ -30,13 +31,15 @@ services:
       Orchestrator__MaxConcurrency: ${ORCHESTRATOR_CONCURRENCY:-1}
       Swagger__Enabled: ${SWAGGER_ENABLED:-true}
       ASPNETCORE_FORWARDEDHEADERS_ENABLED: "true"
-      # Login do Claude Code: ou esta chave de API, ou `docker compose exec -it api claude` (fica no volume claude-config).
-      # O backend só repassa o ambiente ao CLI; nunca lê nem guarda credenciais.
+      # Login do Claude Code: pela tela "Agentes" da aplicação (link, sem chave) ou, se preferir, esta chave de API.
+      # O login fica no volume claude-config. O backend só repassa o ambiente ao CLI; nunca lê nem guarda credenciais.
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
     volumes:
       - repos:/data/repos
-      - claude-config:/home/app/.claude
+      # volume nomeado por padrão; CLAUDE_CONFIG_SOURCE=<pasta do computador> reaproveita um login já existente (ver README)
+      - ${CLAUDE_CONFIG_SOURCE:-claude-config}:/home/app/.claude
       - ./prompts:/app/prompts:ro
+      - ./examples:/examples:ro
     depends_on:
       db:
         condition: service_healthy

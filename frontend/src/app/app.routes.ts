@@ -15,6 +15,7 @@ export const routes: Routes = [
       { path: 'projects/:id/demands/new', loadComponent: () => import('./pages/new-demand.page').then((m) => m.NewDemandPage) },
       { path: 'demands/:id', loadComponent: () => import('./pages/demand.page').then((m) => m.DemandPage) },
       { path: 'tasks/:id', loadComponent: () => import('./pages/task.page').then((m) => m.TaskPage) },
+      { path: 'agents', loadComponent: () => import('./pages/agents.page').then((m) => m.AgentsPage) },
       { path: 'prompts', loadComponent: () => import('./pages/prompts.page').then((m) => m.PromptsPage) },
     ],
   },

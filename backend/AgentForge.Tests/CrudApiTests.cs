@@ -159,6 +159,29 @@ public class CrudApiTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Deleting_a_project_removes_the_whole_graph_even_with_dependencies_runs_and_findings()
+    {
+        var project = await NewProject();
+        var demand = await CreateAsync("/api/demands", new { projectId = project, title = "D" });
+        var a = await CreateAsync("/api/work-items", new { demandId = demand, title = "A" });
+        var b = await CreateAsync("/api/work-items", new { demandId = demand, title = "B", dependsOnIds = new[] { a } });
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AgentForge.Infrastructure.Persistence.AppDbContext>();
+            var run = new AgentForge.Domain.AgentRun { DemandId = demand, WorkItemId = b, Role = AgentForge.Domain.AgentRole.Dev, Prompt = "p" };
+            db.AgentRuns.Add(run);
+            db.ReviewFindings.Add(new AgentForge.Domain.ReviewFinding { WorkItemId = b, AgentRunId = run.Id, Role = AgentForge.Domain.AgentRole.TechLead, Message = "m" });
+            await db.SaveChangesAsync();
+        }
+
+        var delete = await _http.DeleteAsync($"/api/projects/{project}");
+
+        Assert.Equal(HttpStatusCode.NoContent, delete.StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await _http.GetAsync($"/api/work-items/{a}")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await _http.GetAsync($"/api/demands/{demand}")).StatusCode);
+    }
+
+    [Fact]
     public async Task Review_finding_crud()
     {
         var project = await NewProject();

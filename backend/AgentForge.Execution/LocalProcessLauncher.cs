@@ -1,0 +1,159 @@
+using System.ComponentModel;
+using System.Diagnostics;
+using System.Text;
+
+namespace AgentForge.Execution;
+
+/// <summary>Executa no próprio computador/container onde a aplicação roda.</summary>
+public sealed class LocalProcessLauncher : IProcessLauncher
+{
+    /// <summary>
+    /// Mapa opcional nome lógico -> caminho do binário (ex.: "claude" -> "C:\\...\\claude.exe"). Usado pelo host agent;
+    /// sem entrada, o nome é resolvido pelo PATH.
+    /// </summary>
+    public IReadOnlyDictionary<string, string>? Executables { get; init; }
+
+    public string Mode => "local";
+    public string Description => "neste computador/container";
+
+    public Task<string> ScratchDirectoryAsync(CancellationToken ct)
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "agentforge-scratch");
+        Directory.CreateDirectory(dir);
+        return Task.FromResult(dir);
+    }
+
+    public Task<IRunningProcess> StartAsync(LaunchSpec spec, CancellationToken ct)
+    {
+        var executable = Executables is not null && Executables.TryGetValue(spec.Executable, out var mapped) ? mapped : spec.Executable;
+        Process process;
+        try
+        {
+            process = Process.Start(StartInfo(executable, spec.Arguments, spec.WorkingDirectory))
+                      ?? throw new ProcessStartException($"Não foi possível iniciar '{spec.Executable}'.");
+        }
+        catch (Win32Exception ex)
+        {
+            throw new ProcessStartException($"Não foi possível iniciar '{spec.Executable}': {ex.Message}");
+        }
+        catch (DirectoryNotFoundException ex)
+        {
+            throw new ProcessStartException($"Diretório de trabalho inexistente: {ex.Message}");
+        }
+
+        var running = new LocalRunningProcess(process);
+        if (spec.Stdin is not null) running.WriteInitial(spec.Stdin, spec.CloseStdin);
+        else if (spec.CloseStdin) running.CloseInitial();
+        return Task.FromResult<IRunningProcess>(running);
+    }
+
+    public Task<bool> DirectoryExistsAsync(string path, CancellationToken ct) => Task.FromResult(Directory.Exists(path));
+
+    public Task CreateDirectoryAsync(string path, CancellationToken ct)
+    {
+        Directory.CreateDirectory(path);
+        return Task.CompletedTask;
+    }
+
+    public Task DeleteDirectoryAsync(string path, CancellationToken ct)
+    {
+        if (Directory.Exists(path)) Directory.Delete(path, recursive: true);
+        return Task.CompletedTask;
+    }
+
+    public static ProcessStartInfo StartInfo(string executable, IEnumerable<string> args, string workingDirectory)
+    {
+        var psi = new ProcessStartInfo(executable)
+        {
+            WorkingDirectory = workingDirectory,
+            RedirectStandardInput = true,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            StandardInputEncoding = new UTF8Encoding(false),
+            StandardOutputEncoding = Encoding.UTF8,
+            StandardErrorEncoding = Encoding.UTF8,
+        };
+        foreach (var arg in args) psi.ArgumentList.Add(arg);
+        if (string.Equals(Path.GetFileNameWithoutExtension(executable), "git", StringComparison.OrdinalIgnoreCase))
+        {
+            psi.Environment["GIT_TERMINAL_PROMPT"] = "0";   // nunca fica preso pedindo credencial
+            psi.Environment["LC_ALL"] = "C";                // mensagens previsíveis
+        }
+        // Compose repassa ANTHROPIC_API_KEY="" quando a chave não foi definida; um valor vazio não deve chegar ao CLI
+        // (ele poderia tratá-lo como "chave definida" e não usar o login salvo).
+        foreach (var key in psi.Environment.Where(e => e.Key.StartsWith("ANTHROPIC_", StringComparison.Ordinal) && string.IsNullOrEmpty(e.Value)).Select(e => e.Key).ToList())
+            psi.Environment.Remove(key);
+        return psi;
+    }
+
+    private sealed class LocalRunningProcess(Process process) : IRunningProcess
+    {
+        public void WriteInitial(string text, bool close)
+        {
+            try
+            {
+                process.StandardInput.Write(text);
+                if (close) process.StandardInput.Close();
+                else process.StandardInput.Flush();
+            }
+            catch (IOException)
+            {
+                // o processo terminou antes de ler tudo
+            }
+        }
+
+        public void CloseInitial()
+        {
+            try { process.StandardInput.Close(); } catch (IOException) { }
+        }
+
+        public async Task WriteStdinAsync(string text, CancellationToken ct = default)
+        {
+            try
+            {
+                await process.StandardInput.WriteAsync(text.AsMemory(), ct);
+                await process.StandardInput.FlushAsync(ct);
+            }
+            catch (IOException)
+            {
+                // o processo terminou
+            }
+        }
+
+        public Task CloseStdinAsync()
+        {
+            CloseInitial();
+            return Task.CompletedTask;
+        }
+
+        public async Task<string?> ReadStdoutLineAsync(CancellationToken ct) => await process.StandardOutput.ReadLineAsync(ct);
+        public async Task<string?> ReadStderrLineAsync(CancellationToken ct) => await process.StandardError.ReadLineAsync(ct);
+
+        public async Task<int> WaitForExitAsync(CancellationToken ct)
+        {
+            await process.WaitForExitAsync(ct);
+            return process.ExitCode;
+        }
+
+        public void Kill()
+        {
+            try
+            {
+                if (!process.HasExited) process.Kill(entireProcessTree: true);
+            }
+            catch (InvalidOperationException)
+            {
+                // já terminou
+            }
+        }
+
+        public ValueTask DisposeAsync()
+        {
+            Kill();
+            process.Dispose();
+            return ValueTask.CompletedTask;
+        }
+    }
+}

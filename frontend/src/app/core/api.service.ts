@@ -1,7 +1,9 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
-import { Demand, Finding, Project, ProjectInput, RoleConfig, Run, RunSummary, WorkItem } from './models';
+import {
+  AgentInfo, AgentTestResult, Demand, Finding, LoginSession, Project, ProjectInput, RoleConfig, Run, RunSummary, WorkItem,
+} from './models';
 
 /** Chamadas REST da API (o interceptor de auth anexa o token). */
 @Injectable({ providedIn: 'root' })
@@ -38,6 +40,17 @@ export class ApiService {
   runsOfDemand = (demandId: string) => this.http.get<RunSummary[]>('/api/agent-runs', { params: { demandId } });
   run = (id: string) => this.http.get<Run>(`/api/agent-runs/${id}`);
   findings = (workItemId: string) => this.http.get<Finding[]>('/api/review-findings', { params: { workItemId } });
+
+  // agentes (CLIs): status, teste e login por link
+  agents = () => this.http.get<AgentInfo[]>('/api/agents');
+  agentEnvironment = () => this.http.get<{ mode: 'local' | 'host'; description: string }>('/api/agents/environment');
+  agent = (name: string, refresh = false) => this.http.get<AgentInfo>(`/api/agents/${name}`, { params: { refresh } });
+  testAgent = (name: string) => this.http.post<AgentTestResult>(`/api/agents/${name}/test`, null);
+  startLogin = (name: string) => this.http.post<LoginSession>(`/api/agents/${name}/login`, null);
+  sendLoginCode = (name: string, sessionId: string, code: string) =>
+    this.http.post<LoginSession>(`/api/agents/${name}/login/${sessionId}/code`, { code });
+  cancelLogin = (name: string, sessionId: string) => this.http.delete<LoginSession>(`/api/agents/${name}/login/${sessionId}`);
+  logoutAgent = (name: string) => this.http.post<AgentInfo>(`/api/agents/${name}/logout`, null);
 
   // papéis
   roleConfigs = () => this.http.get<RoleConfig[]>('/api/role-configs');

@@ -107,3 +107,31 @@ export interface DemandChanged {
   status: DemandStatus;
   at: string;
 }
+
+// ---- agentes (CLIs)
+export interface AgentTestResult {
+  ok: boolean;
+  message: string;
+  durationMs: number;
+  costUsd: number;
+  at: string;
+}
+export interface AgentInfo {
+  name: string;
+  displayName: string;
+  installed: boolean;
+  version: string | null;
+  authenticated: boolean;
+  authMethod: string | null;
+  detail: string | null;
+  supportsLogin: boolean;
+  usedByRoles: AgentRole[];
+  lastTest: AgentTestResult | null;
+}
+export type LoginState = 'WaitingForCode' | 'Succeeded' | 'Failed' | 'Cancelled';
+export interface LoginSession {
+  sessionId: string;
+  url: string | null;
+  state: LoginState;
+  message: string | null;
+}

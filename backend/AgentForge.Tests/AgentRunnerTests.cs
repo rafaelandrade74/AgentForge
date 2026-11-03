@@ -60,7 +60,7 @@ public class AgentRunnerTests(PostgresFixture pg)
     {
         var db = await Db.CreateAsync(pg.NewConnectionString());
         var events = new CollectingPublisher();
-        return (new CliAgentRunner(new AgentAdapterRegistry([adapter]), db, events, NullLogger<CliAgentRunner>.Instance), events, db);
+        return (new CliAgentRunner(new AgentAdapterRegistry([adapter]), db, events, new AgentForge.Execution.LocalProcessLauncher(), NullLogger<CliAgentRunner>.Instance), events, db);
     }
 
     [PosixFact]

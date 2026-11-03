@@ -1,0 +1,21 @@
+# Modo 1 — API/front no Docker, CLI dos agentes (claude, git) no SEU COMPUTADOR, pelo host agent.
+#
+#   ./scripts/host-agent.ps1          (Windows)   ou   ./scripts/host-agent.sh   (Linux/macOS)   # deixe rodando
+#   docker compose -f docker-compose.yml -f docker-compose.host-agent.yml up -d --build
+#
+# O host agent roda o claude/git JÁ instalados e logados no computador, dentro de HOST_WORKSPACES_ROOT (uma pasta do
+# computador, onde ficam os clones e worktrees). Ele só aceita requisições com HOST_AGENT_TOKEN. Veja o README.
+services:
+  api:
+    build:
+      args:
+        # o container só orquestra: não precisa do SDK .NET nem do CLI do Claude (imagem bem menor)
+        API_BASE_IMAGE: ${API_BASE_IMAGE:-mcr.microsoft.com/dotnet/aspnet:8.0}
+    environment:
+      Agents__Launcher: host
+      Agents__HostAgent__Url: ${HOST_AGENT_URL:-http://host.docker.internal:8787}
+      Agents__HostAgent__Token: "${HOST_AGENT_TOKEN:?rode ./scripts/host-agent.ps1 (ou .sh) uma vez; ele cria HOST_AGENT_TOKEN no .env}"
+      # caminho NO COMPUTADOR (o git e o claude rodam lá), não no container
+      Workspaces__Root: "${HOST_WORKSPACES_ROOT:?rode ./scripts/host-agent.ps1 (ou .sh) uma vez; ele define HOST_WORKSPACES_ROOT no .env}"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"

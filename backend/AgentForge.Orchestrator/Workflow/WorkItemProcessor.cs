@@ -1,5 +1,6 @@
 using System.Text.RegularExpressions;
 using AgentForge.Domain;
+using AgentForge.Execution;
 using AgentForge.Infrastructure.Persistence;
 using AgentForge.Orchestrator.Workspaces;
 using Microsoft.EntityFrameworkCore;
@@ -18,6 +19,7 @@ public partial class WorkItemProcessor(
     AgentExecutor executor,
     IWorkQueue queue,
     IWorkflowEventPublisher events,
+    IProcessLauncher launcher,
     IOptions<OrchestratorOptions> options,
     ILogger<WorkItemProcessor> logger)
 {
@@ -151,7 +153,7 @@ public partial class WorkItemProcessor(
 
     // ------------------------------------------------------------------ validações com git
 
-    private static async Task<Parsed<DevReport>> ParseDevAsync(string? json, string workspacePath, string baseBranch, CancellationToken ct)
+    private async Task<Parsed<DevReport>> ParseDevAsync(string? json, string workspacePath, string baseBranch, CancellationToken ct)
     {
         var parsed = OutputParsers.ParseDev(json);
         if (!parsed.Ok) return parsed;
@@ -160,9 +162,9 @@ public partial class WorkItemProcessor(
         if (!HashPattern().IsMatch(hash)) return Parsed<DevReport>.Fail($"\"{hash}\" não é um hash de commit.");
         try
         {
-            await GitCli.RunAsync(workspacePath, ["cat-file", "-e", hash + "^{commit}"], ct);
-            await GitCli.RunAsync(workspacePath, ["merge-base", "--is-ancestor", hash, "HEAD"], ct);
-            var ahead = await GitCli.RunAsync(workspacePath, ["rev-list", "--count", $"origin/{baseBranch}..HEAD"], ct);
+            await GitCli.RunAsync(launcher, workspacePath, ["cat-file", "-e", hash + "^{commit}"], ct);
+            await GitCli.RunAsync(launcher, workspacePath, ["merge-base", "--is-ancestor", hash, "HEAD"], ct);
+            var ahead = await GitCli.RunAsync(launcher, workspacePath, ["rev-list", "--count", $"origin/{baseBranch}..HEAD"], ct);
             if (ahead.Trim() == "0") return Parsed<DevReport>.Fail("O branch não tem nenhum commit novo em relação ao branch base.");
         }
         catch (GitException)
@@ -172,11 +174,11 @@ public partial class WorkItemProcessor(
         return parsed;
     }
 
-    private static async Task<string> DiffAsync(string workspacePath, string baseBranch, CancellationToken ct)
+    private async Task<string> DiffAsync(string workspacePath, string baseBranch, CancellationToken ct)
     {
         try
         {
-            var diff = await GitCli.RunAsync(workspacePath, ["diff", $"origin/{baseBranch}...HEAD"], ct);
+            var diff = await GitCli.RunAsync(launcher, workspacePath, ["diff", $"origin/{baseBranch}...HEAD"], ct);
             return diff.Length <= MaxDiffChars ? diff : diff[..MaxDiffChars] + "\n… (diff truncado; use git diff para ver o resto)";
         }
         catch (GitException ex)

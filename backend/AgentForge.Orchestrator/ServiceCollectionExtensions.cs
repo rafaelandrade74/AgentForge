@@ -1,3 +1,4 @@
+using AgentForge.Execution;
 using AgentForge.Orchestrator.Agents;
 using AgentForge.Orchestrator.Workflow;
 using AgentForge.Orchestrator.Workspaces;
@@ -9,13 +10,19 @@ namespace AgentForge.Orchestrator;
 
 public static class ServiceCollectionExtensions
 {
-    /// <summary>Registra o runner genérico e o ClaudeCodeAdapter. Novos CLIs: registrar outro ICliAgentAdapter.</summary>
-    public static IServiceCollection AddAgentRunner(this IServiceCollection services)
+    /// <summary>
+    /// Registra o runner genérico, o ClaudeCodeAdapter e o launcher que decide ONDE os CLIs rodam (Agents:Launcher =
+    /// "local" ou "host"). Novos CLIs: registrar outro ICliAgentAdapter.
+    /// </summary>
+    public static IServiceCollection AddAgentRunner(this IServiceCollection services, IConfiguration? configuration = null)
     {
+        var agents = configuration?.GetSection(AgentsOptions.Section).Get<AgentsOptions>() ?? new AgentsOptions();
+        services.TryAddSingleton<IProcessLauncher>(_ => agents.CreateLauncher());
         services.AddSingleton<ICliAgentAdapter, ClaudeCodeAdapter>();
         services.TryAddSingleton<AgentAdapterRegistry>();
         services.TryAddSingleton<IAgentEventPublisher, NullAgentEventPublisher>();
         services.TryAddScoped<IAgentRunner, CliAgentRunner>();
+        services.TryAddSingleton<AgentCliService>();
         return services;
     }
 

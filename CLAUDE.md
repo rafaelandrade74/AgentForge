@@ -20,13 +20,16 @@ Aplicação web auto-hospedada (homelab) que orquestra o ciclo de desenvolviment
 Transições válidas ficam em tabela no código (`WorkflowDefinition`). Revisão reprovada devolve ao Dev com os apontamentos; no terceiro retorno vai para Blocked. Dependências só liberam a tarefa quando estão em Done.
 
 ## Fases (executar uma por vez; parar para validação; commit `fase-N: <resumo>`)
-0 Fundação do repositório (feita) · 1 Autenticação (feita) · 2 Domínio e persistência (feita; ADR 0003) · 3 CliAgentRunner (feita; ADR 0004) · 4 Workspaces Git (feita; ADR 0005) · 5 Orquestrador (feita; ADR 0006) · 6 Tempo real (feita; ADR 0007) · 7 Interface web (feita; ADR 0008) · 8 Deploy homelab (feita; ADR 0009, README) · 9 Validação ponta a ponta.
+0 Fundação do repositório (feita) · 1 Autenticação (feita) · 2 Domínio e persistência (feita; ADR 0003) · 3 CliAgentRunner (feita; ADR 0004) · 4 Workspaces Git (feita; ADR 0005) · 5 Orquestrador (feita; ADR 0006) · 6 Tempo real (feita; ADR 0007) · 7 Interface web (feita; ADR 0008) · 8 Deploy homelab (feita; ADR 0009, README) · 9 Validação ponta a ponta (em andamento: tela Agentes e 3 modos de execução feitos, ADR 0010; falta rodar a demanda real).
+
+## Modos de execução (ADR 0010)
+1 Docker + CLI no computador (host agent: `scripts/host-agent`, `docker-compose.host-agent.yml`) · 2 Docker + CLI no container (padrão; login pela tela Agentes) · 3 tudo no computador (`scripts/run-native`). Todo processo de CLI (agentes, git) passa pelo `IProcessLauncher` (`AgentForge.Execution`); `Agents:Launcher` = `local` | `host`.
 
 ## Regras
 Siga as fases em ordem; não pule critérios de aceite; código simples e testável; registre decisões em `docs/adr/`; pergunte antes de adicionar dependências fora da stack.
 
 ## Comandos
-- Testes backend (precisam do Docker para o Postgres via Testcontainers; o TestServer 8 quebra no runtime 10, então rode no SDK 8): `docker run --rm -v "${PWD}/backend:/src" -v //var/run/docker.sock:/var/run/docker.sock -e TESTCONTAINERS_HOST_OVERRIDE=host.docker.internal -e TESTCONTAINERS_RYUK_DISABLED=true -w /src mcr.microsoft.com/dotnet/sdk:8.0 dotnet test -o /tmp/out`
+- Testes backend (precisam do Docker para o Postgres via Testcontainers; o TestServer 8 quebra no runtime 10, então rode no SDK 8): `docker run --rm -v "${PWD}/backend:/src" -v //var/run/docker.sock:/var/run/docker.sock -e TESTCONTAINERS_RYUK_DISABLED=true -w /src mcr.microsoft.com/dotnet/sdk:8.0 sh -c 'export TESTCONTAINERS_HOST_OVERRIDE=$(getent ahostsv4 host.docker.internal | head -1 | cut -d" " -f1); dotnet test -o /tmp/out'` (forçar IPv4 evita falhas intermitentes de conexão ao Postgres do Testcontainers)
 - Teste real do Claude (gasta créditos): `AGENTFORGE_CLAUDE_INTEGRATION=1` + `AGENTFORGE_TEST_DB=<postgres>` e `dotnet test --filter Real_claude` (com `DOTNET_ROLL_FORWARD=Major` no SDK 10).
 - Nova migration: `dotnet ef migrations add <Nome> --project backend/AgentForge.Infrastructure --output-dir Persistence/Migrations` (com `DOTNET_ROLL_FORWARD=Major` se só houver o SDK 10). Swagger em `/swagger`.
 - Se mudar `POSTGRES_PASSWORD` depois do primeiro start, recrie o volume (`docker compose down -v`): o Postgres só lê a senha ao inicializar.

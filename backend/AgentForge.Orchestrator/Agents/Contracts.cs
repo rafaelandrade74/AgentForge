@@ -15,7 +15,9 @@ public record AgentRequest(
     Guid? DemandId = null,
     Guid? WorkItemId = null,
     TimeSpan? Timeout = null,
-    Guid? ProjectId = null)
+    Guid? ProjectId = null,
+    /// <summary>Execução avulsa (ex.: teste da conexão): não grava AgentRun nem publica eventos.</summary>
+    bool Ephemeral = false)
 {
     public static AgentRequest FromConfig(AgentRoleConfig config, string prompt, string workingDirectory,
         Guid? demandId = null, Guid? workItemId = null, TimeSpan? timeout = null, Guid? projectId = null) =>
@@ -80,6 +82,10 @@ public class AgentAdapterRegistry(IEnumerable<ICliAgentAdapter> adapters)
 {
     private readonly Dictionary<string, ICliAgentAdapter> _byName =
         adapters.ToDictionary(a => a.Name, StringComparer.OrdinalIgnoreCase);
+
+    public IEnumerable<ICliAgentAdapter> All => _byName.Values;
+
+    public ICliAgentAdapter? TryGet(string name) => _byName.GetValueOrDefault(name);
 
     public ICliAgentAdapter Get(string name) =>
         _byName.TryGetValue(name, out var adapter)

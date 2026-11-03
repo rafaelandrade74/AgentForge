@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using AgentForge.Domain;
+using AgentForge.Execution;
 using Microsoft.Extensions.Options;
 
 namespace AgentForge.Orchestrator.Workspaces;
@@ -8,7 +9,10 @@ public class WorkspaceOptions
 {
     public const string Section = "Workspaces";
 
-    /// <summary>Volume onde ficam os clones: {Root}/{projectId}/repo e {Root}/{projectId}/worktrees/{workItemId}.</summary>
+    /// <summary>
+    /// Onde ficam os clones: {Root}/{projectId}/repo e {Root}/{projectId}/worktrees/{workItemId}. É um caminho do lado
+    /// em que o git e os agentes rodam (no modo "host", um caminho do computador, não do container).
+    /// </summary>
     public string Root { get; set; } = "/data/repos";
 }
 
@@ -33,17 +37,22 @@ public interface IWorkspaceManager
 /// Um clone por projeto e um git worktree por tarefa, cada um no seu branch. O clone recebe um pushurl inválido,
 /// então nenhum agente consegue enviar nada ao remoto (nem para o branch base).
 /// </summary>
-public class WorkspaceManager(IOptions<WorkspaceOptions> options) : IWorkspaceManager
+public class WorkspaceManager(IOptions<WorkspaceOptions> options, IProcessLauncher launcher) : IWorkspaceManager
 {
     public const string NoPushUrl = "disabled://agentforge-never-push";
 
-    private readonly string _root = options.Value.Root;
+    // barras normais funcionam também no Windows, e deixam o caminho igual quando a API (Linux) fala com um host Windows
+    private readonly string _root = options.Value.Root.Replace('\\', '/').TrimEnd('/');
     private readonly ConcurrentDictionary<Guid, SemaphoreSlim> _locks = new();
 
     public static string BranchName(Guid workItemId) => $"agentforge/task-{workItemId}";
 
-    private string RepoPath(Project p) => Path.Combine(_root, p.Id.ToString(), "repo");
-    private string WorktreePath(Project p, Guid workItemId) => Path.Combine(_root, p.Id.ToString(), "worktrees", workItemId.ToString());
+    private string RepoPath(Project p) => $"{_root}/{p.Id}/repo";
+    private string WorktreePath(Project p, Guid workItemId) => $"{_root}/{p.Id}/worktrees/{workItemId}";
+    private static string Parent(string path) => path[..path.LastIndexOf('/')];
+
+    private Task<string> Git(string cwd, IEnumerable<string> args, CancellationToken ct) => GitCli.RunAsync(launcher, cwd, args, ct);
+    private Task<bool> HasRepoAsync(string repo, CancellationToken ct) => launcher.DirectoryExistsAsync($"{repo}/.git", ct);
 
     // Operações git que mexem no mesmo repositório (clone, fetch, worktree add/remove) rodam uma por vez por projeto.
     private async Task<T> LockedAsync<T>(Project project, CancellationToken ct, Func<Task<T>> action)
@@ -60,9 +69,9 @@ public class WorkspaceManager(IOptions<WorkspaceOptions> options) : IWorkspaceMa
     private async Task<string> EnsureCoreAsync(Project project, CancellationToken ct)
     {
         var repo = RepoPath(project);
-        if (Directory.Exists(Path.Combine(repo, ".git")))
+        if (await HasRepoAsync(repo, ct))
         {
-            await GitCli.RunAsync(repo, ["fetch", "--prune", "origin"], ct);
+            await Git(repo, ["fetch", "--prune", "origin"], ct);
             return repo;
         }
 
@@ -70,18 +79,18 @@ public class WorkspaceManager(IOptions<WorkspaceOptions> options) : IWorkspaceMa
         if (url.Length == 0 || url.StartsWith('-'))
             throw new GitException("URL de repositório inválida.", -1);
 
-        Directory.CreateDirectory(Path.GetDirectoryName(repo)!);
+        await launcher.CreateDirectoryAsync(Parent(repo), ct);
         try
         {
-            await GitCli.RunAsync(Path.GetDirectoryName(repo)!, ["clone", "--", url, repo], ct);
-            await GitCli.RunAsync(repo, ["config", "remote.origin.pushurl", NoPushUrl], ct);
-            await GitCli.RunAsync(repo, ["config", "user.name", "AgentForge"], ct);
-            await GitCli.RunAsync(repo, ["config", "user.email", "agentforge@localhost"], ct);
+            await Git(Parent(repo), ["clone", "--", url, repo], ct);
+            await Git(repo, ["config", "remote.origin.pushurl", NoPushUrl], ct);
+            await Git(repo, ["config", "user.name", "AgentForge"], ct);
+            await Git(repo, ["config", "user.email", "agentforge@localhost"], ct);
         }
         catch
         {
             // não deixa um clone pela metade (sem .git completo) travando as próximas tentativas
-            if (Directory.Exists(repo)) Directory.Delete(repo, recursive: true);
+            await launcher.DeleteDirectoryAsync(repo, CancellationToken.None);
             throw;
         }
         return repo;
@@ -94,15 +103,15 @@ public class WorkspaceManager(IOptions<WorkspaceOptions> options) : IWorkspaceMa
             var branch = BranchName(workItemId);
             var dir = WorktreePath(project, workItemId);
 
-            if (Directory.Exists(dir)) return new Workspace(dir, branch);
+            if (await launcher.DirectoryExistsAsync(dir, ct)) return new Workspace(dir, branch);
 
-            Directory.CreateDirectory(Path.GetDirectoryName(dir)!);
-            await GitCli.RunAsync(repo, ["worktree", "prune"], ct);
+            await launcher.CreateDirectoryAsync(Parent(dir), ct);
+            await Git(repo, ["worktree", "prune"], ct);
             var branchExists = await BranchExistsAsync(repo, branch, ct);
             string[] args = branchExists
                 ? ["worktree", "add", dir, branch]
                 : ["worktree", "add", "-b", branch, dir, $"origin/{project.BaseBranch}"];
-            await GitCli.RunAsync(repo, args, ct);
+            await Git(repo, args, ct);
             return new Workspace(dir, branch);
         });
 
@@ -110,16 +119,16 @@ public class WorkspaceManager(IOptions<WorkspaceOptions> options) : IWorkspaceMa
         LockedAsync(project, ct, async () =>
         {
             var repo = RepoPath(project);
-            if (!Directory.Exists(Path.Combine(repo, ".git"))) return true;
+            if (!await HasRepoAsync(repo, ct)) return true;
 
             var dir = WorktreePath(project, workItemId);
-            if (Directory.Exists(dir))
-                await GitCli.RunAsync(repo, ["worktree", "remove", "--force", dir], ct);
-            await GitCli.RunAsync(repo, ["worktree", "prune"], ct);
+            if (await launcher.DirectoryExistsAsync(dir, ct))
+                await Git(repo, ["worktree", "remove", "--force", dir], ct);
+            await Git(repo, ["worktree", "prune"], ct);
 
             var branch = BranchName(workItemId);
             if (deleteBranch && await BranchExistsAsync(repo, branch, ct))
-                await GitCli.RunAsync(repo, ["branch", "-D", branch], ct);
+                await Git(repo, ["branch", "-D", branch], ct);
             return true;
         });
 
@@ -128,12 +137,12 @@ public class WorkspaceManager(IOptions<WorkspaceOptions> options) : IWorkspaceMa
     public async Task<string> GetDiffAsync(Project project, Guid workItemId, CancellationToken ct)
     {
         var repo = RepoPath(project);
-        if (!Directory.Exists(Path.Combine(repo, ".git"))) return "";
+        if (!await HasRepoAsync(repo, ct)) return "";
         var branch = BranchName(workItemId);
         if (!await BranchExistsAsync(repo, branch, ct)) return "";
         try
         {
-            var diff = await GitCli.RunAsync(repo, ["diff", $"origin/{project.BaseBranch}...{branch}"], ct);
+            var diff = await Git(repo, ["diff", $"origin/{project.BaseBranch}...{branch}"], ct);
             return diff.Length <= MaxDiffChars ? diff : diff[..MaxDiffChars] + "\n… (diff truncado)";
         }
         catch (GitException ex)
@@ -142,11 +151,11 @@ public class WorkspaceManager(IOptions<WorkspaceOptions> options) : IWorkspaceMa
         }
     }
 
-    private static async Task<bool> BranchExistsAsync(string repo, string branch, CancellationToken ct)
+    private async Task<bool> BranchExistsAsync(string repo, string branch, CancellationToken ct)
     {
         try
         {
-            await GitCli.RunAsync(repo, ["show-ref", "--verify", "--quiet", $"refs/heads/{branch}"], ct);
+            await Git(repo, ["show-ref", "--verify", "--quiet", $"refs/heads/{branch}"], ct);
             return true;
         }
         catch (GitException ex) when (ex.ExitCode == 1)

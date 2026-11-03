@@ -28,7 +28,7 @@ public sealed class WorkspaceManagerTests : IAsyncLifetime
         await Git(seed, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-m", "inicial");
         await Git(_temp, "clone", "--bare", seed, _origin);
 
-        _manager = new WorkspaceManager(Options.Create(new WorkspaceOptions { Root = Path.Combine(_temp, "repos") }));
+        _manager = new WorkspaceManager(Options.Create(new WorkspaceOptions { Root = Path.Combine(_temp, "repos") }), new AgentForge.Execution.LocalProcessLauncher());
         _project = new Project { Name = "P", RepositoryUrl = _origin, BaseBranch = "main" };
     }
 

@@ -1,5 +1,6 @@
 using AgentForge.Domain;
 using AgentForge.Infrastructure.Persistence;
+using AgentForge.Orchestrator.Agents;
 using Microsoft.EntityFrameworkCore;
 
 namespace AgentForge.Api.Endpoints;
@@ -231,8 +232,9 @@ public static class CrudEndpoints
     private static RoleConfigDto ToDto(AgentRoleConfig c) =>
         new(c.Id, c.Role, c.AdapterName, c.SystemPrompt, c.AllowedTools, c.Model, c.MaxTurns);
 
-    private static IResult? Validate(RoleConfigInput i) =>
+    private static IResult? Validate(RoleConfigInput i, AgentAdapterRegistry registry) =>
         string.IsNullOrWhiteSpace(i.AdapterName) ? Invalid(nameof(i.AdapterName), "Informe o adapter.")
+        : registry.TryGet(i.AdapterName.Trim()) is null ? Invalid(nameof(i.AdapterName), $"Agente \"{i.AdapterName}\" não existe.")
         : i.MaxTurns < 1 ? Invalid(nameof(i.MaxTurns), "MaxTurns deve ser ao menos 1.")
         : null;
 
@@ -247,9 +249,9 @@ public static class CrudEndpoints
         g.MapGet("/", async (AppDbContext db) => (await db.AgentRoleConfigs.OrderBy(c => c.Role).ToListAsync()).Select(ToDto));
         g.MapGet("/{id:guid}", async (Guid id, AppDbContext db) =>
             await db.AgentRoleConfigs.FindAsync(id) is { } c ? Results.Ok(ToDto(c)) : Results.NotFound());
-        g.MapPost("/", async (RoleConfigInput i, AppDbContext db) =>
+        g.MapPost("/", async (RoleConfigInput i, AppDbContext db, AgentAdapterRegistry registry) =>
         {
-            if (Validate(i) is { } bad) return bad;
+            if (Validate(i, registry) is { } bad) return bad;
             if (await db.AgentRoleConfigs.AnyAsync(c => c.Role == i.Role)) return Results.Conflict(new { error = "Já existe configuração para este papel." });
             var c = new AgentRoleConfig();
             Apply(c, i);
@@ -257,9 +259,9 @@ public static class CrudEndpoints
             await db.SaveChangesAsync();
             return Results.Created($"/api/role-configs/{c.Id}", ToDto(c));
         });
-        g.MapPut("/{id:guid}", async (Guid id, RoleConfigInput i, AppDbContext db) =>
+        g.MapPut("/{id:guid}", async (Guid id, RoleConfigInput i, AppDbContext db, AgentAdapterRegistry registry) =>
         {
-            if (Validate(i) is { } bad) return bad;
+            if (Validate(i, registry) is { } bad) return bad;
             if (await db.AgentRoleConfigs.FindAsync(id) is not { } c) return Results.NotFound();
             if (await db.AgentRoleConfigs.AnyAsync(x => x.Role == i.Role && x.Id != id)) return Results.Conflict(new { error = "Já existe configuração para este papel." });
             Apply(c, i);

@@ -1,5 +1,4 @@
-using System.Diagnostics;
-using System.Text;
+using AgentForge.Execution;
 
 namespace AgentForge.Orchestrator.Workspaces;
 
@@ -8,45 +7,36 @@ public class GitException(string message, int exitCode) : Exception(message)
     public int ExitCode { get; } = exitCode;
 }
 
-/// <summary>Chama o binário `git` sem shell (argumentos em ArgumentList) e sem nunca pedir credenciais no terminal.</summary>
+/// <summary>
+/// Chama o `git` sem shell (argumentos separados) e sem nunca pedir credenciais no terminal. Roda onde o launcher
+/// manda: no container/computador da API ou, no modo "host", no computador pelo host agent.
+/// </summary>
 public static class GitCli
 {
     public static readonly TimeSpan DefaultTimeout = TimeSpan.FromMinutes(10);
+    private static readonly LocalProcessLauncher Local = new();
 
-    public static async Task<string> RunAsync(string workingDirectory, IEnumerable<string> args, CancellationToken ct)
+    /// <summary>Roda o git neste computador/container (usado pelos testes e por quem não tem launcher).</summary>
+    public static Task<string> RunAsync(string workingDirectory, IEnumerable<string> args, CancellationToken ct) =>
+        RunAsync(Local, workingDirectory, args, ct);
+
+    public static async Task<string> RunAsync(IProcessLauncher launcher, string workingDirectory, IEnumerable<string> args, CancellationToken ct)
     {
-        var psi = new ProcessStartInfo("git")
+        var arguments = args.ToList();
+        CompletedProcess result;
+        try
         {
-            WorkingDirectory = workingDirectory,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            UseShellExecute = false,
-            CreateNoWindow = true,
-            StandardOutputEncoding = Encoding.UTF8,
-            StandardErrorEncoding = Encoding.UTF8,
-        };
-        foreach (var arg in args) psi.ArgumentList.Add(arg);
-        psi.Environment["GIT_TERMINAL_PROMPT"] = "0";
-        psi.Environment["LC_ALL"] = "C";
-
-        using var timeout = new CancellationTokenSource(DefaultTimeout);
-        using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, timeout.Token);
-
-        using var process = Process.Start(psi) ?? throw new GitException("Não foi possível iniciar o git.", -1);
-        using var kill = linked.Token.Register(() =>
+            result = await launcher.RunAsync(new LaunchSpec("git", arguments, workingDirectory), DefaultTimeout, ct);
+        }
+        catch (ProcessStartException ex)
         {
-            try { process.Kill(entireProcessTree: true); } catch (InvalidOperationException) { }
-        });
+            throw new GitException($"Não foi possível iniciar o git: {ex.Message}", -1);
+        }
 
-        var stdout = process.StandardOutput.ReadToEndAsync(CancellationToken.None);
-        var stderr = process.StandardError.ReadToEndAsync(CancellationToken.None);
-        await process.WaitForExitAsync(CancellationToken.None);
-        var (output, error) = (await stdout, await stderr);
-
-        ct.ThrowIfCancellationRequested();
-        if (timeout.IsCancellationRequested) throw new GitException($"git {args.FirstOrDefault()} excedeu o tempo limite.", -1);
-        if (process.ExitCode != 0)
-            throw new GitException($"git {string.Join(' ', args.Take(2))} falhou ({process.ExitCode}): {error.Trim()}", process.ExitCode);
-        return output;
+        if (!result.Started) throw new GitException($"Não foi possível iniciar o git: {result.Stderr}", -1);
+        if (result.TimedOut) throw new GitException($"git {arguments.FirstOrDefault()} excedeu o tempo limite.", -1);
+        if (result.ExitCode != 0)
+            throw new GitException($"git {string.Join(' ', arguments.Take(2))} falhou ({result.ExitCode}): {result.Stderr.Trim()}", result.ExitCode);
+        return result.Stdout;
     }
 }

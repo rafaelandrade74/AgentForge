@@ -374,7 +374,7 @@ namespace AgentForge.Infrastructure.Persistence.Migrations
                     b.HasOne("AgentForge.Domain.WorkItem", null)
                         .WithMany()
                         .HasForeignKey("DependsOnId")
-                        .OnDelete(DeleteBehavior.Restrict)
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
                     b.HasOne("AgentForge.Domain.WorkItem", null)

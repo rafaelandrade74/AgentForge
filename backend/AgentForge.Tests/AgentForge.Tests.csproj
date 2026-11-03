@@ -27,6 +27,8 @@
     <ProjectReference Include="..\AgentForge.Domain\AgentForge.Domain.csproj" />
     <ProjectReference Include="..\AgentForge.Infrastructure\AgentForge.Infrastructure.csproj" />
     <ProjectReference Include="..\AgentForge.Orchestrator\AgentForge.Orchestrator.csproj" />
+    <ProjectReference Include="..\AgentForge.Execution\AgentForge.Execution.csproj" />
+    <ProjectReference Include="..\AgentForge.HostAgent\AgentForge.HostAgent.csproj" />
   </ItemGroup>
 
 </Project>

@@ -17,7 +17,7 @@ import { RoleConfig } from '../core/models';
     <div class="page">
       <h1>Prompts dos papéis</h1>
       <p class="muted">
-        O prompt de sistema é anexado a cada execução do papel. A saída de todo agente precisa terminar com um bloco JSON no
+        O agente de cada papel é escolhido na tela <a href="/agents">Agentes</a>. O prompt de sistema é anexado a cada execução do papel. A saída de todo agente precisa terminar com um bloco JSON no
         formato exigido; o orquestrador acrescenta esse formato ao pedido, mas mantenha-o também no prompt.
       </p>
       <mat-accordion multi>
@@ -29,10 +29,6 @@ import { RoleConfig } from '../core/models';
             </mat-expansion-panel-header>
             <form (ngSubmit)="save(c)" class="form">
               <div class="grid">
-                <mat-form-field appearance="outline">
-                  <mat-label>Adapter de CLI</mat-label>
-                  <input matInput [name]="'adapter-' + c.id" [(ngModel)]="c.adapterName" required />
-                </mat-form-field>
                 <mat-form-field appearance="outline">
                   <mat-label>Modelo</mat-label>
                   <input matInput [name]="'model-' + c.id" [(ngModel)]="c.model" />

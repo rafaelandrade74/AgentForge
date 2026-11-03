@@ -6,13 +6,46 @@ namespace AgentForge.Orchestrator.Agents;
 /// Claude Code em modo headless: `claude -p --output-format stream-json --verbose`, com o prompt no stdin.
 /// Flags conferidos com `claude --help` (v2.1.316); `--max-turns` segue aceito, embora fora da ajuda.
 /// </summary>
-public class ClaudeCodeAdapter : ICliAgentAdapter
+public class ClaudeCodeAdapter : ICliAgentAdapter, ICliAgentAccount
 {
     public const string AdapterName = "claude-code";
     private const int MaxEventText = 500;
 
     public string Name => AdapterName;
     public string Executable { get; } = Environment.GetEnvironmentVariable("CLAUDE_BIN") is { Length: > 0 } bin ? bin : "claude";
+
+    // ---- conta (status, login por link, teste) — `claude auth ...`
+
+    public string DisplayName => "Claude Code";
+    public IReadOnlyList<string> VersionArguments => ["--version"];
+    public IReadOnlyList<string> StatusArguments => ["auth", "status", "--json"];
+    public IReadOnlyList<string>? LoginArguments => ["auth", "login"];
+    public IReadOnlyList<string>? LogoutArguments => ["auth", "logout"];
+    public string TestPrompt => "Responda apenas com a palavra OK.";
+
+    public AgentAuthState ParseStatus(string stdout, int exitCode)
+    {
+        if (!TryParse(stdout.Trim(), out var doc)) return new AgentAuthState(false, null, "Resposta inesperada de `claude auth status`.");
+        using (doc)
+        {
+            var root = doc.RootElement;
+            var loggedIn = root.TryGetProperty("loggedIn", out var l) && l.ValueKind == JsonValueKind.True;
+            var method = Str(root, "authMethod");
+            if (!loggedIn) return new AgentAuthState(false, method, "Não conectado.");
+
+            var who = new[] { Str(root, "email"), Str(root, "orgName"), Str(root, "subscriptionType") }
+                .Where(s => !string.IsNullOrWhiteSpace(s));
+            return new AgentAuthState(true, method, string.Join(" · ", who));
+        }
+    }
+
+    public string? ExtractLoginUrl(string line)
+    {
+        var start = line.IndexOf("https://", StringComparison.Ordinal);
+        if (start < 0) return null;
+        var end = line.IndexOfAny([' ', '\t', '\r'], start);
+        return end < 0 ? line[start..] : line[start..end];
+    }
 
     public IReadOnlyList<string> BuildArguments(AgentRequest request)
     {

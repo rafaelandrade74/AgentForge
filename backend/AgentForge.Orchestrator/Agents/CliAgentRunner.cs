@@ -1,6 +1,6 @@
 using System.Diagnostics;
-using System.Text;
 using AgentForge.Domain;
+using AgentForge.Execution;
 using AgentForge.Infrastructure.Persistence;
 using Microsoft.Extensions.Logging;
 
@@ -15,6 +15,7 @@ public class CliAgentRunner(
     AgentAdapterRegistry adapters,
     AppDbContext db,
     IAgentEventPublisher publisher,
+    IProcessLauncher launcher,
     ILogger<CliAgentRunner> logger) : IAgentRunner
 {
     public static readonly TimeSpan DefaultTimeout = TimeSpan.FromMinutes(30);
@@ -31,10 +32,13 @@ public class CliAgentRunner(
             Prompt = request.Prompt,
             Status = AgentRunStatus.Running,
         };
-        db.AgentRuns.Add(run);
-        await db.SaveChangesAsync(CancellationToken.None);
+        if (!request.Ephemeral)
+        {
+            db.AgentRuns.Add(run);
+            await db.SaveChangesAsync(CancellationToken.None);
+        }
 
-        Task Emit(string kind, string text) => publisher.PublishAsync(
+        Task Emit(string kind, string text) => request.Ephemeral ? Task.CompletedTask : publisher.PublishAsync(
             new AgentEvent(run.Id, request.ProjectId, request.DemandId, request.WorkItemId, request.Role, kind, text, DateTime.UtcNow),
             CancellationToken.None);
         await Emit("run_started", request.Role.ToString());
@@ -52,31 +56,31 @@ public class CliAgentRunner(
 
         try
         {
-            using var process = Start(adapter, request);
-            using var killOnCancel = linked.Token.Register(() => Kill(process));
+            // o prompt vai pelo stdin (e o stdin fecha); o processo roda onde o launcher manda (aqui ou no computador)
+            await using var process = await launcher.StartAsync(
+                new LaunchSpec(adapter.Executable, adapter.BuildArguments(request), request.WorkingDirectory, request.Prompt), linked.Token);
+            using var killOnCancel = linked.Token.Register(process.Kill);
 
             var errTask = ReadStderrAsync(process, stderr);
-            var inTask = WritePromptAsync(process, request.Prompt);
 
             string? line;
-            while ((line = await process.StandardOutput.ReadLineAsync(linked.Token)) is not null)
+            while ((line = await process.ReadStdoutLineAsync(linked.Token)) is not null)
             {
                 stdout.Add(line);
                 if (adapter.ParseEvent(line) is { } data) await Emit(data.Kind, data.Text);
             }
 
-            await process.WaitForExitAsync(linked.Token);
+            exitCode = await process.WaitForExitAsync(linked.Token);
             // stderr costuma fechar junto com o processo; não espera para sempre se algum neto segurar o pipe.
-            await Task.WhenAny(Task.WhenAll(errTask, inTask), Task.Delay(TimeSpan.FromSeconds(5), CancellationToken.None));
-            exitCode = process.ExitCode;
-            result = adapter.ParseResult(stdout, process.ExitCode);
+            await Task.WhenAny(errTask, Task.Delay(TimeSpan.FromSeconds(5), CancellationToken.None));
+            result = adapter.ParseResult(stdout, exitCode.Value);
         }
         catch (OperationCanceledException)
         {
             timedOut = timeoutCts.IsCancellationRequested && !ct.IsCancellationRequested;
             failure = timedOut ? $"Tempo limite de {(request.Timeout ?? DefaultTimeout).TotalSeconds:0}s excedido." : "Execução cancelada.";
         }
-        catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException or IOException)
+        catch (Exception ex) when (ex is ProcessStartException or InvalidOperationException or IOException)
         {
             logger.LogError(ex, "Falha ao executar o CLI do agente {Adapter}", adapter.Name);
             failure = $"Falha ao executar '{adapter.Executable}': {ex.Message}";
@@ -100,66 +104,19 @@ public class CliAgentRunner(
         run.CostUsd = result?.CostUsd ?? 0;
         run.DurationMs = clock.ElapsedMilliseconds;
         run.FinishedAt = DateTime.UtcNow;
-        await db.SaveChangesAsync(CancellationToken.None);
+        if (!request.Ephemeral) await db.SaveChangesAsync(CancellationToken.None);
         await Emit("run_finished", status.ToString());
 
         return new AgentRunResult(run.Id, status, output, result?.Json, run.CostUsd, clock.Elapsed, exitCode);
     }
 
-    private static Process Start(ICliAgentAdapter adapter, AgentRequest request)
-    {
-        var psi = new ProcessStartInfo(adapter.Executable)
-        {
-            WorkingDirectory = request.WorkingDirectory,
-            RedirectStandardInput = true,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            UseShellExecute = false,
-            CreateNoWindow = true,
-            StandardInputEncoding = new UTF8Encoding(false),
-            StandardOutputEncoding = Encoding.UTF8,
-            StandardErrorEncoding = Encoding.UTF8,
-        };
-        foreach (var arg in adapter.BuildArguments(request)) psi.ArgumentList.Add(arg);
-        // Compose repassa ANTHROPIC_API_KEY="" quando a chave não foi definida; um valor vazio não deve chegar ao CLI
-        // (ele poderia tratá-lo como "chave definida" e não usar o login salvo).
-        foreach (var key in psi.Environment.Where(e => e.Key.StartsWith("ANTHROPIC_", StringComparison.Ordinal) && string.IsNullOrEmpty(e.Value)).Select(e => e.Key).ToList())
-            psi.Environment.Remove(key);
-        return Process.Start(psi) ?? throw new InvalidOperationException($"Não foi possível iniciar '{adapter.Executable}'.");
-    }
-
-    private static async Task WritePromptAsync(Process process, string prompt)
-    {
-        try
-        {
-            await process.StandardInput.WriteAsync(prompt);
-            process.StandardInput.Close();
-        }
-        catch (IOException)
-        {
-            // o processo terminou (ou foi morto) antes de ler o prompt inteiro
-        }
-    }
-
-    private static async Task ReadStderrAsync(Process process, Queue<string> tail)
+    private static async Task ReadStderrAsync(IRunningProcess process, Queue<string> tail)
     {
         string? line;
-        while ((line = await process.StandardError.ReadLineAsync()) is not null)
+        while ((line = await process.ReadStderrLineAsync(CancellationToken.None)) is not null)
         {
             tail.Enqueue(line);
             if (tail.Count > StderrTailLines) tail.Dequeue();
-        }
-    }
-
-    private static void Kill(Process process)
-    {
-        try
-        {
-            if (!process.HasExited) process.Kill(entireProcessTree: true);
-        }
-        catch (InvalidOperationException)
-        {
-            // já terminou
         }
     }
 }

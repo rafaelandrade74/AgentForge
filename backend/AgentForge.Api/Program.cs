@@ -43,7 +43,7 @@ builder.Services.AddOptions<AuthOptions>()
     .Validate(o => o.JwtSecret.Length >= 32, "Auth:JwtSecret deve ter ao menos 32 caracteres.")
     .Validate(o => !string.IsNullOrWhiteSpace(o.AdminPassword), "Auth:AdminPassword é obrigatório.")
     .ValidateOnStart();
-builder.Services.AddAgentRunner();
+builder.Services.AddAgentRunner(builder.Configuration);
 builder.Services.AddWorkspaces(builder.Configuration);
 builder.Services.AddOrchestrator(builder.Configuration);
 
@@ -119,7 +119,30 @@ auth.MapGet("/me", (HttpContext ctx) => Results.Ok(new { username = ctx.User.Ide
 
 app.MapCrudEndpoints();
 app.MapWorkflowEndpoints();
+app.MapAgentEndpoints();
 app.MapHub<RunsHub>("/hubs/runs");
+
+// Modo "tudo no computador": a própria API serve a interface compilada (Frontend:Path), sem Nginx.
+if (app.Configuration["Frontend:Path"] is { Length: > 0 } frontendPath && Directory.Exists(frontendPath))
+{
+    var files = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(Path.GetFullPath(frontendPath));
+    app.UseDefaultFiles(new DefaultFilesOptions { FileProvider = files });
+    app.UseStaticFiles(new StaticFileOptions { FileProvider = files });
+    app.MapFallback(async ctx =>
+    {
+        var path = ctx.Request.Path;
+        // rotas da API/hub/documentação que não existem continuam 404; o resto é rota da SPA
+        if (path.StartsWithSegments("/api") || path.StartsWithSegments("/hubs") ||
+            path.StartsWithSegments("/swagger") || path.StartsWithSegments("/health"))
+        {
+            ctx.Response.StatusCode = StatusCodes.Status404NotFound;
+            return;
+        }
+        ctx.Response.ContentType = "text/html; charset=utf-8";
+        ctx.Response.Headers.CacheControl = "no-cache";
+        await ctx.Response.SendFileAsync(files.GetFileInfo("index.html"));
+    });
+}
 
 app.Run();
 

@@ -92,7 +92,7 @@ public class ClaudeCodeAdapterTests
                  ?? throw new InvalidOperationException("Defina AGENTFORGE_TEST_DB com uma connection string Postgres.");
         await using var db = await Db.CreateAsync(cs);
         var runner = new CliAgentRunner(new AgentAdapterRegistry([_adapter]), db, new NullAgentEventPublisher(),
-            NullLogger<CliAgentRunner>.Instance);
+            new AgentForge.Execution.LocalProcessLauncher(), NullLogger<CliAgentRunner>.Instance);
 
         var result = await runner.RunAsync(
             new AgentRequest(AgentRole.ScrumMaster, "Responda somente com um bloco ```json contendo {\"ok\":true}.",

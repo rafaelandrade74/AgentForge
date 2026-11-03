@@ -135,3 +135,24 @@ export interface LoginSession {
   state: LoginState;
   message: string | null;
 }
+// ---- integração (MCP)
+export interface ApiTokenInfo {
+  id: string;
+  name: string;
+  prefix: string;
+  createdAt: string;
+  lastUsedAt: string | null;
+  revokedAt: string | null;
+}
+export interface CreatedApiToken {
+  id: string;
+  name: string;
+  prefix: string;
+  token: string;
+}
+export interface McpToolInfo {
+  name: string;
+  title: string;
+  description: string;
+  annotations?: { readOnlyHint?: boolean; destructiveHint?: boolean };
+}

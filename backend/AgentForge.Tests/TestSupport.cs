@@ -10,14 +10,19 @@ namespace AgentForge.Tests;
 /// <summary>Um único Postgres 16 para todos os testes; cada classe cria o próprio banco dentro dele.</summary>
 public class PostgresFixture : IAsyncLifetime
 {
-    private readonly PostgreSqlContainer _container = new PostgreSqlBuilder().WithImage("postgres:16-alpine").Build();
+    private readonly PostgreSqlContainer _container = new PostgreSqlBuilder().WithImage("postgres:16-alpine")
+        .WithCommand("-c", "max_connections=500").Build();
 
     public Task InitializeAsync() => _container.StartAsync();
     public Task DisposeAsync() => _container.DisposeAsync().AsTask();
 
     public string NewConnectionString() =>
         new NpgsqlConnectionStringBuilder(_container.GetConnectionString())
-        { Database = "t_" + Guid.NewGuid().ToString("N") }.ConnectionString;
+        {
+            Database = "t_" + Guid.NewGuid().ToString("N"),
+            // cada teste tem o seu banco (e o seu pool): pools pequenos e que se esvaziam rápido, para não estourar o servidor
+            MaxPoolSize = 6, ConnectionIdleLifetime = 5, ConnectionPruningInterval = 1,
+        }.ConnectionString;
 }
 
 [CollectionDefinition(Name)]

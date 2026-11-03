@@ -22,7 +22,7 @@ public static class CrudEndpoints
         Results.ValidationProblem(new Dictionary<string, string[]> { [field] = [message] });
 
     // ---------- Projects ----------
-    private static ProjectDto ToDto(Project p) =>
+    internal static ProjectDto ToDto(Project p) =>
         new(p.Id, p.Name, p.RepositoryUrl, p.BaseBranch, p.BuildCommand, p.TestCommand, p.AutoMode, p.CreatedAt);
 
     private static void Apply(Project p, ProjectInput i)
@@ -68,7 +68,7 @@ public static class CrudEndpoints
     }
 
     // ---------- Demands ----------
-    private static DemandDto ToDto(Demand d) => new(d.Id, d.ProjectId, d.Title, d.Description, d.Status, d.CreatedAt);
+    internal static DemandDto ToDto(Demand d) => new(d.Id, d.ProjectId, d.Title, d.Description, d.Status, d.CreatedAt);
 
     private static async Task<IResult?> ValidateAsync(DemandInput i, AppDbContext db) =>
         string.IsNullOrWhiteSpace(i.Title) ? Invalid(nameof(i.Title), "Informe o título.")
@@ -106,7 +106,7 @@ public static class CrudEndpoints
     }
 
     // ---------- WorkItems ----------
-    private static WorkItemDto ToDto(WorkItem w) =>
+    internal static WorkItemDto ToDto(WorkItem w) =>
         new(w.Id, w.DemandId, w.Title, w.Description, w.AcceptanceCriteria, w.Estimate, w.State, w.ReworkCount,
             w.BranchName, w.BlockedReason, w.Dependencies.Select(d => d.Id).ToList(), w.CreatedAt);
 
@@ -169,7 +169,7 @@ public static class CrudEndpoints
     }
 
     // ---------- AgentRuns (criadas pelo orquestrador; a API só consulta) ----------
-    private static AgentRunDto ToDto(AgentRun r) =>
+    internal static AgentRunDto ToDto(AgentRun r) =>
         new(r.Id, r.DemandId, r.WorkItemId, r.Role, r.Prompt, r.Output, r.CostUsd, r.DurationMs, r.Status, r.StartedAt, r.FinishedAt);
 
     private static void MapAgentRuns(RouteGroupBuilder g)
@@ -186,7 +186,7 @@ public static class CrudEndpoints
     }
 
     // ---------- ReviewFindings ----------
-    private static ReviewFindingDto ToDto(ReviewFinding f) =>
+    internal static ReviewFindingDto ToDto(ReviewFinding f) =>
         new(f.Id, f.WorkItemId, f.AgentRunId, f.Role, f.Severity, f.File, f.Line, f.Message, f.Resolved);
 
     private static async Task<IResult?> ValidateAsync(ReviewFindingInput i, AppDbContext db) =>
@@ -229,7 +229,7 @@ public static class CrudEndpoints
     }
 
     // ---------- AgentRoleConfigs ----------
-    private static RoleConfigDto ToDto(AgentRoleConfig c) =>
+    internal static RoleConfigDto ToDto(AgentRoleConfig c) =>
         new(c.Id, c.Role, c.AdapterName, c.SystemPrompt, c.AllowedTools, c.Model, c.MaxTurns);
 
     private static IResult? Validate(RoleConfigInput i, AgentAdapterRegistry registry) =>

@@ -1,6 +1,8 @@
 using System.Text;
 using System.Text.Json.Serialization;
+using AgentForge.Api.Auth;
 using AgentForge.Api.Endpoints;
+using AgentForge.Api.Mcp;
 using AgentForge.Api.Realtime;
 using AgentForge.Infrastructure.Auth;
 using AgentForge.Infrastructure.Persistence;
@@ -55,7 +57,10 @@ builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<AdminCredentials>();
 builder.Services.AddScoped<AuthService>();
 
-builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer();
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer()
+    .AddScheme<Microsoft.AspNetCore.Authentication.AuthenticationSchemeOptions, ApiTokenHandler>(ApiTokens.Scheme, null);
+builder.Services.AddSingleton<McpToolRegistry>();
+builder.Services.AddSingleton<McpServer>();
 builder.Services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme)
     .Configure<IOptions<AuthOptions>>((jwt, auth) =>
     {
@@ -120,6 +125,8 @@ auth.MapGet("/me", (HttpContext ctx) => Results.Ok(new { username = ctx.User.Ide
 app.MapCrudEndpoints();
 app.MapWorkflowEndpoints();
 app.MapAgentEndpoints();
+app.MapTokenEndpoints();
+app.MapMcp();
 app.MapHub<RunsHub>("/hubs/runs");
 
 // Modo "tudo no computador": a própria API serve a interface compilada (Frontend:Path), sem Nginx.
@@ -133,7 +140,7 @@ if (app.Configuration["Frontend:Path"] is { Length: > 0 } frontendPath && Direct
         var path = ctx.Request.Path;
         // rotas da API/hub/documentação que não existem continuam 404; o resto é rota da SPA
         if (path.StartsWithSegments("/api") || path.StartsWithSegments("/hubs") ||
-            path.StartsWithSegments("/swagger") || path.StartsWithSegments("/health"))
+            path.StartsWithSegments("/swagger") || path.StartsWithSegments("/health") || path.StartsWithSegments("/mcp"))
         {
             ctx.Response.StatusCode = StatusCodes.Status404NotFound;
             return;

@@ -33,3 +33,9 @@ depois de ler o plano, o diff e o relatório do QA.
 ## Ajustes feitos por causa da validação
 - Projeto de exemplo compila no SDK 8 (container) e no SDK 10 (computador): `TargetFramework` e `Mvc.Testing` seguem o SDK em uso.
 - Imagem da API (modo 2) com o SDK .NET, para os agentes buildarem projetos .NET dentro do container.
+
+## Rodada 2 (com a correção das dependências)
+Mesma demanda, projeto novo: **Done**, 3 tarefas encadeadas (store → endpoint → testes), 13 execuções, 0 falhas, **US$ 1,63**,
+sem retrabalho. O worktree da tarefa 2 nasceu com o commit da 1 (verificado no disco), o diff dela mostrou só o trabalho próprio e
+o Dev **reaproveitou** `store.All(parsed)` em vez de reimplementar. As três branches formam um histórico linear (a última tem os 4
+commits, 29 testes aprovados) e o `main` de origem ficou intacto.

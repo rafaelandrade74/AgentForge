@@ -16,6 +16,7 @@ export const routes: Routes = [
       { path: 'demands/:id', loadComponent: () => import('./pages/demand.page').then((m) => m.DemandPage) },
       { path: 'tasks/:id', loadComponent: () => import('./pages/task.page').then((m) => m.TaskPage) },
       { path: 'agents', loadComponent: () => import('./pages/agents.page').then((m) => m.AgentsPage) },
+      { path: 'integration', loadComponent: () => import('./pages/integration.page').then((m) => m.IntegrationPage) },
       { path: 'prompts', loadComponent: () => import('./pages/prompts.page').then((m) => m.PromptsPage) },
     ],
   },

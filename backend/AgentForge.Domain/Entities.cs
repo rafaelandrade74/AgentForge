@@ -84,6 +84,19 @@ public class AgentRoleConfig
     public int MaxTurns { get; set; } = 20;
 }
 
+/// <summary>Token de acesso de longa duração (ex.: para um cliente MCP). Guardamos só o hash; vale apenas em /mcp.</summary>
+public class ApiToken
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public string Name { get; set; } = "";
+    public string TokenHash { get; set; } = "";
+    /// <summary>Primeiros caracteres do token, só para a pessoa reconhecê-lo na lista.</summary>
+    public string Prefix { get; set; } = "";
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime? LastUsedAt { get; set; }
+    public DateTime? RevokedAt { get; set; }
+}
+
 public class RefreshToken
 {
     public Guid Id { get; set; } = Guid.NewGuid();

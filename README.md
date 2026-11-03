@@ -92,6 +92,29 @@ Requisitos: .NET SDK 8+, Node 20+, git, `claude` no PATH e um **PostgreSQL**.
 `NATIVE_DB_CONNECTION` no `.env`. A interface fica em **http://localhost:8080** (`-Urls` para mudar) e os clones em
 `.agentforge/repos`. O script compila a interface na primeira vez (`-Rebuild` para recompilar).
 
+## Controlar o AgentForge pelo Claude Code (MCP)
+
+O AgentForge é também um **servidor MCP** (HTTP, `POST /mcp`): o Claude Code, ou qualquer cliente MCP, pode criar projetos e
+demandas, acompanhar tarefas, ler o diff e **aprovar ou rejeitar** entregas por conversa. Funciona nos três modos de execução.
+
+1. Abra **Integração** na interface e crie um **token de acesso** (o valor aparece uma única vez). Ele vale **só no `/mcp`**,
+   não abre o resto da API, é guardado como hash e pode ser revogado ali mesmo.
+2. Registre o servidor (a tela já gera o comando com o seu token e o seu endereço):
+
+   ```bash
+   claude mcp add --transport http agentforge http://localhost:8080/mcp --header "Authorization: Bearer afk_..."
+   ```
+
+   Para outros clientes, o arquivo `.mcp.json`: `{"mcpServers":{"agentforge":{"type":"http","url":"http://localhost:8080/mcp","headers":{"Authorization":"Bearer afk_..."}}}}`.
+3. Converse: *"crie uma demanda no projeto X para adicionar o filtro por status e inicie"*, *"o que depende de mim?"*,
+   *"mostre o diff da tarefa e aprove"*.
+
+Ferramentas (18): `list_projects`, `get_project`, `create_project`, `create_demand`, `start_demand`, `approve_plan`, `get_demand`,
+`list_tasks`, `get_task`, `get_task_diff`, `get_run_output`, `approve_task`, `reject_task`, `retry_task`, `cancel_task`,
+`list_pending_actions`, `list_agents`, `test_agent`. As de leitura são marcadas como somente leitura e `cancel_task` como
+destrutiva, para o cliente pedir confirmação. **Não existe ferramenta que faça push, merge ou apague projeto.** Atrás de um
+proxy reverso, repasse `/mcp` à API e use HTTPS (o token trafega no cabeçalho). `start_demand`/`create_demand` com `start` e
+`test_agent` gastam créditos do agente.
 ## Primeiro uso
 
 1. **Agentes:** confira que o Claude Code está **Conectado** e o teste passou.
@@ -130,6 +153,7 @@ Há um projeto de exemplo (API de tarefas em .NET, com testes) em `examples/task
 | `ORCHESTRATOR_CONCURRENCY` | `1` | Tarefas simultâneas; com mais de 1, Tech Lead e Security revisam em paralelo |
 | `WEB_PORT`, `API_DEBUG_PORT` | `8080`, `8081` | Portas (a API só em `127.0.0.1`) |
 | `SWAGGER_ENABLED` | `true` | Documentação em `/swagger` |
+| *(tela Integração)* | — | Tokens de acesso do servidor MCP (`/mcp`) |
 
 > Os valores de exemplo do `.env.example` bastam para experimentar, mas a API avisa no log enquanto estiverem em uso.
 > **Troque `ADMIN_PASSWORD`, `JWT_SECRET` e `POSTGRES_PASSWORD` antes de expor o sistema na rede.**

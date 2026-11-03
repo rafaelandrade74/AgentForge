@@ -12,6 +12,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<ReviewFinding> ReviewFindings => Set<ReviewFinding>();
     public DbSet<AgentRoleConfig> AgentRoleConfigs => Set<AgentRoleConfig>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
+    public DbSet<ApiToken> ApiTokens => Set<ApiToken>();
 
     protected override void ConfigureConventions(ModelConfigurationBuilder b) =>
         b.Properties<Enum>().HaveConversion<string>().HaveMaxLength(32);
@@ -61,6 +62,14 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.HasIndex(x => x.Role).IsUnique();
             e.Property(x => x.AdapterName).HasMaxLength(100);
             e.Property(x => x.Model).HasMaxLength(100);
+        });
+
+        b.Entity<ApiToken>(e =>
+        {
+            e.HasIndex(x => x.TokenHash).IsUnique();
+            e.Property(x => x.TokenHash).HasMaxLength(64);
+            e.Property(x => x.Name).HasMaxLength(100);
+            e.Property(x => x.Prefix).HasMaxLength(16);
         });
 
         b.Entity<RefreshToken>(e =>

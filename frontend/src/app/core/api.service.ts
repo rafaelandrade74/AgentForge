@@ -2,7 +2,7 @@ import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 import {
-  AgentInfo, AgentTestResult, Demand, Finding, LoginSession, Project, ProjectInput, RoleConfig, Run, RunSummary, WorkItem,
+  AgentInfo, AgentTestResult, ApiTokenInfo, CreatedApiToken, Demand, Finding, LoginSession, McpToolInfo, Project, ProjectInput, RoleConfig, Run, RunSummary, WorkItem,
 } from './models';
 
 /** Chamadas REST da API (o interceptor de auth anexa o token). */
@@ -51,6 +51,13 @@ export class ApiService {
     this.http.post<LoginSession>(`/api/agents/${name}/login/${sessionId}/code`, { code });
   cancelLogin = (name: string, sessionId: string) => this.http.delete<LoginSession>(`/api/agents/${name}/login/${sessionId}`);
   logoutAgent = (name: string) => this.http.post<AgentInfo>(`/api/agents/${name}/logout`, null);
+
+  // integração (MCP): tokens de acesso e catálogo de ferramentas
+  apiTokens = () => this.http.get<ApiTokenInfo[]>('/api/tokens');
+  createApiToken = (name: string) => this.http.post<CreatedApiToken>('/api/tokens', { name });
+  revokeApiToken = (id: string) => this.http.delete<void>(`/api/tokens/${id}`);
+  mcpTools = () =>
+    this.http.post<{ result: { tools: McpToolInfo[] } }>('/mcp', { jsonrpc: '2.0', id: 1, method: 'tools/list' });
 
   // papéis
   roleConfigs = () => this.http.get<RoleConfig[]>('/api/role-configs');

@@ -34,6 +34,11 @@ public class CliAgentRunner(
         db.AgentRuns.Add(run);
         await db.SaveChangesAsync(CancellationToken.None);
 
+        Task Emit(string kind, string text) => publisher.PublishAsync(
+            new AgentEvent(run.Id, request.ProjectId, request.DemandId, request.WorkItemId, request.Role, kind, text, DateTime.UtcNow),
+            CancellationToken.None);
+        await Emit("run_started", request.Role.ToString());
+
         var clock = Stopwatch.StartNew();
         var stdout = new List<string>();
         var stderr = new Queue<string>();
@@ -57,10 +62,7 @@ public class CliAgentRunner(
             while ((line = await process.StandardOutput.ReadLineAsync(linked.Token)) is not null)
             {
                 stdout.Add(line);
-                if (adapter.ParseEvent(line) is { } data)
-                    await publisher.PublishAsync(
-                        new AgentEvent(run.Id, request.DemandId, request.WorkItemId, request.Role, data.Kind, data.Text, DateTime.UtcNow),
-                        CancellationToken.None);
+                if (adapter.ParseEvent(line) is { } data) await Emit(data.Kind, data.Text);
             }
 
             await process.WaitForExitAsync(linked.Token);
@@ -99,6 +101,7 @@ public class CliAgentRunner(
         run.DurationMs = clock.ElapsedMilliseconds;
         run.FinishedAt = DateTime.UtcNow;
         await db.SaveChangesAsync(CancellationToken.None);
+        await Emit("run_finished", status.ToString());
 
         return new AgentRunResult(run.Id, status, output, result?.Json, run.CostUsd, clock.Elapsed, exitCode);
     }

@@ -70,7 +70,7 @@ public class ScriptedAdapter : ICliAgentAdapter
         return $"printf '%s\\n' 'result:{json}'";
     }
 
-    public AgentEventData? ParseEvent(string line) => null;
+    public AgentEventData? ParseEvent(string line) => line.StartsWith("evt:") ? new("log", line[4..]) : null;
 
     public AgentResult ParseResult(IReadOnlyList<string> stdoutLines, int exitCode)
     {

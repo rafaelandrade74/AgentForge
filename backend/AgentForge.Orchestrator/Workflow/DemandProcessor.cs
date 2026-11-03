@@ -12,6 +12,7 @@ public class DemandProcessor(
     IWorkspaceManager workspaces,
     AgentExecutor executor,
     IWorkQueue queue,
+    IWorkflowEventPublisher events,
     ILogger<DemandProcessor> logger)
 {
     public async Task RefineAsync(Guid demandId, CancellationToken ct)
@@ -22,7 +23,7 @@ public class DemandProcessor(
 
         var repo = await workspaces.EnsureRepositoryAsync(project, ct);
         var result = await executor.RunAsync(AgentRole.ScrumMaster, PromptBuilder.ScrumMaster(demand, project), repo,
-            demand.Id, null, json => Task.FromResult(OutputParsers.ParsePlan(json)), ct);
+            project.Id, demand.Id, null, json => Task.FromResult(OutputParsers.ParsePlan(json)), ct);
 
         if (result.Outcome == ExecOutcome.Cancelled) return;   // restart/cancelamento: continua Refining e é retomada
         if (result.Outcome == ExecOutcome.Failed)
@@ -30,6 +31,7 @@ public class DemandProcessor(
             logger.LogWarning("Refinamento da demanda {Id} falhou: {Error}", demandId, result.Error);
             demand.Status = DemandStatus.Failed;
             await db.SaveChangesAsync(CancellationToken.None);
+            await events.PublishChangeAsync(demand);
             return;
         }
 
@@ -45,6 +47,11 @@ public class DemandProcessor(
         demand.Status = DemandStatus.InProgress;
         await db.SaveChangesAsync(CancellationToken.None);
 
-        foreach (var item in byKey.Values) queue.EnqueueWorkItem(item.Id);
+        await events.PublishChangeAsync(demand);
+        foreach (var item in byKey.Values)
+        {
+            await events.PublishChangeAsync(project.Id, item);
+            queue.EnqueueWorkItem(item.Id);
+        }
     }
 }

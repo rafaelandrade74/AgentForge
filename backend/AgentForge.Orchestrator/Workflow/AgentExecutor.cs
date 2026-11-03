@@ -21,7 +21,7 @@ public record ExecResult<T>(ExecOutcome Outcome, T? Value, string? Error, Guid? 
 public class AgentExecutor(IServiceScopeFactory scopes)
 {
     public async Task<ExecResult<T>> RunAsync<T>(
-        AgentRole role, string prompt, string workingDirectory, Guid? demandId, Guid? workItemId,
+        AgentRole role, string prompt, string workingDirectory, Guid projectId, Guid? demandId, Guid? workItemId,
         Func<string?, Task<Parsed<T>>> parse, CancellationToken ct)
     {
         AgentRoleConfig? config;
@@ -40,7 +40,7 @@ public class AgentExecutor(IServiceScopeFactory scopes)
 
             using var scope = scopes.CreateScope();
             var runner = scope.ServiceProvider.GetRequiredService<IAgentRunner>();
-            var run = await runner.RunAsync(AgentRequest.FromConfig(config, text, workingDirectory, demandId, workItemId), ct);
+            var run = await runner.RunAsync(AgentRequest.FromConfig(config, text, workingDirectory, demandId, workItemId, projectId: projectId), ct);
 
             runId = run.RunId;
             if (run.Status == AgentRunStatus.Cancelled) return ExecResult<T>.Cancelled(runId);

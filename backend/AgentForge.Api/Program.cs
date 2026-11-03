@@ -1,11 +1,15 @@
 using System.Text;
 using System.Text.Json.Serialization;
 using AgentForge.Api.Endpoints;
+using AgentForge.Api.Realtime;
 using AgentForge.Infrastructure.Auth;
 using AgentForge.Infrastructure.Persistence;
 using AgentForge.Orchestrator;
+using AgentForge.Orchestrator.Agents;
+using AgentForge.Orchestrator.Workflow;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
@@ -42,6 +46,11 @@ builder.Services.AddOptions<AuthOptions>()
 builder.Services.AddAgentRunner();
 builder.Services.AddWorkspaces(builder.Configuration);
 builder.Services.AddOrchestrator(builder.Configuration);
+
+// Tempo real: troca os publicadores nulos pelos que transmitem via SignalR.
+builder.Services.AddSignalR().AddJsonProtocol(o => o.PayloadSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
+builder.Services.Replace(ServiceDescriptor.Singleton<IAgentEventPublisher, SignalRAgentEventPublisher>());
+builder.Services.Replace(ServiceDescriptor.Singleton<IWorkflowEventPublisher, SignalRWorkflowEventPublisher>());
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<AdminCredentials>();
 builder.Services.AddScoped<AuthService>();
@@ -57,6 +66,17 @@ builder.Services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationSc
             ValidAudience = o.Issuer,
             IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(o.JwtSecret)),
             ClockSkew = TimeSpan.FromSeconds(10),
+        };
+        // WebSockets não enviam cabeçalhos: o cliente SignalR passa o JWT em ?access_token=, aceito só em /hubs.
+        jwt.Events = new JwtBearerEvents
+        {
+            OnMessageReceived = ctx =>
+            {
+                var token = ctx.Request.Query["access_token"];
+                if (!string.IsNullOrEmpty(token) && ctx.HttpContext.Request.Path.StartsWithSegments("/hubs"))
+                    ctx.Token = token;
+                return Task.CompletedTask;
+            },
         };
     });
 builder.Services.AddAuthorization();
@@ -90,6 +110,7 @@ auth.MapGet("/me", (HttpContext ctx) => Results.Ok(new { username = ctx.User.Ide
 
 app.MapCrudEndpoints();
 app.MapWorkflowEndpoints();
+app.MapHub<RunsHub>("/hubs/runs");
 
 app.Run();
 

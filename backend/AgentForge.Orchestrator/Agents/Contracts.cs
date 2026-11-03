@@ -14,19 +14,23 @@ public record AgentRequest(
     int MaxTurns = 20,
     Guid? DemandId = null,
     Guid? WorkItemId = null,
-    TimeSpan? Timeout = null)
+    TimeSpan? Timeout = null,
+    Guid? ProjectId = null)
 {
     public static AgentRequest FromConfig(AgentRoleConfig config, string prompt, string workingDirectory,
-        Guid? demandId = null, Guid? workItemId = null, TimeSpan? timeout = null) =>
+        Guid? demandId = null, Guid? workItemId = null, TimeSpan? timeout = null, Guid? projectId = null) =>
         new(config.Role, prompt, workingDirectory, config.AdapterName, config.SystemPrompt, config.AllowedTools,
-            config.Model, config.MaxTurns, demandId, workItemId, timeout);
+            config.Model, config.MaxTurns, demandId, workItemId, timeout, projectId);
 }
 
 /// <summary>Evento interpretado de uma linha de saída do CLI (ex.: "assistant", "tool", "result").</summary>
 public record AgentEventData(string Kind, string Text);
 
-/// <summary>Evento publicado durante a execução, já ligado ao AgentRun.</summary>
-public record AgentEvent(Guid RunId, Guid? DemandId, Guid? WorkItemId, AgentRole Role, string Kind, string Text, DateTime At);
+/// <summary>
+/// Evento publicado durante a execução, já ligado ao AgentRun. Além dos eventos do CLI (assistant, tool, ...),
+/// o runner emite "run_started" e "run_finished" (Text = status final) para o front acompanhar o ciclo.
+/// </summary>
+public record AgentEvent(Guid RunId, Guid? ProjectId, Guid? DemandId, Guid? WorkItemId, AgentRole Role, string Kind, string Text, DateTime At);
 
 /// <summary>Resultado final lido da saída do CLI.</summary>
 public record AgentResult(string Text, string? Json, decimal CostUsd, bool IsError);

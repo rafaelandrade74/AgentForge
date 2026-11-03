@@ -36,12 +36,15 @@ public class CollectingPublisher : IAgentEventPublisher
 {
     private readonly List<AgentEvent> _events = [];
     public TaskCompletionSource FirstEvent { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
-    public IReadOnlyList<AgentEvent> Events { get { lock (_events) return _events.ToList(); } }
+    /// <summary>Todos os eventos, inclusive run_started/run_finished.</summary>
+    public IReadOnlyList<AgentEvent> All { get { lock (_events) return _events.ToList(); } }
+    /// <summary>Só as linhas de log vindas do CLI ("log"); FirstEvent completa na primeira delas.</summary>
+    public IReadOnlyList<AgentEvent> Events => All.Where(e => e.Kind == "log").ToList();
 
     public Task PublishAsync(AgentEvent evt, CancellationToken ct = default)
     {
         lock (_events) _events.Add(evt);
-        FirstEvent.TrySetResult();
+        if (evt.Kind == "log") FirstEvent.TrySetResult();
         return Task.CompletedTask;
     }
 }
@@ -72,6 +75,8 @@ public class AgentRunnerTests(PostgresFixture pg)
         Assert.Equal("""{"status":"approved"}""", result.Json);
         Assert.Equal(["prompt=olá", "pronto"], events.Events.Select(e => e.Text));
         Assert.All(events.Events, e => Assert.Equal(result.RunId, e.RunId));
+        Assert.Equal(["run_started", "log", "log", "run_finished"], events.All.Select(e => e.Kind));
+        Assert.Equal("Succeeded", events.All[^1].Text);
 
         var saved = await db.AgentRuns.SingleAsync();
         Assert.Equal(AgentRunStatus.Succeeded, saved.Status);

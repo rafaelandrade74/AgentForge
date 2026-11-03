@@ -129,9 +129,13 @@ public sealed class OrchestratorService(
         {
             logger.LogError(ex, "Erro ao refinar a demanda {Id}", demandId);
             using var scope = scopes.CreateScope();
-            await scope.ServiceProvider.GetRequiredService<AppDbContext>().Demands
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var updated = await db.Demands
                 .Where(d => d.Id == demandId && d.Status == DemandStatus.Refining)
                 .ExecuteUpdateAsync(s => s.SetProperty(d => d.Status, DemandStatus.Failed));
+            if (updated > 0)
+                await scope.ServiceProvider.GetRequiredService<IWorkflowEventPublisher>()
+                    .PublishChangeAsync(await db.Demands.AsNoTracking().FirstAsync(d => d.Id == demandId));
         }
     }
 

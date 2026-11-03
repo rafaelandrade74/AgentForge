@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore;
 namespace AgentForge.Orchestrator.Workflow;
 
 /// <summary>Ações de uma pessoa sobre o fluxo, usadas pelos endpoints da API.</summary>
-public class WorkflowActions(AppDbContext db, WorkItemProcessor processor, IWorkQueue queue)
+public class WorkflowActions(AppDbContext db, WorkItemProcessor processor, IWorkQueue queue, IWorkflowEventPublisher events)
 {
     /// <summary>Inicia (ou reinicia, se falhou) o refinamento da demanda pelo Scrum Master.</summary>
     public async Task<ActionOutcome> StartDemandAsync(Guid demandId)
@@ -15,6 +15,7 @@ public class WorkflowActions(AppDbContext db, WorkItemProcessor processor, IWork
         if (demand.Status is not (DemandStatus.New or DemandStatus.Failed)) return ActionOutcome.InvalidState;
         demand.Status = DemandStatus.Refining;
         await db.SaveChangesAsync();
+        await events.PublishChangeAsync(demand);
         queue.EnqueueDemand(demandId);
         return ActionOutcome.Ok;
     }

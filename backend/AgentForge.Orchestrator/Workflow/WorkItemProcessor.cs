@@ -17,6 +17,7 @@ public partial class WorkItemProcessor(
     IWorkspaceManager workspaces,
     AgentExecutor executor,
     IWorkQueue queue,
+    IWorkflowEventPublisher events,
     IOptions<OrchestratorOptions> options,
     ILogger<WorkItemProcessor> logger)
 {
@@ -57,7 +58,7 @@ public partial class WorkItemProcessor(
         var depTitles = item.Dependencies.Select(d => d.Title);
         var prompt = PromptBuilder.Dev(item, project, depTitles, open);
 
-        var result = await executor.RunAsync(AgentRole.Dev, prompt, ws.Path, demand.Id, item.Id,
+        var result = await executor.RunAsync(AgentRole.Dev, prompt, ws.Path, project.Id, demand.Id, item.Id,
             json => ParseDevAsync(json, ws.Path, project.BaseBranch, ct), ct);
         if (result.Outcome == ExecOutcome.Cancelled) return StepResult.Stop;
         if (result.Outcome == ExecOutcome.Failed) return Continue(await BlockAsync(item, project, "Dev", result.Error, ct));
@@ -74,10 +75,10 @@ public partial class WorkItemProcessor(
         var parallel = options.Value.MaxConcurrency > 1;
 
         var tlTask = executor.RunAsync(AgentRole.TechLead, PromptBuilder.TechLead(item, project, diff), ws.Path,
-            demand.Id, item.Id, json => Task.FromResult(OutputParsers.ParseReview(json)), ct);
+            project.Id, demand.Id, item.Id, json => Task.FromResult(OutputParsers.ParseReview(json)), ct);
         var secTask = parallel
             ? executor.RunAsync(AgentRole.Security, PromptBuilder.Security(item, project, diff), ws.Path,
-                demand.Id, item.Id, json => Task.FromResult(OutputParsers.ParseReview(json)), ct)
+                project.Id, demand.Id, item.Id, json => Task.FromResult(OutputParsers.ParseReview(json)), ct)
             : null;
 
         var reviews = new List<(AgentRole Role, ExecResult<ReviewReport> Result)> { (AgentRole.TechLead, await tlTask) };
@@ -91,7 +92,7 @@ public partial class WorkItemProcessor(
         var ws = await workspaces.CreateWorktreeAsync(project, item.Id, ct);
         var diff = await DiffAsync(ws.Path, project.BaseBranch, ct);
         var result = await executor.RunAsync(AgentRole.Security, PromptBuilder.Security(item, project, diff), ws.Path,
-            demand.Id, item.Id, json => Task.FromResult(OutputParsers.ParseReview(json)), ct);
+            project.Id, demand.Id, item.Id, json => Task.FromResult(OutputParsers.ParseReview(json)), ct);
         return await ConcludeReviewsAsync(item, project, [(AgentRole.Security, result)], WorkflowEvent.SecurityApproved, ct);
     }
 
@@ -118,7 +119,7 @@ public partial class WorkItemProcessor(
     private async Task<StepResult> QaStepAsync(WorkItem item, Demand demand, Project project, CancellationToken ct)
     {
         var ws = await workspaces.CreateWorktreeAsync(project, item.Id, ct);
-        var result = await executor.RunAsync(AgentRole.Qa, PromptBuilder.Qa(item, project), ws.Path, demand.Id, item.Id,
+        var result = await executor.RunAsync(AgentRole.Qa, PromptBuilder.Qa(item, project), ws.Path, project.Id, demand.Id, item.Id,
             json => Task.FromResult(OutputParsers.ParseQa(json)), ct);
         if (result.Outcome == ExecOutcome.Cancelled) return StepResult.Stop;
         if (result.Outcome == ExecOutcome.Failed) return Continue(await BlockAsync(item, project, "QA", result.Error, ct));
@@ -205,6 +206,7 @@ public partial class WorkItemProcessor(
         await db.SaveChangesAsync(CancellationToken.None);
         logger.LogInformation("WorkItem {Id}: {From} --{Event}--> {To}", item.Id, expected, evt, next);
 
+        await events.PublishChangeAsync(project.Id, item);
         await OnEnteredAsync(item, project, next);
         return true;
     }
@@ -232,8 +234,10 @@ public partial class WorkItemProcessor(
     {
         var states = await db.WorkItems.Where(w => w.DemandId == demandId).Select(w => w.State).ToListAsync();
         if (states.Count == 0 || states.Any(s => !WorkflowDefinition.IsTerminal(s)) || states.All(s => s == WorkItemState.Cancelled)) return;
-        await db.Demands.Where(d => d.Id == demandId && d.Status == DemandStatus.InProgress)
+        var updated = await db.Demands.Where(d => d.Id == demandId && d.Status == DemandStatus.InProgress)
             .ExecuteUpdateAsync(s => s.SetProperty(d => d.Status, DemandStatus.Done));
+        if (updated > 0)
+            await events.PublishChangeAsync(await db.Demands.AsNoTracking().FirstAsync(d => d.Id == demandId));
     }
 
     /// <summary>Evento vindo de uma pessoa (aprovar, rejeitar, retomar, cancelar).</summary>
@@ -266,5 +270,7 @@ public partial class WorkItemProcessor(
         item.State = WorkItemState.Blocked;
         item.BlockedReason = "Erro interno: " + message;
         await db.SaveChangesAsync();
+        var projectId = await db.Demands.Where(d => d.Id == item.DemandId).Select(d => d.ProjectId).FirstAsync();
+        await events.PublishChangeAsync(projectId, item);
     }
 }

@@ -3,8 +3,13 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { provideRouter } from '@angular/router';
-import { ExecutionEnvironment, Project } from '../core/models';
+import { ExecutionEnvironment, Project, StackProfile } from '../core/models';
 import { ProjectsPage } from './projects.page';
+
+const nodeProfile: StackProfile = {
+  id: 's1', name: 'Node 22', description: '', image: '', dockerfile: 'FROM node:22', network: 'bridge', cpuLimit: 2, memoryMb: 4096,
+  builtIn: true, projectCount: 0, createdAt: '',
+};
 
 const machine: ExecutionEnvironment = {
   id: 'e1', name: 'notebook-node22', url: 'http://192.168.0.20:8787', workspaceRoot: '/home/eu/af', tags: '', hasToken: true, projectCount: 1, createdAt: '',
@@ -25,6 +30,7 @@ describe('ProjectsPage (troca de ambiente)', () => {
     fixture.detectChanges();
     http.expectOne('/api/projects').flush([p]);
     http.expectOne('/api/environments').flush({ default: { mode: 'local', description: '' }, items: [machine] });
+    http.expectOne('/api/stack-profiles').flush([nodeProfile]);
     fixture.detectChanges();
   }
 
@@ -59,5 +65,45 @@ describe('ProjectsPage (troca de ambiente)', () => {
     fixture.detectChanges();
 
     expect(hint()).toBeNull();
+  });
+
+  it('o perfil de stack só aparece com um ambiente escolhido e vai no salvar; sem ambiente o perfil é descartado', () => {
+    open(project());
+    const page = fixture.componentInstance;
+    const text = () => (fixture.nativeElement as HTMLElement).textContent ?? '';
+
+    page.toggleForm();
+    fixture.detectChanges();
+    expect(text()).not.toContain('Perfil de stack');
+
+    page.draft.name = 'Loja';
+    page.draft.repositoryUrl = 'git@github.com:org/loja.git';
+    page.draft.environmentId = 'e1';
+    page.draft.stackProfileId = 's1';
+    fixture.detectChanges();
+    expect(text()).toContain('Perfil de stack');
+
+    page.save();
+    const saved = http.expectOne({ method: 'POST', url: '/api/projects' });
+    expect(saved.request.body.stackProfileId).toBe('s1');
+    saved.flush(project());
+    http.expectOne('/api/projects').flush([project()]);
+
+    page.toggleForm();
+    page.draft.name = 'Outra';
+    page.draft.repositoryUrl = 'x';
+    page.draft.environmentId = null;
+    page.draft.stackProfileId = 's1';
+    page.save();
+    const second = http.expectOne({ method: 'POST', url: '/api/projects' });
+    expect(second.request.body.stackProfileId).toBeNull();
+    second.flush(project());
+    http.expectOne('/api/projects').flush([project()]);
+  });
+
+  it('mostra o perfil do projeto no cartão', () => {
+    open(project({ environmentId: 'e1', stackProfileId: 's1' }));
+
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain('perfil: Node 22');
   });
 });

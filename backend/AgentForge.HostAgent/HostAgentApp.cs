@@ -64,7 +64,7 @@ app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
 app.MapGet(HostAgentRoutes.Info, () => new HostInfo(
     RuntimeInformation.OSDescription,
     typeof(HostAgentOptions).Assembly.GetName().Version?.ToString() ?? "1",
-    guard.Scratch, guard.RootsOnly, allowedExecutables.Keys.Order().ToList()));
+    guard.Scratch, guard.RootsOnly, allowedExecutables.Keys.Order().ToList(), options.Docker.Enabled));
 
 app.MapPost(HostAgentRoutes.Processes, async (StartProcessRequest req, ProcessSessions sessions, CancellationToken ct) =>
 {
@@ -138,6 +138,85 @@ app.MapPost(HostAgentRoutes.FsDelete, (PathRequest req) =>
         Directory.Delete(req.Path, recursive: true);
     }
     return Results.NoContent();
+});
+
+// ---- containers por tarefa (perfis de stack): só com HostAgent:Docker:Enabled. O pedido nunca vira uma linha de docker livre:
+// o host agent monta os argumentos (ContainerRules), aceita só imagens agentforge/* ou da lista, monta só a pasta do projeto,
+// sem --privileged, sem socket do Docker e sem capacidades.
+var docker = options.Docker;
+var dockerLauncher = new LocalProcessLauncher();
+var containerOfProcess = new System.Collections.Concurrent.ConcurrentDictionary<string, string>();
+string? hostUser = null;
+var isWindowsHost = RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
+
+app.Services.GetRequiredService<ProcessSessions>().OnRemoved = id =>
+{
+    // o processo local é o cliente do docker; matá-lo não derruba o container, então ele é removido à parte
+    if (!containerOfProcess.TryRemove(id, out var name)) return;
+    _ = dockerLauncher.RunAsync(new LaunchSpec(docker.Executable, ["rm", "-f", name], guard.Scratch), TimeSpan.FromSeconds(30), CancellationToken.None);
+};
+
+app.MapPost(HostAgentRoutes.Containers, async (StartContainerRequest req, ProcessSessions sessions, CancellationToken ct) =>
+{
+    if (!docker.Enabled)
+        return Results.Json(new HostError("Containers não estão habilitados neste host agent (HostAgent:Docker:Enabled)."), statusCode: 403);
+    var spec = req.Container;
+    if (!ContainerRules.ImageAllowed(spec.Image, docker.AllowedImages))
+        return Results.Json(new HostError($"Imagem '{spec.Image}' não permitida neste host agent (agentforge/* ou HostAgent:Docker:AllowedImages)."), statusCode: 403);
+    if (!guard.Allows(spec.MountPath, strict: true) || !guard.Allows(req.WorkingDirectory))
+        return Results.Json(new HostError("Pasta do projeto fora das pastas permitidas."), statusCode: 403);
+    if (ContainerRules.Validate(spec, req.WorkingDirectory, isWindowsHost) is { } invalid)
+        return Results.Json(new HostError(invalid), statusCode: 400);
+    if (!Directory.Exists(req.WorkingDirectory))
+        return Results.Json(new HostError($"Diretório de trabalho inexistente: {req.WorkingDirectory}"), statusCode: 400);
+
+    var claudeDir = docker.ResolvedClaudeConfigDir();
+    Directory.CreateDirectory(claudeDir);   // se não existir, o docker a criaria como root
+    hostUser ??= (await Uid(dockerLauncher, guard.Scratch, "-u")) + ":" + (await Uid(dockerLauncher, guard.Scratch, "-g"));
+    var name = "af-" + Guid.NewGuid().ToString("N")[..16];
+    var args = ContainerRules.RunArguments(spec, name, req.WorkingDirectory, req.Executable, req.Arguments ?? [], claudeDir, hostUser,
+        passApiKey: !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("ANTHROPIC_API_KEY")));
+    try
+    {
+        var id = await sessions.StartAsync(new LaunchSpec(docker.Executable, args, req.WorkingDirectory, req.Stdin, req.CloseStdin), ct);
+        containerOfProcess[id] = name;
+        return Results.Json(new StartProcessResponse(id), statusCode: 201);
+    }
+    catch (ProcessStartException ex)
+    {
+        return Results.Json(new HostError(ex.Message), statusCode: 422);
+    }
+
+    static async Task<string> Uid(LocalProcessLauncher launcher, string dir, string flag)
+    {
+        var r = await launcher.RunAsync(new LaunchSpec("id", [flag], dir), TimeSpan.FromSeconds(5), CancellationToken.None);
+        return r.Started && r.ExitCode == 0 ? r.Stdout.Trim() : "1000";
+    }
+});
+
+app.MapPost(HostAgentRoutes.ImagesEnsure, async (EnsureImageRequest req, CancellationToken ct) =>
+{
+    if (!docker.Enabled)
+        return Results.Json(new HostError("Containers não estão habilitados neste host agent (HostAgent:Docker:Enabled)."), statusCode: 403);
+    if (!ContainerRules.ImageAllowed(req.Image, docker.AllowedImages))
+        return Results.Json(new HostError($"Imagem '{req.Image}' não permitida neste host agent."), statusCode: 403);
+    var hasDockerfile = !string.IsNullOrWhiteSpace(req.Dockerfile);
+    if (hasDockerfile && (!req.Image.StartsWith(ContainerRules.BuiltImagePrefix, StringComparison.Ordinal) || req.Dockerfile!.Length > 20000))
+        return Results.Json(new HostError("Só é possível construir imagens agentforge/* (Dockerfile de até 20 mil caracteres)."), statusCode: 400);
+
+    var inspect = await dockerLauncher.RunAsync(new LaunchSpec(docker.Executable, ["image", "inspect", req.Image], guard.Scratch), TimeSpan.FromSeconds(30), ct);
+    if (!inspect.Started) return Results.Json(new HostError("Docker não encontrado nesta máquina."), statusCode: 422);
+    var present = inspect.ExitCode == 0;
+    if (!hasDockerfile || (present && !req.Force)) return Results.Ok(new EnsureImageResponse(req.Image, false, present, ""));
+
+    // sem contexto de arquivos: o Dockerfile vem pelo stdin, então a construção não enxerga nada da máquina
+    var build = await dockerLauncher.RunAsync(new LaunchSpec(docker.Executable, ["build", "--progress=plain", "-t", req.Image, "-"], guard.Scratch, req.Dockerfile),
+        TimeSpan.FromMinutes(25), ct);
+    var log = (build.Stdout + build.Stderr).Trim();
+    if (log.Length > 8000) log = "…" + log[^8000..];
+    return build.ExitCode == 0 && !build.TimedOut
+        ? Results.Ok(new EnsureImageResponse(req.Image, true, true, log))
+        : Results.Json(new HostError("Falha ao construir a imagem:\n" + log), statusCode: 422);
 });
 
 // Chave SSH da máquina: a privada nasce e fica aqui; só a pública (e a impressão digital) sai pela API.

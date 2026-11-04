@@ -12,6 +12,8 @@ public class Project
     public bool AutoMode { get; set; }
     /// <summary>Onde os agentes e o git deste projeto rodam. Null = o ambiente padrão do servidor (Agents:Launcher).</summary>
     public Guid? EnvironmentId { get; set; }
+    /// <summary>Se definido, os agentes deste projeto rodam num container deste perfil (só em ambiente com host agent com Docker).</summary>
+    public Guid? StackProfileId { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }
 
@@ -125,4 +127,28 @@ public class RefreshToken
     public string TokenHash { get; set; } = "";
     public string Username { get; set; } = "";
     public DateTime ExpiresAtUtc { get; set; }
+}
+
+/// <summary>
+/// Perfil de stack: a imagem Docker (ou o Dockerfile) em que os agentes de um projeto rodam, com limites. O container sobe
+/// por tarefa no host agent, com só a pasta do projeto montada; sem --privileged e sem o socket do Docker.
+/// </summary>
+public class StackProfile
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public string Name { get; set; } = "";
+    public string Description { get; set; } = "";
+    /// <summary>Imagem pronta (ex.: minha/imagem:1). Vazia quando há Dockerfile.</summary>
+    public string Image { get; set; } = "";
+    /// <summary>Conteúdo do Dockerfile, construído na máquina do ambiente (sem contexto de arquivos). Vazio quando há Image.</summary>
+    public string Dockerfile { get; set; } = "";
+    /// <summary>"bridge" (com rede) ou "none" (sem rede).</summary>
+    public string Network { get; set; } = "bridge";
+    /// <summary>Limite de CPUs do container; 0 = sem limite.</summary>
+    public double CpuLimit { get; set; }
+    /// <summary>Limite de memória em MB; 0 = sem limite.</summary>
+    public int MemoryMb { get; set; }
+    /// <summary>Perfis prontos (Node, .NET, Python) são recriados no start e não podem ser editados nem apagados.</summary>
+    public bool BuiltIn { get; set; }
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }

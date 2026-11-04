@@ -123,6 +123,7 @@ using (var scope = app.Services.CreateScope())
     await db.Database.MigrateAsync();
     var promptsDir = app.Configuration["Prompts:Directory"] ?? Path.Combine(app.Environment.ContentRootPath, "prompts");
     await RoleConfigSeeder.SeedAsync(db, promptsDir);
+    await StackProfileSeeder.SeedAsync(db);
 }
 
 if (app.Configuration.GetValue("Swagger:Enabled", true))
@@ -158,6 +159,7 @@ app.MapAgentEndpoints();
 app.MapTokenEndpoints();
 app.MapGitEndpoints();
 app.MapEnvironmentEndpoints();
+app.MapStackProfileEndpoints();
 app.MapGitHubEndpoints();
 app.MapMcp();
 app.MapHub<RunsHub>("/hubs/runs");

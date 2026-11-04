@@ -64,15 +64,24 @@ public class CliAgentRunner(
         try
         {
             // o processo roda no ambiente do projeto (aqui, ou numa máquina com host agent); sem projeto, no padrão
-            var target = request.ProjectId is { } projectId
-                ? await environments.ResolveAsync(
-                    await db.Projects.AsNoTracking().Where(p => p.Id == projectId).Select(p => p.EnvironmentId).FirstOrDefaultAsync(linked.Token),
-                    linked.Token)
-                : await environments.ResolveAsync(request.EnvironmentId, linked.Token);
+            EnvironmentTarget target;
+            ContainerSpec? container = null;
+            if (request.ProjectId is { } projectId)
+            {
+                var where = await db.Projects.AsNoTracking().Where(p => p.Id == projectId)
+                    .Select(p => new { p.EnvironmentId, p.StackProfileId }).FirstOrDefaultAsync(linked.Token);
+                target = await environments.ResolveAsync(where?.EnvironmentId, linked.Token);
+                if (where?.StackProfileId is { } profileId)
+                    container = await PrepareContainerAsync(target, projectId, profileId, ct);
+            }
+            else
+            {
+                target = await environments.ResolveAsync(request.EnvironmentId, linked.Token);
+            }
 
             // o prompt vai pelo stdin (e o stdin fecha)
             await using var process = await target.Launcher.StartAsync(
-                new LaunchSpec(adapter.Executable, adapter.BuildArguments(request), request.WorkingDirectory, request.Prompt), linked.Token);
+                new LaunchSpec(adapter.Executable, adapter.BuildArguments(request), request.WorkingDirectory, request.Prompt, Container: container), linked.Token);
             using var killOnCancel = linked.Token.Register(process.Kill);
 
             var errTask = ReadStderrAsync(process, stderr);
@@ -122,6 +131,24 @@ public class CliAgentRunner(
         await Emit("run_finished", status.ToString());
 
         return new AgentRunResult(run.Id, status, output, result?.Json, run.CostUsd, clock.Elapsed, exitCode);
+    }
+
+    /// <summary>
+    /// Projeto com perfil de stack: a execução vai para um container do perfil na máquina do ambiente (só host agent com Docker).
+    /// Garante a imagem antes (constrói do Dockerfile na primeira vez; fora do tempo limite do agente).
+    /// </summary>
+    private async Task<ContainerSpec> PrepareContainerAsync(EnvironmentTarget target, Guid projectId, Guid profileId, CancellationToken ct)
+    {
+        if (target.Launcher is not RemoteProcessLauncher remote || target.WorkspaceRoot is not { Length: > 0 } root)
+            throw new EnvironmentUnavailableException("O perfil de stack deste projeto exige um ambiente com host agent com Docker (escolha o ambiente no projeto).");
+        var profile = await db.StackProfiles.AsNoTracking().FirstOrDefaultAsync(p => p.Id == profileId, ct)
+            ?? throw new EnvironmentUnavailableException("O perfil de stack deste projeto não existe mais. Escolha outro perfil no projeto.");
+
+        var hasDockerfile = !string.IsNullOrWhiteSpace(profile.Dockerfile);
+        var image = hasDockerfile ? ContainerRules.ImageTag(profile.Dockerfile) : profile.Image;
+        await remote.EnsureImageAsync(image, hasDockerfile ? profile.Dockerfile : null, force: false, ct);
+        var projectDir = root.Replace('\\', '/').TrimEnd('/') + "/" + projectId;
+        return new ContainerSpec(image, null, profile.Network, profile.CpuLimit, profile.MemoryMb, projectDir);
     }
 
     private static async Task ReadStderrAsync(IRunningProcess process, Queue<string> tail)

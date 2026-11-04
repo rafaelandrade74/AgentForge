@@ -114,6 +114,7 @@ const EMPTY: EnvironmentInput = { name: '', url: '', token: '', workspaceRoot: '
           <app-badge label="sem conexão" tone="bad" /> {{ r.error }}
         } @else {
           <app-badge label="conectado" tone="ok" />
+          <app-badge [label]="r.containersEnabled ? 'containers habilitados' : 'sem containers'" [tone]="r.containersEnabled ? 'ok' : 'idle'" />
           @if (showRoot && !r.workspaceRootExists) {
             <span class="muted small">a pasta dos clones será criada no primeiro uso</span>
           }

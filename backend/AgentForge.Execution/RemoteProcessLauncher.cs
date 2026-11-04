@@ -52,8 +52,11 @@ public sealed class RemoteProcessLauncher : IProcessLauncher
         string id;
         try
         {
-            using var response = await _http.PostAsJsonAsync(HostAgentRoutes.Processes.TrimStart('/'),
-                new StartProcessRequest(spec.Executable, spec.Arguments, spec.WorkingDirectory, spec.Stdin, spec.CloseStdin), Json, ct);
+            using var response = spec.Container is { } container
+                ? await _http.PostAsJsonAsync(HostAgentRoutes.Containers.TrimStart('/'),
+                    new StartContainerRequest(container, spec.Executable, spec.Arguments, spec.WorkingDirectory, spec.Stdin, spec.CloseStdin), Json, ct)
+                : await _http.PostAsJsonAsync(HostAgentRoutes.Processes.TrimStart('/'),
+                    new StartProcessRequest(spec.Executable, spec.Arguments, spec.WorkingDirectory, spec.Stdin, spec.CloseStdin), Json, ct);
             await EnsureOkAsync(response, ct);
             id = (await response.Content.ReadFromJsonAsync<StartProcessResponse>(Json, ct))!.Id;
         }
@@ -75,6 +78,21 @@ public sealed class RemoteProcessLauncher : IProcessLauncher
             using var response = await _http.PostAsJsonAsync(route.TrimStart('/'), new PathRequest(path), Json, ct);
             await EnsureOkAsync(response, ct);
             return reads && (await response.Content.ReadFromJsonAsync<ExistsResponse>(Json, ct))!.Exists;
+        }
+        catch (HttpRequestException ex)
+        {
+            throw new ProcessStartException($"Host agent inacessível em {_baseUrl}: {ex.Message}");
+        }
+    }
+
+    /// <summary>Garante a imagem do perfil na máquina (constrói do Dockerfile se faltar ou se forçado). Demora na primeira vez.</summary>
+    public async Task<EnsureImageResponse> EnsureImageAsync(string image, string? dockerfile, bool force, CancellationToken ct)
+    {
+        try
+        {
+            using var response = await _http.PostAsJsonAsync(HostAgentRoutes.ImagesEnsure.TrimStart('/'), new EnsureImageRequest(image, dockerfile, force), Json, ct);
+            await EnsureOkAsync(response, ct);
+            return (await response.Content.ReadFromJsonAsync<EnsureImageResponse>(Json, ct))!;
         }
         catch (HttpRequestException ex)
         {

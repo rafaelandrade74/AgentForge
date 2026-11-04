@@ -1,6 +1,6 @@
 # Plano: ambientes de execução por stack
 
-Continuação das fases do projeto (0 a 9 concluídas; 10 e 11 feitas). Cada fase tem ADR, testes e commit `fase-N: <resumo>`; paramos para
+Continuação das fases do projeto (0 a 9 concluídas; 10, 11 e 12 feitas). Cada fase tem ADR, testes e commit `fase-N: <resumo>`; paramos para
 validação antes da seguinte.
 
 **Decisões já tomadas:** o token de cada máquina fica no banco, **criptografado** (Data Protection, chaves em volume próprio);
@@ -21,7 +21,7 @@ escolhe o ambiente; status, teste e sessões de login isolados).
 Pronto quando: o ciclo completo (clone de repositório privado, worktree, agente, diff) roda num host agent remoto e há testes de
 isolamento entre ambientes.
 
-## Fase 12 — Perfis de stack e container por tarefa
+## Fase 12 — Perfis de stack e container por tarefa (feita; ADR 0019)
 - `StackProfile`: imagem ou Dockerfile, pacotes, versões (Node/.NET/Python), comandos de build e teste, rede permitida.
   Perfis prontos (Node, .NET, Python) e perfis do usuário, vários por projeto.
 - Novo tipo de ambiente `docker-image` (**só host agent com Docker**): cada tarefa sobe um container do perfil com o worktree

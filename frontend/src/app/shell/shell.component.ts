@@ -17,6 +17,7 @@ import { RealtimeService } from '../core/realtime.service';
       <a mat-button routerLink="/agents" routerLinkActive="active">Agentes</a>
       <a mat-button routerLink="/prompts" routerLinkActive="active">Prompts</a>
       <a mat-button routerLink="/environments" routerLinkActive="active">Ambientes</a>
+      <a mat-button routerLink="/profiles" routerLinkActive="active">Perfis</a>
       <a mat-button routerLink="/git" routerLinkActive="active">Git</a>
       <a mat-button routerLink="/integration" routerLinkActive="active">Integração</a>
       <span class="spacer"></span>

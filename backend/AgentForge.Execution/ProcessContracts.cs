@@ -8,7 +8,9 @@ public record LaunchSpec(
     /// <summary>Texto enviado ao stdin logo ao iniciar (ex.: o prompt).</summary>
     string? Stdin = null,
     /// <summary>Fecha o stdin depois de enviar <see cref="Stdin"/>; false para fluxos interativos (login).</summary>
-    bool CloseStdin = true);
+    bool CloseStdin = true,
+    /// <summary>Se definido, roda neste container (só host agent com Docker); null = direto na máquina.</summary>
+    ContainerSpec? Container = null);
 
 public class ProcessStartException(string message) : Exception(message);
 

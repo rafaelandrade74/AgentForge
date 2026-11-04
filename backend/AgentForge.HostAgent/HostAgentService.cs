@@ -24,9 +24,30 @@ public class HostAgentOptions
     /// </summary>
     public string SshDir { get; set; } = "";
 
+    /// <summary>Containers por tarefa (perfis de stack). Desligado por padrão: precisa de Docker nesta máquina e de habilitação explícita.</summary>
+    public DockerOptions Docker { get; set; } = new();
+
     public string ResolvedSshDir() => string.IsNullOrWhiteSpace(SshDir)
         ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile) is { Length: > 0 } home ? home : Path.GetTempPath(), ".agentforge", "ssh")
         : SshDir;
+}
+
+public class DockerOptions
+{
+    public bool Enabled { get; set; }
+
+    /// <summary>Binário do docker (nome ou caminho).</summary>
+    public string Executable { get; set; } = "docker";
+
+    /// <summary>Imagens prontas aceitas além das construídas pelo AgentForge (agentforge/*). Exata ou terminando em `*`.</summary>
+    public List<string> AllowedImages { get; set; } = [];
+
+    /// <summary>Pasta de login do Claude desta máquina, montada em /agent-config no container. Padrão: ~/.claude.</summary>
+    public string ClaudeConfigDir { get; set; } = "";
+
+    public string ResolvedClaudeConfigDir() => string.IsNullOrWhiteSpace(ClaudeConfigDir)
+        ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".claude")
+        : ClaudeConfigDir;
 }
 
 public sealed class PathGuard
@@ -77,6 +98,9 @@ public sealed class ProcessSessions(IProcessLauncher launcher, ILogger<ProcessSe
     }
 
     private readonly ConcurrentDictionary<string, Session> _sessions = new();
+
+    /// <summary>Chamado quando um processo é removido (fim, desconexão ou kill): usado para derrubar o container dele.</summary>
+    public Action<string>? OnRemoved { get; set; }
 
     public async Task<string> StartAsync(LaunchSpec spec, CancellationToken ct)
     {
@@ -147,6 +171,7 @@ public sealed class ProcessSessions(IProcessLauncher launcher, ILogger<ProcessSe
         if (!_sessions.TryRemove(id, out var session)) return false;
         if (kill) session.Process.Kill();
         _ = session.Process.DisposeAsync();
+        OnRemoved?.Invoke(id);
         logger.LogDebug("Processo {Id} removido (kill={Kill})", id, kill);
         return true;
     }

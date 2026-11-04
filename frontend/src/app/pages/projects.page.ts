@@ -10,11 +10,11 @@ import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { ApiService } from '../core/api.service';
-import { ExecutionEnvironment, GitHubImportResult, Project, ProjectInput } from '../core/models';
+import { ExecutionEnvironment, GitHubImportResult, Project, ProjectInput, StackProfile } from '../core/models';
 import { ActionDialogComponent, BadgeComponent } from '../shared/shared';
 import { GithubImportComponent } from './github-import.component';
 
-const EMPTY: ProjectInput = { name: '', repositoryUrl: '', baseBranch: 'main', buildCommand: '', testCommand: '', autoMode: false, environmentId: null };
+const EMPTY: ProjectInput = { name: '', repositoryUrl: '', baseBranch: 'main', buildCommand: '', testCommand: '', autoMode: false, environmentId: null, stackProfileId: null };
 
 @Component({
   selector: 'app-projects-page',
@@ -65,6 +65,15 @@ const EMPTY: ProjectInput = { name: '', repositoryUrl: '', baseBranch: 'main', b
                   @for (e of environments(); track e.id) { <mat-option [value]="e.id">{{ e.name }}</mat-option> }
                 </mat-select>
               </mat-form-field>
+              @if (draft.environmentId) {
+                <mat-form-field appearance="outline">
+                  <mat-label>Perfil de stack (container)</mat-label>
+                  <mat-select name="stackProfileId" [(ngModel)]="draft.stackProfileId">
+                    <mat-option [value]="null">Nenhum (roda direto na máquina)</mat-option>
+                    @for (s of profiles(); track s.id) { <mat-option [value]="s.id">{{ s.name }}</mat-option> }
+                  </mat-select>
+                </mat-form-field>
+              }
               @if (environmentChanged()) {
                 <p class="muted small env-hint" data-testid="env-change-hint">
                   O clone atual continua na máquina anterior (não é movido): o próximo uso clona o repositório na nova máquina, que precisa
@@ -95,6 +104,7 @@ const EMPTY: ProjectInput = { name: '', repositoryUrl: '', baseBranch: 'main', b
                 <app-badge [label]="'base: ' + p.baseBranch" />
                 <app-badge [label]="p.autoMode ? 'automático' : 'com aprovações'" [tone]="p.autoMode ? 'warn' : 'ok'" />
                 @if (environmentName(p); as env) { <app-badge [label]="'ambiente: ' + env" tone="info" /> }
+                @if (profileName(p); as prof) { <app-badge [label]="'perfil: ' + prof" tone="info" /> }
               </div>
             </mat-card-content>
             <mat-card-actions>
@@ -127,6 +137,7 @@ export class ProjectsPage {
 
   readonly projects = signal<Project[]>([]);
   readonly environments = signal<ExecutionEnvironment[]>([]);
+  readonly profiles = signal<StackProfile[]>([]);
   readonly loaded = signal(false);
   readonly formOpen = signal(false);
   readonly editingId = signal<string | null>(null);
@@ -139,6 +150,7 @@ export class ProjectsPage {
   constructor() {
     this.load();
     this.api.environments().subscribe((l) => this.environments.set(l.items));
+    this.api.stackProfiles().subscribe((s) => this.profiles.set(s));
   }
 
   private load(): void {
@@ -153,6 +165,10 @@ export class ProjectsPage {
     void this.router.navigate(['/projects', r.project.id]);
   }
 
+  profileName(p: Project): string | null {
+    return p.stackProfileId ? (this.profiles().find((s) => s.id === p.stackProfileId)?.name ?? 'perfil removido') : null;
+  }
+
   environmentName(p: Project): string | null {
     return p.environmentId ? (this.environments().find((e) => e.id === p.environmentId)?.name ?? "ambiente removido") : null;
   }
@@ -163,7 +179,7 @@ export class ProjectsPage {
   }
 
   edit(p: Project): void {
-    this.openForm(p.id, { name: p.name, repositoryUrl: p.repositoryUrl, baseBranch: p.baseBranch, buildCommand: p.buildCommand, testCommand: p.testCommand, autoMode: p.autoMode, environmentId: p.environmentId ?? null });
+    this.openForm(p.id, { name: p.name, repositoryUrl: p.repositoryUrl, baseBranch: p.baseBranch, buildCommand: p.buildCommand, testCommand: p.testCommand, autoMode: p.autoMode, environmentId: p.environmentId ?? null, stackProfileId: p.stackProfileId ?? null });
   }
 
   /** Editando um projeto e trocando a máquina dele: avisa o que acontece com o clone existente. */
@@ -186,7 +202,9 @@ export class ProjectsPage {
   save(): void {
     this.saving.set(true);
     const id = this.editingId();
-    const request = id ? this.api.updateProject(id, this.draft) : this.api.createProject(this.draft);
+    // o perfil de stack roda em container num ambiente: sem ambiente não há perfil
+    const body: ProjectInput = { ...this.draft, stackProfileId: this.draft.environmentId ? (this.draft.stackProfileId ?? null) : null };
+    const request = id ? this.api.updateProject(id, body) : this.api.createProject(body);
     request.subscribe({
       next: () => {
         this.saving.set(false);

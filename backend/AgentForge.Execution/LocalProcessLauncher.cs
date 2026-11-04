@@ -31,6 +31,8 @@ public sealed class LocalProcessLauncher : IProcessLauncher
 
     public Task<IRunningProcess> StartAsync(LaunchSpec spec, CancellationToken ct)
     {
+        if (spec.Container is not null)
+            throw new ProcessStartException("Container por tarefa só funciona em ambiente com host agent com Docker (tela Ambientes).");
         var executable = Executables is not null && Executables.TryGetValue(spec.Executable, out var mapped) ? mapped : spec.Executable;
         Process process;
         try

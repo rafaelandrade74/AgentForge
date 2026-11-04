@@ -14,6 +14,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public DbSet<ApiToken> ApiTokens => Set<ApiToken>();
     public DbSet<ExecutionEnvironment> ExecutionEnvironments => Set<ExecutionEnvironment>();
+    public DbSet<StackProfile> StackProfiles => Set<StackProfile>();
 
     protected override void ConfigureConventions(ModelConfigurationBuilder b) =>
         b.Properties<Enum>().HaveConversion<string>().HaveMaxLength(32);
@@ -27,6 +28,17 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.Property(x => x.BaseBranch).HasMaxLength(200);
             // um ambiente em uso não pode ser apagado (o clone do projeto mora nele)
             e.HasOne<ExecutionEnvironment>().WithMany().HasForeignKey(x => x.EnvironmentId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<StackProfile>().WithMany().HasForeignKey(x => x.StackProfileId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        b.Entity<StackProfile>(e =>
+        {
+            e.HasIndex(x => x.Name).IsUnique();
+            e.Property(x => x.Name).HasMaxLength(100);
+            e.Property(x => x.Description).HasMaxLength(500);
+            e.Property(x => x.Image).HasMaxLength(300);
+            e.Property(x => x.Dockerfile).HasMaxLength(20000);
+            e.Property(x => x.Network).HasMaxLength(16);
         });
 
         b.Entity<ExecutionEnvironment>(e =>

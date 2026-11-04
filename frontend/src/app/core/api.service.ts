@@ -2,7 +2,7 @@ import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 import {
-  AgentInfo, AgentTestResult, ApiTokenInfo, CreatedApiToken, Demand, EnvironmentInput, EnvironmentList, EnvironmentTest, ExecutionEnvironment, Finding, GitAccessResult, GitHubImportRequest, GitHubImportResult, GitHubRepo, GitSshStatus, LoginSession, McpToolInfo, Project, ProjectInput, RoleConfig, Run, RunSummary, WorkItem,
+  AgentInfo, AgentTestResult, ApiTokenInfo, CreatedApiToken, Demand, EnvironmentInput, EnvironmentList, EnvironmentTest, ExecutionEnvironment, Finding, GitAccessResult, GitHubImportRequest, GitHubImportResult, GitHubRepo, GitSshStatus, LoginSession, McpToolInfo, BuildImageResult, Project, ProjectInput, RoleConfig, Run, RunSummary, StackProfile, StackProfileInput, WorkItem,
 } from './models';
 
 /** Parâmetros de query com o ambiente escolhido; sem ambiente (padrão do servidor) a URL fica exatamente como antes. */
@@ -81,6 +81,14 @@ export class ApiService {
 
   // ambientes de execução
   environments = () => this.http.get<EnvironmentList>('/api/environments');
+
+  // perfis de stack (container por tarefa)
+  stackProfiles = () => this.http.get<StackProfile[]>('/api/stack-profiles');
+  createStackProfile = (p: StackProfileInput) => this.http.post<StackProfile>('/api/stack-profiles', p);
+  updateStackProfile = (id: string, p: StackProfileInput) => this.http.put<StackProfile>(`/api/stack-profiles/${id}`, p);
+  deleteStackProfile = (id: string) => this.http.delete<void>(`/api/stack-profiles/${id}`);
+  buildStackProfile = (id: string, environmentId: string, force = false) =>
+    this.http.post<BuildImageResult>(`/api/stack-profiles/${id}/build`, null, { params: { environmentId, force: String(force) } });
   createEnvironment = (input: EnvironmentInput) => this.http.post<ExecutionEnvironment>('/api/environments', input);
   updateEnvironment = (id: string, input: EnvironmentInput) => this.http.put<ExecutionEnvironment>(`/api/environments/${id}`, input);
   deleteEnvironment = (id: string) => this.http.delete<void>(`/api/environments/${id}`);

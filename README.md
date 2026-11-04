@@ -138,8 +138,24 @@ Pontos importantes:
 - Mudar o ambiente de um projeto faz o próximo uso clonar o repositório na nova máquina (o clone antigo permanece na anterior).
 - Um ambiente em uso por projetos não pode ser excluído.
 
-Decisões nas [ADR 0017](docs/adr/0017-ambientes-de-execucao.md) e [ADR 0018](docs/adr/0018-git-e-login-por-ambiente.md); o plano completo (próximas fases:
-perfis de stack com container por tarefa, ambiente por papel e fila) está em [docs/plano-ambientes.md](docs/plano-ambientes.md).
+### Perfis de stack (um container por tarefa)
+
+Em vez de depender do que a máquina tem instalado, o projeto pode escolher um **perfil de stack** (tela **Perfis**; campo *Perfil de
+stack* no projeto, depois de escolher o ambiente): uma imagem Docker (Node 22, .NET 8, Python 3.12 prontos, ou a sua, por imagem ou
+**Dockerfile**) em que os agentes do projeto rodam, com limites de CPU/memória e rede opcional. Cada tarefa sobe um container na
+máquina do ambiente, com **só a pasta do projeto** montada (mais o login do Claude), sem `--privileged`, sem o socket do Docker e sem
+capacidades.
+
+1. Na máquina (Linux ou macOS, com Docker), suba o host agent com `HostAgent:Docker:Enabled=true` (desligado por padrão). Imagens
+   prontas próprias precisam estar em `HostAgent:Docker:AllowedImages`; as construídas pelo AgentForge (`agentforge/*`) sempre valem.
+   O login do Claude dessa máquina (`~/.claude`, ou `HostAgent:Docker:ClaudeConfigDir`) é o usado no container.
+2. **Ambientes → Testar** mostra *containers habilitados*. Em **Perfis → Construir imagem** a imagem é construída nessa máquina, com o
+   log (na primeira execução ela também é construída sozinha, e muda ao editar o Dockerfile).
+3. No projeto: ambiente + perfil. O agente roda dentro do container; sem Docker habilitado ou com perfil apagado a execução falha com o motivo.
+
+Para usar uma imagem sua, ela precisa ter o `claude`, o `git` e `CLAUDE_CONFIG_DIR=/agent-config`. Decisão na [ADR 0019](docs/adr/0019-perfis-de-stack-e-container-por-tarefa.md).
+
+Decisões nas [ADR 0017](docs/adr/0017-ambientes-de-execucao.md) e [ADR 0018](docs/adr/0018-git-e-login-por-ambiente.md); o plano completo (próxima fase: ambiente por papel e fila) está em [docs/plano-ambientes.md](docs/plano-ambientes.md).
 
 ## Controlar o AgentForge pelo Claude Code (MCP)
 
@@ -287,7 +303,8 @@ vazios, anulariam o padrão do código (defina-os só se quiser mudar). Os segre
 O **host agent** (`backend/AgentForge.HostAgent/appsettings.json`) tem o seu próprio conjunto: `urls` (padrão
 `http://127.0.0.1:8787`), `HostAgent:Token` (o mesmo de `Agents:HostAgent:Token`), `HostAgent:Roots` (pastas permitidas; ao
 menos uma), `HostAgent:Executables` (nome lógico → binário; só `claude` e `git` por padrão) e `HostAgent:SshDir` (pasta da chave
-SSH gerada por pedido da API; padrão `~/.agentforge/ssh`). `scripts/host-agent` preenche tudo.
+SSH gerada por pedido da API; padrão `~/.agentforge/ssh`) e `HostAgent:Docker:*` (`Enabled`, `Executable`, `AllowedImages`,
+`ClaudeConfigDir`: containers por tarefa, desligados por padrão). `scripts/host-agent` preenche tudo.
 
 Os prompts de sistema dos papéis ficam em `prompts/<papel>.md` (semeiam o primeiro start) e são editados depois pela tela
 **Prompts**; ficam no banco.

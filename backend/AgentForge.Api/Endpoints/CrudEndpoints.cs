@@ -24,7 +24,7 @@ public static class CrudEndpoints
 
     // ---------- Projects ----------
     internal static ProjectDto ToDto(Project p) =>
-        new(p.Id, p.Name, Secrets.MaskUrls(p.RepositoryUrl), p.BaseBranch, p.BuildCommand, p.TestCommand, p.AutoMode, p.CreatedAt, p.EnvironmentId);
+        new(p.Id, p.Name, Secrets.MaskUrls(p.RepositoryUrl), p.BaseBranch, p.BuildCommand, p.TestCommand, p.AutoMode, p.CreatedAt, p.EnvironmentId, p.StackProfileId);
 
     private static void Apply(Project p, ProjectInput i)
     {
@@ -37,11 +37,16 @@ public static class CrudEndpoints
         p.TestCommand = i.TestCommand;
         p.AutoMode = i.AutoMode;
         p.EnvironmentId = i.EnvironmentId;
+        p.StackProfileId = i.StackProfileId;
     }
 
     private static async Task<IResult?> ValidateEnvironmentAsync(ProjectInput i, AppDbContext db) =>
         i.EnvironmentId is { } id && !await db.ExecutionEnvironments.AnyAsync(e => e.Id == id)
             ? Invalid(nameof(i.EnvironmentId), "Ambiente não encontrado.")
+            : i.StackProfileId is { } profile && !await db.StackProfiles.AnyAsync(s => s.Id == profile)
+                ? Invalid(nameof(i.StackProfileId), "Perfil de stack não encontrado.")
+            : i.StackProfileId is not null && i.EnvironmentId is null
+                ? Invalid(nameof(i.StackProfileId), "O perfil de stack roda em container num ambiente com host agent com Docker: escolha também o ambiente.")
             : null;
 
     private static IResult? Validate(ProjectInput i) =>

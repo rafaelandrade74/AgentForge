@@ -16,7 +16,8 @@ public record DefaultEnvironmentDto(string Mode, string Description);
 public record EnvironmentListDto(DefaultEnvironmentDto Default, List<EnvironmentDto> Items);
 
 public record ToolCheckDto(string Tool, bool Ok, string Detail);
-public record EnvironmentTestDto(bool Reachable, string? Error, bool WorkspaceRootExists, List<ToolCheckDto> Tools);
+public record EnvironmentTestDto(bool Reachable, string? Error, bool WorkspaceRootExists, List<ToolCheckDto> Tools,
+    bool ContainersEnabled = false);
 
 public static class EnvironmentEndpoints
 {
@@ -150,7 +151,9 @@ public static class EnvironmentEndpoints
         var rootExists = false;
         if (target.WorkspaceRoot is { Length: > 0 } root)
             rootExists = await target.Launcher.DirectoryExistsAsync(root.Replace('\\', '/'), ct);
-        return new EnvironmentTestDto(true, null, rootExists, tools);
+        // containers por tarefa (perfis de stack): o host agent informa se habilitou o Docker
+        var containers = target.Launcher is RemoteProcessLauncher remote && (await remote.InfoAsync(ct)).ContainersEnabled;
+        return new EnvironmentTestDto(true, null, rootExists, tools, containers);
     }
 
     private static string FirstLine(string text) =>

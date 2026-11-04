@@ -14,11 +14,19 @@ public static class HostAgentRoutes
     /// <summary>Chave SSH da máquina: GET = estado, DELETE = apaga; <see cref="SshGenerate"/> cria (a privada nunca sai da máquina).</summary>
     public const string Ssh = "/v1/ssh";
     public const string SshGenerate = "/v1/ssh/generate";
+    /// <summary>Inicia um processo num container do perfil de stack (só se o host agent habilitou Docker). Depois, eventos/stdin/kill são os de /v1/processes.</summary>
+    public const string Containers = "/v1/containers";
+    /// <summary>Garante a imagem na máquina (constrói do Dockerfile se faltar ou se forçado).</summary>
+    public const string ImagesEnsure = "/v1/images/ensure";
 }
 
 public record GenerateKeyRequest(bool Overwrite);
+public record StartContainerRequest(ContainerSpec Container, string Executable, IReadOnlyList<string> Arguments, string WorkingDirectory, string? Stdin, bool CloseStdin);
+public record EnsureImageRequest(string Image, string? Dockerfile, bool Force);
+public record EnsureImageResponse(string Image, bool Built, bool Present, string Log);
 
-public record HostInfo(string Os, string Version, string ScratchDirectory, IReadOnlyList<string> Roots, IReadOnlyList<string> Executables);
+public record HostInfo(string Os, string Version, string ScratchDirectory, IReadOnlyList<string> Roots, IReadOnlyList<string> Executables,
+    bool ContainersEnabled = false);
 
 public record StartProcessRequest(string Executable, IReadOnlyList<string> Arguments, string WorkingDirectory, string? Stdin, bool CloseStdin);
 public record StartProcessResponse(string Id);

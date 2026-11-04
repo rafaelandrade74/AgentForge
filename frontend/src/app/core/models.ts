@@ -16,6 +16,8 @@ export interface Project {
   autoMode: boolean;
   /** Onde os agentes e o git do projeto rodam; ausente/null = o ambiente padrão do servidor. */
   environmentId?: string | null;
+  /** Perfil de stack: os agentes do projeto rodam num container dele (só em ambiente com host agent com Docker). */
+  stackProfileId?: string | null;
   createdAt: string;
 }
 export type ProjectInput = Omit<Project, 'id' | 'createdAt'>;
@@ -235,4 +237,36 @@ export interface EnvironmentTest {
   error: string | null;
   workspaceRootExists: boolean;
   tools: ToolCheck[];
+  /** O host agent habilitou containers por tarefa (HostAgent:Docker:Enabled). */
+  containersEnabled?: boolean;
+}
+
+// perfis de stack (container por tarefa)
+export interface StackProfile {
+  id: string;
+  name: string;
+  description: string;
+  image: string;
+  dockerfile: string;
+  network: 'bridge' | 'none';
+  cpuLimit: number;
+  memoryMb: number;
+  builtIn: boolean;
+  projectCount: number;
+  createdAt: string;
+}
+export interface StackProfileInput {
+  name: string;
+  description: string;
+  image: string;
+  dockerfile: string;
+  network: 'bridge' | 'none';
+  cpuLimit: number;
+  memoryMb: number;
+}
+export interface BuildImageResult {
+  ok: boolean;
+  image: string;
+  built: boolean;
+  log: string;
 }

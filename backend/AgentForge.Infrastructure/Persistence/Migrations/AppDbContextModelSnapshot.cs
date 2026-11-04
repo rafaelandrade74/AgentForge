@@ -266,6 +266,9 @@ namespace AgentForge.Infrastructure.Persistence.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
 
+                    b.Property<Guid?>("StackProfileId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("TestCommand")
                         .IsRequired()
                         .HasColumnType("text");
@@ -273,6 +276,8 @@ namespace AgentForge.Infrastructure.Persistence.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("EnvironmentId");
+
+                    b.HasIndex("StackProfileId");
 
                     b.ToTable("Projects");
                 });
@@ -347,6 +352,57 @@ namespace AgentForge.Infrastructure.Persistence.Migrations
                     b.HasIndex("WorkItemId");
 
                     b.ToTable("ReviewFindings");
+                });
+
+            modelBuilder.Entity("AgentForge.Domain.StackProfile", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("BuiltIn")
+                        .HasColumnType("boolean");
+
+                    b.Property<double>("CpuLimit")
+                        .HasColumnType("double precision");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("Dockerfile")
+                        .IsRequired()
+                        .HasMaxLength(20000)
+                        .HasColumnType("character varying(20000)");
+
+                    b.Property<string>("Image")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<int>("MemoryMb")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("Network")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Name")
+                        .IsUnique();
+
+                    b.ToTable("StackProfiles");
                 });
 
             modelBuilder.Entity("AgentForge.Domain.WorkItem", b =>
@@ -444,6 +500,11 @@ namespace AgentForge.Infrastructure.Persistence.Migrations
                     b.HasOne("AgentForge.Domain.ExecutionEnvironment", null)
                         .WithMany()
                         .HasForeignKey("EnvironmentId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("AgentForge.Domain.StackProfile", null)
+                        .WithMany()
+                        .HasForeignKey("StackProfileId")
                         .OnDelete(DeleteBehavior.Restrict);
                 });
 

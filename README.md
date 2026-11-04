@@ -7,7 +7,7 @@ com um branch pronto para merge. Cada papel é uma execução do **Claude Code**
 
 Nenhum agente faz push: o trabalho fica no branch `agentforge/task-<id>` do clone local, e o merge é seu.
 
-> **Documentação online:** https://rafaelandrade74.github.io/AgentForge/ (fonte em `site/`, publicada pelo GitHub Pages).
+> **Documentação online:** https://rafaelandrade74.github.io/AgentForge/ (fonte em `docs/index.html`, publicada pelo GitHub Pages a partir da pasta `/docs` da `main`).
 >
 > **Começando agora?** Há um tutorial passo a passo para cada cenário (Docker, banco próprio, login do computador, host agent e
 > tudo nativo) em [docs/getting-started.md](docs/getting-started.md).

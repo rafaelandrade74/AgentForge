@@ -157,6 +157,8 @@ Há um projeto de exemplo (API de tarefas em .NET, com testes) em `examples/task
 | `ADMIN_USERNAME`, `ADMIN_PASSWORD` | `admin` / *(exemplo)* | Usuário único, criado no start (senha só como hash BCrypt) |
 | `JWT_SECRET` | *(exemplo)* | Assinatura dos tokens; mínimo de 32 caracteres |
 | `POSTGRES_USER`, `POSTGRES_PASSWORD` | `agentforge` / *(exemplo)* | Banco. Só são lidos na criação do volume |
+| `COMPOSE_PROFILES` | `local-db` | Sobe o Postgres do compose; vazio = não sobe (use `DATABASE_URL`) |
+| `DATABASE_URL` | vazio | String Npgsql de um Postgres existente; tem prioridade sobre o banco do compose |
 | `ANTHROPIC_API_KEY` | vazio | Opcional: chave de API em vez do login de conta |
 | `CLAUDE_CONFIG_SOURCE` | volume `claude-config` | Pasta do computador com um login existente (modo 2) |
 | `HOST_AGENT_TOKEN`, `HOST_WORKSPACES_ROOT`, `HOST_AGENT_URL` | — | Modo 1 (preenchidos por `scripts/host-agent`) |

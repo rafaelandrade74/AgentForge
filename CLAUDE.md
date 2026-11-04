@@ -45,3 +45,5 @@ Siga as fases em ordem; não pule critérios de aceite; código simples e testá
 - Testes frontend: `cd frontend; ng test --watch=false --browsers=ChromeHeadless` (defina `CHROME_BIN` se não houver Chrome)
 - Auth (Fase 1): usuário admin e JWT vêm de `ADMIN_USERNAME`, `ADMIN_PASSWORD`, `JWT_SECRET` no `.env`; refresh tokens ficam no banco (hash)
 - Subir tudo: `cp .env.example .env && docker compose up --build` (front em http://localhost:8080)
+- Banco opcional: o `db` do compose está no profile `local-db` (`COMPOSE_PROFILES=local-db` no `.env`, padrão). Para usar um Postgres existente: `COMPOSE_PROFILES=` vazio + `DATABASE_URL=<string Npgsql>`. `.env` antigo precisa da linha `COMPOSE_PROFILES=local-db`.
+- Configuração: `Agents:Launcher` (`local`|`host`) define o modo de execução; referência completa das chaves no README ("appsettings.json"). Migrations rodam sozinhas no start (`MigrateAsync` no `Program.cs`).

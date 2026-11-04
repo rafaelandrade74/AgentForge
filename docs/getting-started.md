@@ -40,8 +40,30 @@ O login do Claude é feito pela interface e fica num volume.
    ```powershell
    ./scripts/init-env.ps1       # Windows (PowerShell)
    ```
-   Alternativa manual: `cp .env.example .env` e troque `ADMIN_PASSWORD`, `JWT_SECRET` (mínimo de 32 caracteres) e
-   `POSTGRES_PASSWORD`. Os valores de exemplo funcionam para experimentar, mas a API avisa no log enquanto estiverem em uso.
+   **Sem rodar o script:** crie à mão um arquivo chamado exatamente `.env` (sem `.txt`) na raiz do projeto com este exemplo e
+   troque os três valores marcados:
+   ```
+   # --- TROQUE estes três ---
+   ADMIN_PASSWORD=TroqueEstaSenha2026
+   JWT_SECRET=troque-por-uma-sequencia-aleatoria-de-pelo-menos-32-caracteres
+   POSTGRES_PASSWORD=TroqueSenhaDoBanco2026
+
+   # --- pode deixar como está ---
+   ADMIN_USERNAME=admin
+   POSTGRES_USER=agentforge
+   COMPOSE_PROFILES=local-db
+   ANTHROPIC_API_KEY=
+   CLAUDE_CODE_VERSION=2.1.316
+   ORCHESTRATOR_CONCURRENCY=1
+   WEB_PORT=8080
+   API_DEBUG_PORT=8081
+   SWAGGER_ENABLED=true
+   ```
+   Para gerar um `JWT_SECRET` aleatório: `openssl rand -base64 48 | tr -d '/+='` (Linux/macOS) ou, no PowerShell 7,
+   `[Convert]::ToBase64String([Security.Cryptography.RandomNumberGenerator]::GetBytes(48)) -replace '[/+=]',''`.
+   Use só letras e números nas senhas: em `POSTGRES_PASSWORD`, `;` e `=` quebram a string de conexão e `$` é interpretado pelo
+   Docker Compose; não use aspas nem espaços. `cp .env.example .env` também funciona, mas troque as mesmas três senhas. Os
+   valores de exemplo servem para experimentar; a API avisa no log enquanto estiverem em uso.
 3. Confira no `.env` que existe a linha `COMPOSE_PROFILES=local-db`. É ela que faz o Postgres do compose subir.
    (O `.env.example` já traz; só um `.env` antigo pode não ter.)
 4. Suba tudo (a primeira vez compila as imagens e leva alguns minutos):

@@ -37,6 +37,20 @@ cp .env.example .env          # ou ./scripts/init-env.sh para gerar segredos ale
 docker compose up -d
 ```
 
+Sem usar o `init-env`, um `.env` mínimo (troque as três senhas; use só letras e números, sem aspas, espaços, `;`, `=` ou `$`):
+
+```
+ADMIN_PASSWORD=TroqueEstaSenha2026
+JWT_SECRET=troque-por-uma-sequencia-aleatoria-de-pelo-menos-32-caracteres
+POSTGRES_PASSWORD=TroqueSenhaDoBanco2026
+ADMIN_USERNAME=admin
+POSTGRES_USER=agentforge
+COMPOSE_PROFILES=local-db
+```
+
+As demais variáveis têm padrão (veja [Configuração](#configuração-env)). O exemplo completo e um gerador de `JWT_SECRET` estão em
+[docs/getting-started.md](docs/getting-started.md).
+
 Abra **http://localhost:8080**, entre com `ADMIN_USERNAME` / `ADMIN_PASSWORD` do `.env` e vá em **Agentes**:
 
 1. Se o Claude Code aparecer **Conectado**, o teste roda sozinho. Pronto.

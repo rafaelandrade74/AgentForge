@@ -104,7 +104,30 @@ cd agentforge</code></pre></li>
     <li>Crie o <code>.env</code> com segredos aleatórios:
 <pre><code>./scripts/init-env.sh        # Linux/macOS</code></pre>
 <pre><code>./scripts/init-env.ps1       # Windows (PowerShell)</code></pre>
-      Alternativa: <code>cp .env.example .env</code> e troque <code>ADMIN_PASSWORD</code>, <code>JWT_SECRET</code> (mín. 32 caracteres) e <code>POSTGRES_PASSWORD</code>.</li>
+      <details>
+        <summary><strong>Prefere não rodar o script?</strong> Crie o <code>.env</code> à mão com este exemplo</summary>
+        <p>Crie um arquivo chamado exatamente <code>.env</code> (sem <code>.txt</code>) na raiz do projeto, com o conteúdo abaixo, e <strong>troque os três valores marcados</strong>:</p>
+<pre><code># --- TROQUE estes três ---
+ADMIN_PASSWORD=TroqueEstaSenha2026
+JWT_SECRET=troque-por-uma-sequencia-aleatoria-de-pelo-menos-32-caracteres
+POSTGRES_PASSWORD=TroqueSenhaDoBanco2026
+
+# --- pode deixar como está ---
+ADMIN_USERNAME=admin
+POSTGRES_USER=agentforge
+COMPOSE_PROFILES=local-db
+ANTHROPIC_API_KEY=
+CLAUDE_CODE_VERSION=2.1.316
+ORCHESTRATOR_CONCURRENCY=1
+WEB_PORT=8080
+API_DEBUG_PORT=8081
+SWAGGER_ENABLED=true</code></pre>
+        <p>Para gerar um <code>JWT_SECRET</code> aleatório:</p>
+<pre><code>openssl rand -base64 48 | tr -d '/+='            # Linux/macOS
+[Convert]::ToBase64String([Security.Cryptography.RandomNumberGenerator]::GetBytes(48)) -replace '[/+=]',''   # PowerShell 7</code></pre>
+        <div class="warn"><p>Use só letras e números nas senhas. Em <code>POSTGRES_PASSWORD</code>, <code>;</code> e <code>=</code> quebram a string de conexão, e <code>$</code> é interpretado pelo Docker Compose. Não use aspas nem espaços em nenhum valor. A linha <code>COMPOSE_PROFILES=local-db</code> é a que sobe o Postgres do compose.</p></div>
+        <p>Atalho: <code>cp .env.example .env</code> também funciona, mas troque as mesmas três senhas.</p>
+      </details></li>
     <li>Confirme que o <code>.env</code> tem a linha <code>COMPOSE_PROFILES=local-db</code> (é ela que sobe o Postgres do compose).</li>
     <li>Suba tudo (a primeira vez compila as imagens e leva alguns minutos):
 <pre><code>docker compose up -d --build</code></pre></li>

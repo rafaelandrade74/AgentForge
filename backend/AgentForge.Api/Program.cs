@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json.Serialization;
+using System.Threading.RateLimiting;
 using AgentForge.Api.Auth;
 using AgentForge.Api.Endpoints;
 using AgentForge.Api.GitHub;
@@ -92,6 +93,18 @@ builder.Services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationSc
     });
 builder.Services.AddAuthorization();
 
+// Freio a tentativas de senha: N logins por minuto por IP (Auth:LoginAttemptsPerMinute; 0 desliga). Atrás do nginx o IP
+// real vem de X-Forwarded-For (ASPNETCORE_FORWARDEDHEADERS_ENABLED).
+var loginAttempts = builder.Configuration.GetValue("Auth:LoginAttemptsPerMinute", 10);
+builder.Services.AddRateLimiter(o =>
+{
+    o.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    o.AddPolicy("login", ctx => loginAttempts <= 0
+        ? RateLimitPartition.GetNoLimiter("off")
+        : RateLimitPartition.GetFixedWindowLimiter(ctx.Connection.RemoteIpAddress?.ToString() ?? "desconhecido",
+            _ => new FixedWindowRateLimiterOptions { PermitLimit = loginAttempts, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
+});
+
 var app = builder.Build();
 
 // Migrations aplicam sozinhas no start; depois semeia a configuração padrão dos papéis.
@@ -115,6 +128,7 @@ if (authOptions.JwtSecret.StartsWith("change-me", StringComparison.OrdinalIgnore
     authOptions.AdminPassword.StartsWith("change-me", StringComparison.OrdinalIgnoreCase))
     app.Logger.LogWarning("ADMIN_PASSWORD/JWT_SECRET ainda têm os valores de exemplo (change-me...). Troque-os no .env antes de expor o sistema.");
 
+app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
 
@@ -122,7 +136,8 @@ app.MapHealthChecks("/health");
 
 var auth = app.MapGroup("/api/auth").WithTags("Auth");
 auth.MapPost("/login", async (LoginRequest req, AuthService svc, CancellationToken ct) =>
-    await svc.LoginAsync(req.Username, req.Password, ct) is { } tokens ? Results.Ok(tokens) : Results.Unauthorized());
+    await svc.LoginAsync(req.Username, req.Password, ct) is { } tokens ? Results.Ok(tokens) : Results.Unauthorized())
+    .RequireRateLimiting("login");
 auth.MapPost("/refresh", async (RefreshRequest req, AuthService svc, CancellationToken ct) =>
     await svc.RefreshAsync(req.RefreshToken, ct) is { } tokens ? Results.Ok(tokens) : Results.Unauthorized());
 auth.MapGet("/me", (HttpContext ctx) => Results.Ok(new { username = ctx.User.Identity!.Name }))

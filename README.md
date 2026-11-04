@@ -148,7 +148,9 @@ Há um projeto de exemplo (API de tarefas em .NET, com testes) em `examples/task
   deixa de valer); "Remover" apaga.
 - **Modos 1 e 3:** o `git` é o do computador, com as credenciais que você já configurou (credential manager, chave SSH). A tela
   Git avisa disso e não oferece gerar chave (a do AgentForge, no modo 3, fica em `~/.agentforge/ssh`, nunca no seu `~/.ssh`).
-- **HTTPS com token:** use `https://<token>@github.com/org/repo.git`. O token fica na URL do projeto (banco) e na configuração do clone.
+- **HTTPS com token:** use `https://<token>@github.com/org/repo.git`. O token fica na URL do projeto (banco) e na configuração do clone; a API, a interface e o MCP
+  mostram `https://***@github.com/...` e mensagens de erro do git são mascaradas. Ao editar o projeto, deixar a URL mascarada mantém o
+  token guardado. Prefira a chave SSH ou o import do GitHub, que não gravam token na URL.
 - **Importar do GitHub (mais simples):** em **Projetos → Importar do GitHub**, cole um token pessoal (escopo `repo`), liste seus
   repositórios e escolha um. O AgentForge cria o projeto (URL SSH se privado, HTTPS se público; branch base = a padrão do
   GitHub), gera a chave SSH se faltar, a registra como **deploy key somente leitura** e **já clona**. Se o clone falhar, o projeto
@@ -224,6 +226,7 @@ vazios, anulariam o padrão do código (defina-os só se quiser mudar). Os segre
 | `Auth:JwtSecret` | *(obrigatório)* | Assinatura dos JWT; mínimo de 32 caracteres |
 | `Auth:Issuer` | `agentforge` | Emissor e audiência dos JWT |
 | `Auth:AccessTokenMinutes`, `Auth:RefreshTokenDays` | `15`, `7` | Validade do token de acesso e do refresh (este fica no banco, em hash) |
+| `Auth:LoginAttemptsPerMinute` | `10` | Tentativas de login por minuto por IP; acima disso responde 429. `0` desliga |
 | `Auth:AdminUsername`, `Auth:AdminPassword` | `admin` / *(obrigatório)* | Usuário único; a senha vira hash BCrypt |
 | `Agents:Launcher` | `local` | `local` ou `host` (ver acima) |
 | `Agents:HostAgent:Url`, `:Token` | vazio | Obrigatórios com `host`: endereço do host agent visto pela API e segredo compartilhado (mínimo de 24 caracteres) |
@@ -280,6 +283,22 @@ git pull && docker compose up -d --build     # migrations aplicam sozinhas no st
 ```
 
 `docker compose down` mantém os dados; `docker compose down -v` **apaga** banco, clones e login.
+
+## Segredos e vazamento de dados
+
+- **Ambiente dos agentes:** todo processo filho (`claude`, `git`) é iniciado **sem** os segredos da aplicação (`Auth__*`,
+  `ConnectionStrings__*`, `Agents__*`, `HostAgent__*`, `ADMIN_*`, `JWT_SECRET`, `POSTGRES_*`, `DATABASE_URL`, `HOST_AGENT_TOKEN`).
+  Os agentes têm `Bash`: sem isso, um `env` mostraria a senha do banco e a chave dos JWT. As credenciais do Claude
+  (`ANTHROPIC_*`, `CLAUDE_*`) continuam, pois o CLI precisa delas.
+- **O que um agente ainda alcança:** os arquivos que o processo lê, como o login do Claude em `~/.claude` e a chave SSH do
+  AgentForge (que o `git` usa). Por isso o agente roda no container (modo 2) ou, nos modos 1 e 3, com as permissões do seu usuário.
+  Restringir o `Bash` por papel na tela **Prompts** reduz esse alcance.
+- **URLs com credencial** (`https://token@host/...`) aparecem mascaradas (`https://***@host/...`) na API, na interface, no MCP e nas
+  mensagens de erro do git.
+- **Login:** limitado a `Auth:LoginAttemptsPerMinute` tentativas por minuto por IP (429 acima disso). Atrás de proxy, repasse
+  `X-Forwarded-For` (o compose já habilita) para o limite valer por cliente e não pelo IP do proxy.
+- Prompts e saídas dos agentes ficam gravados no banco (visíveis a quem tem login ou token MCP); não coloque segredos no repositório.
+- Em produção, use `SWAGGER_ENABLED=false`.
 
 ## Segurança do container
 

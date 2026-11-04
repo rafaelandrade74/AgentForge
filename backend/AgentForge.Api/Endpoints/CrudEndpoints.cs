@@ -1,4 +1,5 @@
 using AgentForge.Domain;
+using AgentForge.Execution;
 using AgentForge.Infrastructure.Persistence;
 using AgentForge.Orchestrator.Agents;
 using Microsoft.EntityFrameworkCore;
@@ -23,12 +24,14 @@ public static class CrudEndpoints
 
     // ---------- Projects ----------
     internal static ProjectDto ToDto(Project p) =>
-        new(p.Id, p.Name, p.RepositoryUrl, p.BaseBranch, p.BuildCommand, p.TestCommand, p.AutoMode, p.CreatedAt);
+        new(p.Id, p.Name, Secrets.MaskUrls(p.RepositoryUrl), p.BaseBranch, p.BuildCommand, p.TestCommand, p.AutoMode, p.CreatedAt);
 
     private static void Apply(Project p, ProjectInput i)
     {
         p.Name = i.Name.Trim();
-        p.RepositoryUrl = i.RepositoryUrl.Trim();
+        // a API devolve https://***@host; reenviar a URL mascarada (ex.: editar só o nome) mantém a credencial guardada
+        var url = i.RepositoryUrl.Trim();
+        if (!(Secrets.IsMasked(url) && url == Secrets.MaskUrls(p.RepositoryUrl))) p.RepositoryUrl = url;
         p.BaseBranch = string.IsNullOrWhiteSpace(i.BaseBranch) ? "main" : i.BaseBranch.Trim();
         p.BuildCommand = i.BuildCommand;
         p.TestCommand = i.TestCommand;
@@ -40,6 +43,12 @@ public static class CrudEndpoints
         : string.IsNullOrWhiteSpace(i.RepositoryUrl) ? Invalid(nameof(i.RepositoryUrl), "Informe a URL do repositório.")
         : null;
 
+    /// <summary>URL mascarada que não corresponde à guardada (ou projeto novo): não há credencial para reaproveitar.</summary>
+    private static IResult? ValidateMasked(ProjectInput i, Project? existing) =>
+        Secrets.IsMasked(i.RepositoryUrl) && (existing is null || i.RepositoryUrl.Trim() != Secrets.MaskUrls(existing.RepositoryUrl))
+            ? Invalid(nameof(i.RepositoryUrl), "A URL contém credencial mascarada (***). Informe a URL completa.")
+            : null;
+
     private static void MapProjects(RouteGroupBuilder g)
     {
         g.MapGet("/", async (AppDbContext db) =>
@@ -49,6 +58,7 @@ public static class CrudEndpoints
         g.MapPost("/", async (ProjectInput i, AppDbContext db) =>
         {
             if (Validate(i) is { } bad) return bad;
+            if (ValidateMasked(i, null) is { } masked) return masked;
             var p = new Project();
             Apply(p, i);
             db.Projects.Add(p);
@@ -59,6 +69,7 @@ public static class CrudEndpoints
         {
             if (Validate(i) is { } bad) return bad;
             if (await db.Projects.FindAsync(id) is not { } p) return Results.NotFound();
+            if (ValidateMasked(i, p) is { } masked) return masked;
             Apply(p, i);
             await db.SaveChangesAsync();
             return Results.Ok(ToDto(p));

@@ -25,6 +25,9 @@ Transições válidas ficam em tabela no código (`WorkflowDefinition`). Revisã
 ## Importar do GitHub (ADR 0014)
 Projetos → "Importar do GitHub": lista repositórios pelo token (usado só na chamada, nunca guardado/logado), cria o projeto, autoriza a chave SSH como deploy key somente leitura (privados) e já clona; clone falho desfaz o cadastro. Código em `backend/AgentForge.Api/GitHub`.
 
+## Segredos (ADR 0015)
+Processos filhos (`claude`, `git`) nascem sem os segredos da aplicação (`Secrets.ScrubEnvironment`); URLs com token saem mascaradas (`Secrets.MaskUrls`); login limitado (`Auth:LoginAttemptsPerMinute`). Nunca logar nem devolver token/senha.
+
 ## MCP (ADR 0012)
 O AgentForge é também servidor MCP em `POST /mcp` (18 ferramentas; tokens de acesso `afk_...` criados na tela Integração, válidos só no `/mcp`). Código em `backend/AgentForge.Api/Mcp`, sem dependência nova.
 

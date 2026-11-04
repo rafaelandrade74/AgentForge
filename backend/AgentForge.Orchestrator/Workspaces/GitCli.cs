@@ -2,7 +2,8 @@ using AgentForge.Execution;
 
 namespace AgentForge.Orchestrator.Workspaces;
 
-public class GitException(string message, int exitCode) : Exception(message)
+/// <summary>A mensagem passa por Secrets.MaskUrls: o stderr do git pode repetir a URL com o token embutido.</summary>
+public class GitException(string message, int exitCode) : Exception(Secrets.MaskUrls(message))
 {
     public int ExitCode { get; } = exitCode;
 }

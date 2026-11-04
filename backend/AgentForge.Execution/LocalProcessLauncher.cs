@@ -82,6 +82,7 @@ public sealed class LocalProcessLauncher : IProcessLauncher
             StandardErrorEncoding = Encoding.UTF8,
         };
         foreach (var arg in args) psi.ArgumentList.Add(arg);
+        Secrets.ScrubEnvironment(psi.Environment);
         if (string.Equals(Path.GetFileNameWithoutExtension(executable), "git", StringComparison.OrdinalIgnoreCase))
         {
             psi.Environment["GIT_TERMINAL_PROMPT"] = "0";   // nunca fica preso pedindo credencial

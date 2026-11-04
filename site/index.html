@@ -1,0 +1,423 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AgentForge — Documentação</title>
+<meta name="description" content="Documentação e passo a passo do AgentForge: orquestração do ciclo de desenvolvimento com agentes de IA, auto-hospedada.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%234f46e5'/><text x='16' y='23' font-size='20' text-anchor='middle' fill='white' font-family='sans-serif' font-weight='700'>A</text></svg>">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="#inicio">⚒ AgentForge</a>
+  <span class="spacer"></span>
+  <a class="link" href="https://github.com/rafaelandrade74/AgentForge">GitHub</a>
+  <a class="link" href="https://github.com/rafaelandrade74/AgentForge/tree/main/docs/adr">ADRs</a>
+  <button class="icon" id="theme" type="button" aria-label="Alternar tema">◐ Tema</button>
+</header>
+
+<div class="layout">
+<nav class="side" aria-label="Seções">
+  <h4>Começar</h4>
+  <a href="#inicio">Visão geral</a>
+  <a href="#como-funciona">Como funciona</a>
+  <a href="#escolher">Escolher o cenário</a>
+  <a href="#instalacao">Instalação passo a passo</a>
+  <h4>Usar</h4>
+  <a href="#primeiro-uso">Do projeto ao merge</a>
+  <a href="#privados">Repositórios privados</a>
+  <a href="#mcp">Controlar pelo Claude (MCP)</a>
+  <h4>Operar</h4>
+  <a href="#config">Configuração</a>
+  <a href="#proxy">Proxy reverso</a>
+  <a href="#backup">Backup e atualização</a>
+  <a href="#seguranca">Segurança</a>
+  <a href="#problemas">Problemas comuns</a>
+  <h4>Projeto</h4>
+  <a href="#dev">Desenvolvimento</a>
+</nav>
+
+<main>
+<section id="inicio">
+  <h1>AgentForge</h1>
+  <p class="lead">Aplicação web auto-hospedada que orquestra o ciclo de desenvolvimento de um produto com agentes de IA. Você escreve uma demanda em linguagem natural e acompanha as tarefas até virarem um branch pronto para merge.</p>
+  <div class="cards">
+    <div class="card"><h3>Papéis como agentes</h3><p>Scrum Master, Dev, Tech Lead, Security e QA — cada um é uma execução do Claude Code em modo headless.</p></div>
+    <div class="card"><h3>Isolado por tarefa</h3><p>Cada tarefa roda num git worktree próprio, no branch <code>agentforge/task-&lt;id&gt;</code>.</p></div>
+    <div class="card"><h3>Você no controle</h3><p>Aprovações configuráveis. Nenhum agente faz push; o merge é seu.</p></div>
+    <div class="card"><h3>Ao vivo e auditável</h3><p>Prompt, saída, custo, duração e status de toda execução são guardados e transmitidos em tempo real.</p></div>
+  </div>
+</section>
+
+<h2 id="como-funciona">Como funciona</h2>
+<p>Uma demanda passa por um fluxo de estados. As transições válidas ficam numa tabela no código (<code>WorkflowDefinition</code>).</p>
+<div class="flow">
+  <span>Demanda</span><i>→</i><span>Scrum Master quebra em tarefas</span><i>→</i><span>Você aprova o plano</span><i>→</i><span>Dev implementa</span><i>→</i><span>Tech Lead + Security revisam</span><i>→</i><span>QA testa</span><i>→</i><span>Aguardando aprovação</span><i>→</i><span>Done</span>
+</div>
+<ul>
+  <li>Revisão reprovada devolve a tarefa ao Dev com os apontamentos. No <strong>terceiro retorno</strong> ela vai para <em>Bloqueada</em>, esperando a sua decisão (<em>Reexecutar</em> ou <em>Cancelar</em>).</li>
+  <li>Dependências só liberam a tarefa quando estão em <em>Done</em>; tarefas dependentes nascem das branches das dependências.</li>
+  <li>Todo agente termina a saída com um bloco JSON validado. Saída inválida conta como falha e é reexecutada uma vez.</li>
+  <li>Todo agente roda pelo binário do CLI (nunca por API). O backend não lê nem guarda credenciais de agentes.</li>
+</ul>
+
+<h2 id="escolher">Escolher o cenário</h2>
+<p>A aplicação e o CLI do agente podem ficar em lugares diferentes. São três <strong>modos de execução</strong>, que se desdobram em cinco cenários de instalação:</p>
+<table>
+  <tr><th>Cenário</th><th>Modo</th><th>Quando escolher</th></tr>
+  <tr><td><a href="#instalacao" data-scenario="cen-a">A. Docker completo</a></td><td>2</td><td>Caminho mais simples: tudo em containers, login do Claude pela interface</td></tr>
+  <tr><td><a href="#instalacao" data-scenario="cen-b">B. Docker com o seu Postgres</a></td><td>2</td><td>Já tem um Postgres e não quer outro banco no compose</td></tr>
+  <tr><td><a href="#instalacao" data-scenario="cen-c">C. Docker reaproveitando o login</a></td><td>2</td><td>O Claude já está logado no computador (Windows/Linux) e você não quer logar de novo</td></tr>
+  <tr><td><a href="#instalacao" data-scenario="cen-d">D. Docker + host agent</a></td><td>1</td><td>Quer usar o <code>claude</code> e o <code>git</code> do computador, com as credenciais deles</td></tr>
+  <tr><td><a href="#instalacao" data-scenario="cen-e">E. Tudo no computador</a></td><td>3</td><td>Não quer containers para a aplicação</td></tr>
+</table>
+<div class="note"><p><strong>Em dúvida?</strong> Comece pelo cenário A. Ele dá menos acoplamento com a sua máquina e não precisa de chave de API: só de uma conta Claude.</p></div>
+
+<h2 id="instalacao">Instalação passo a passo</h2>
+<p>Escolha uma aba e siga <strong>só</strong> aquele cenário até o fim. Depois vá para <a href="#primeiro-uso">Do primeiro projeto ao merge</a>.</p>
+
+<div class="tabs" role="tablist">
+  <button role="tab" data-target="cen-a" aria-selected="true">A. Docker</button>
+  <button role="tab" data-target="cen-b" aria-selected="false">B. Seu Postgres</button>
+  <button role="tab" data-target="cen-c" aria-selected="false">C. Login do computador</button>
+  <button role="tab" data-target="cen-d" aria-selected="false">D. Host agent</button>
+  <button role="tab" data-target="cen-e" aria-selected="false">E. Nativo</button>
+</div>
+
+<!-- A -->
+<div class="panel on" id="cen-a">
+  <h3>A. Docker completo (padrão)</h3>
+  <p>Você terá <code>db</code> (Postgres), <code>api</code> (com <code>claude</code> e <code>git</code> na imagem) e <code>web</code> (interface) em containers. O login do Claude é feito pela interface e fica num volume.</p>
+  <h3>Pré-requisitos</h3>
+  <ul>
+    <li>Docker com Compose v2.20+ (<code>docker compose version</code>). Docker Desktop no Windows/macOS; Docker Engine + plugin Compose no Linux.</li>
+    <li>Git para clonar o repositório.</li>
+    <li>Uma conta Claude. <strong>Não precisa de chave de API.</strong></li>
+    <li>Portas livres: <code>8080</code> (interface) e <code>8081</code> (API, só em <code>127.0.0.1</code>).</li>
+  </ul>
+  <h3>Passos</h3>
+  <ol class="steps">
+    <li>Clone e entre na pasta:
+<pre><code>git clone https://github.com/rafaelandrade74/AgentForge.git agentforge
+cd agentforge</code></pre></li>
+    <li>Crie o <code>.env</code> com segredos aleatórios:
+<pre><code>./scripts/init-env.sh        # Linux/macOS</code></pre>
+<pre><code>./scripts/init-env.ps1       # Windows (PowerShell)</code></pre>
+      Alternativa: <code>cp .env.example .env</code> e troque <code>ADMIN_PASSWORD</code>, <code>JWT_SECRET</code> (mín. 32 caracteres) e <code>POSTGRES_PASSWORD</code>.</li>
+    <li>Confirme que o <code>.env</code> tem a linha <code>COMPOSE_PROFILES=local-db</code> (é ela que sobe o Postgres do compose).</li>
+    <li>Suba tudo (a primeira vez compila as imagens e leva alguns minutos):
+<pre><code>docker compose up -d --build</code></pre></li>
+    <li>Verifique: <code>docker compose ps</code>. <code>db</code>, <code>api</code> e <code>web</code> devem estar <code>healthy</code>. As migrations rodam sozinhas.</li>
+    <li>Abra <a href="http://localhost:8080">http://localhost:8080</a> e entre com <code>ADMIN_USERNAME</code> / <code>ADMIN_PASSWORD</code> do <code>.env</code> (usuário padrão <code>admin</code>).</li>
+    <li>Abra <strong>Agentes</strong>. Se o Claude Code estiver <strong>Conectado</strong>, pronto. Se estiver <strong>Não conectado</strong>, clique em <strong>Conectar</strong>, abra o link, entre na sua conta e cole o código de volta na tela. O login fica no volume <code>claude-config</code>.</li>
+    <li>Clique em <strong>Testar</strong>. É uma chamada mínima e consome um pouco de crédito.</li>
+  </ol>
+  <details><summary>Se algo der errado</summary>
+    <table>
+      <tr><th>Sintoma</th><th>Solução</th></tr>
+      <tr><td>Compose reclama de <code>ADMIN_PASSWORD</code>/<code>JWT_SECRET</code></td><td>O <code>.env</code> não existe ou está incompleto: refaça o passo 2</td></tr>
+      <tr><td><code>api</code> não fica saudável (senha do banco)</td><td>Você trocou <code>POSTGRES_PASSWORD</code> após o primeiro start: <code>docker compose down -v</code> (apaga os dados) e suba de novo</td></tr>
+      <tr><td>Porta 8080 em uso</td><td>Defina <code>WEB_PORT=8082</code> (ou outra) no <code>.env</code></td></tr>
+      <tr><td>"CLI não instalado"</td><td><code>docker compose up -d --build api</code></td></tr>
+      <tr><td>Login por link não conclui</td><td>Gere o link de novo (ele expira) e não feche a janela antes de colar o código</td></tr>
+    </table>
+  </details>
+  <p>Parar: <code>docker compose down</code> (mantém dados). Apagar tudo, inclusive banco e login: <code>docker compose down -v</code>.</p>
+</div>
+
+<!-- B -->
+<div class="panel" id="cen-b">
+  <h3>B. Docker com o seu Postgres</h3>
+  <p>Igual ao cenário A, mas <strong>sem</strong> o container <code>db</code>: a API usa um Postgres que você já mantém.</p>
+  <h3>Pré-requisitos</h3>
+  <p>Os do cenário A, mais um Postgres 14+ acessível a partir do container da API.</p>
+  <h3>Passos</h3>
+  <ol class="steps">
+    <li>Faça os passos 1 e 2 do cenário A (clone e <code>.env</code>).</li>
+    <li>No seu Postgres, crie banco e usuário <strong>vazios</strong>:
+<pre><code>CREATE USER agentforge WITH PASSWORD 'uma-senha-forte';
+CREATE DATABASE agentforge OWNER agentforge;</code></pre></li>
+    <li>Edite o <code>.env</code>:
+<pre><code>COMPOSE_PROFILES=
+DATABASE_URL=Host=meu-postgres;Port=5432;Database=agentforge;Username=agentforge;Password=uma-senha-forte</code></pre>
+      <ul>
+        <li><code>COMPOSE_PROFILES=</code> <strong>vazio</strong> impede o <code>db</code> do compose de subir.</li>
+        <li>Postgres no próprio computador: use <code>Host=host.docker.internal</code> (e permita conexões que não sejam só de <code>127.0.0.1</code>: <code>listen_addresses</code> e <code>pg_hba.conf</code>).</li>
+        <li>Postgres em outro container: ponha os dois na mesma rede Docker e use o nome do container em <code>Host=</code>.</li>
+      </ul></li>
+    <li>Suba: <code>docker compose up -d --build</code>. <code>docker compose ps</code> deve mostrar só <code>api</code> e <code>web</code>.</li>
+    <li>Siga os passos 6 a 8 do cenário A (entrar, conectar o Claude, testar).</li>
+  </ol>
+  <details><summary>Se algo der errado</summary>
+    <table>
+      <tr><th>Sintoma</th><th>Solução</th></tr>
+      <tr><td><code>api</code> reinicia em loop</td><td><code>docker compose logs api</code>. Quase sempre é a <code>DATABASE_URL</code> ou o firewall/<code>pg_hba.conf</code></td></tr>
+      <tr><td>"database does not exist"</td><td>O banco precisa existir antes; as migrations criam só as tabelas</td></tr>
+      <tr><td>O <code>db</code> do compose subiu mesmo assim</td><td><code>COMPOSE_PROFILES</code> não está vazio (no <code>.env</code> ou exportado no terminal)</td></tr>
+    </table>
+  </details>
+</div>
+
+<!-- C -->
+<div class="panel" id="cen-c">
+  <h3>C. Docker reaproveitando o login do Claude do computador</h3>
+  <p>O cenário A, mas o Claude <strong>dentro do container</strong> usa o login que já existe no seu computador.</p>
+  <div class="warn"><p><strong>No macOS não funciona:</strong> o login fica no Keychain. Use o cenário A. Vale só para Windows e Linux, onde existe <code>~/.claude/.credentials.json</code>.</p></div>
+  <h3>Passos</h3>
+  <ol class="steps">
+    <li>Confirme que o arquivo de login existe:
+<pre><code>Test-Path "$env:USERPROFILE\.claude\.credentials.json"   # Windows: True</code></pre>
+<pre><code>ls ~/.claude/.credentials.json                           # Linux</code></pre></li>
+    <li>Faça os passos 1 e 2 do cenário A.</li>
+    <li>No <code>.env</code>, aponte para a pasta (use <code>/</code> mesmo no Windows):
+<pre><code>CLAUDE_CONFIG_SOURCE=C:/Users/voce/.claude      # Linux: /home/voce/.claude</code></pre></li>
+    <li>No Linux o container roda com UID <code>1654</code>: a pasta precisa ser gravável por ele (ex.: <code>setfacl -R -m u:1654:rwX ~/.claude</code>).</li>
+    <li><code>docker compose up -d --build</code> e siga os passos 5 a 8 do cenário A. Em <strong>Agentes</strong>, o Claude já aparece <strong>Conectado</strong>.</li>
+  </ol>
+  <div class="note"><p>O Claude do container passa a <strong>ler e gravar</strong> nessa pasta (inclusive a renovação do token) e a obedecer as configurações dela (hooks, plugins). Se isso incomoda, use o cenário D ou o login pela tela (A).</p></div>
+</div>
+
+<!-- D -->
+<div class="panel" id="cen-d">
+  <h3>D. Docker + <code>claude</code> e <code>git</code> do computador (host agent)</h3>
+  <p><code>api</code> e <code>web</code> ficam em containers, mas todo <code>claude</code> e <code>git</code> roda <strong>no seu computador</strong>, por um pequeno serviço (o <em>host agent</em>), usando o binário, o login e as credenciais Git que você já tem.</p>
+  <h3>Pré-requisitos</h3>
+  <ul>
+    <li>Os do cenário A (Docker + Compose).</li>
+    <li>No computador: <strong>.NET SDK 8+</strong>, <strong>git</strong> e <strong><code>claude</code></strong> no PATH, com o Claude já logado:
+<pre><code>dotnet --version
+git --version
+claude --version</code></pre>
+    Se não estiver logado, rode <code>claude</code> uma vez e faça <code>/login</code>.</li>
+    <li>Porta <code>8787</code> livre em <code>127.0.0.1</code>.</li>
+  </ul>
+  <h3>Passos</h3>
+  <ol class="steps">
+    <li>Faça os passos 1 e 2 do cenário A (clone e <code>.env</code>).</li>
+    <li><strong>Terminal 1 — inicie o host agent e deixe aberto:</strong>
+<pre><code>./scripts/host-agent.ps1        # Windows</code></pre>
+<pre><code>./scripts/host-agent.sh         # Linux/macOS</code></pre>
+      Na primeira vez o script cria <code>HOST_AGENT_TOKEN</code> e <code>HOST_WORKSPACES_ROOT</code> no <code>.env</code>. <code>HOST_WORKSPACES_ROOT</code> é a pasta <strong>do computador</strong> onde ficam clones e worktrees (padrão <code>.agentforge/repos</code>). Outra pasta: <code>./scripts/host-agent.ps1 -Root D:/agentforge/repos</code>.</li>
+    <li><strong>Terminal 2 — suba a aplicação com os dois arquivos do compose:</strong>
+<pre><code>docker compose -f docker-compose.yml -f docker-compose.host-agent.yml up -d --build</code></pre></li>
+    <li>Abra <a href="http://localhost:8080">http://localhost:8080</a> e entre. Em <strong>Agentes</strong>, o Claude aparece como <strong>CLI no seu computador</strong> e <strong>Conectado</strong>. Clique em <strong>Testar</strong>.</li>
+    <li>A URL do repositório e os caminhos de um projeto são os <strong>do computador</strong>. A tela <strong>Git</strong> avisa que o git é o do computador e não oferece gerar chave.</li>
+  </ol>
+  <h3>Linux com Docker nativo</h3>
+  <p>O container não alcança o <code>127.0.0.1</code> do host. Inicie o host agent em todas as interfaces e <strong>restrinja a porta 8787 por firewall</strong>:</p>
+<pre><code>./scripts/host-agent.sh "" http://0.0.0.0:8787</code></pre>
+  <details><summary>Se algo der errado</summary>
+    <table>
+      <tr><th>Sintoma</th><th>Solução</th></tr>
+      <tr><td>Erro de conexão com o host agent</td><td>O terminal 1 não está rodando, ou a porta/URL não bate com <code>HOST_AGENT_URL</code></td></tr>
+      <tr><td>401 / "recusou o token"</td><td>Token diferente entre host agent e API: pare os dois, rode o script de novo e suba o compose</td></tr>
+      <tr><td>"caminho fora das pastas permitidas"</td><td>Projeto/clone fora de <code>HOST_WORKSPACES_ROOT</code>: ajuste e reinicie o host agent</td></tr>
+      <tr><td>Front não abre</td><td>Faltou o primeiro <code>-f docker-compose.yml</code></td></tr>
+    </table>
+  </details>
+  <div class="warn"><p><strong>Segurança:</strong> o host agent escuta só em <code>127.0.0.1</code>, exige o token, executa apenas <code>claude</code> e <code>git</code> e só aceita pastas dentro de <code>HOST_WORKSPACES_ROOT</code>. Proteja o <code>.env</code>: quem tem o token consegue mandar o <code>claude</code> rodar nessa pasta.</p></div>
+</div>
+
+<!-- E -->
+<div class="panel" id="cen-e">
+  <h3>E. Tudo no computador, sem Docker para a aplicação</h3>
+  <p>A API roda nativa (e serve a própria interface), usando o <code>dotnet</code>, <code>git</code> e <code>claude</code> do computador. Só o Postgres pode ficar num container.</p>
+  <h3>Pré-requisitos</h3>
+  <ul>
+    <li><strong>.NET SDK 8+</strong>, <strong>Node 20+</strong>, <strong>git</strong> e <strong><code>claude</code></strong> no PATH, com o Claude já logado.</li>
+    <li>Um <strong>PostgreSQL</strong> existente, ou Docker apenas para o script subir um.</li>
+    <li>Porta <code>8080</code> livre (ou escolha outra com <code>-Urls</code>).</li>
+  </ul>
+  <h3>Passos</h3>
+  <ol class="steps">
+    <li>Clone o repositório e crie o <code>.env</code> (passos 1 e 2 do cenário A) <em>antes</em> de rodar o script, para não ficar com os valores de exemplo.</li>
+    <li>Suba, escolhendo <strong>uma</strong> opção de banco:
+      <p><strong>Sem Postgres instalado</strong> (o script sobe o container <code>agentforge-native-db</code> em <code>127.0.0.1:5432</code>):</p>
+<pre><code>./scripts/run-native.ps1 -StartPostgres        # Windows</code></pre>
+<pre><code>./scripts/run-native.sh --start-postgres       # Linux/macOS</code></pre>
+      <p><strong>Com um Postgres seu:</strong> crie banco e usuário vazios, ponha no <code>.env</code> <code>NATIVE_DB_CONNECTION=Host=localhost;Port=5432;Database=agentforge;Username=...;Password=...</code> e rode o script <strong>sem</strong> a opção de banco.</p></li>
+    <li>Na primeira vez o script compila a interface (<code>npm ci</code> + <code>ng build</code>). Para recompilar: <code>-Rebuild</code> (<code>--rebuild</code> no <code>.sh</code>). No <code>.ps1</code>: outra porta com <code>-Urls http://localhost:9090</code> e outra pasta de clones com <code>-Workspaces D:/repos</code>.</li>
+    <li>Abra <a href="http://localhost:8080">http://localhost:8080</a>, entre e vá em <strong>Agentes</strong>: o Claude deve aparecer <strong>Conectado</strong> (login do computador). Clique em <strong>Testar</strong>.</li>
+  </ol>
+  <p>Clones ficam em <code>.agentforge/repos</code>. A chave SSH gerada pelo AgentForge fica em <code>~/.agentforge/ssh</code>, nunca no seu <code>~/.ssh</code>. Para parar: <code>Ctrl+C</code>; o banco continua de pé (<code>docker stop agentforge-native-db</code>).</p>
+  <details><summary>Se algo der errado</summary>
+    <table>
+      <tr><th>Sintoma</th><th>Solução</th></tr>
+      <tr><td>"'dotnet' não está no PATH" (ou node/git)</td><td>Instale e abra um terminal novo</td></tr>
+      <tr><td>"CLI não instalado"</td><td><code>claude</code> fora do PATH do terminal onde rodou o script</td></tr>
+      <tr><td>Erro de conexão com o banco</td><td>Postgres parado ou connection string errada. Com <code>-StartPostgres</code> e senha trocada: <code>docker rm -f agentforge-native-db; docker volume rm agentforge-native-pgdata</code></td></tr>
+      <tr><td>Porta 8080 ocupada</td><td><code>-Urls http://localhost:&lt;outra&gt;</code></td></tr>
+    </table>
+  </details>
+</div>
+
+<h2 id="primeiro-uso">Do primeiro projeto ao merge</h2>
+<p>Vale para qualquer cenário.</p>
+<ol class="steps">
+  <li><strong>Agentes:</strong> confira que o Claude Code está <strong>Conectado</strong> e que o <strong>Testar</strong> passou.</li>
+  <li><strong>Cadastre um projeto</strong> por um dos caminhos:
+    <ul>
+      <li><strong>Importar do GitHub</strong> (o mais simples): <em>Projetos → Importar do GitHub</em>. Cole um token pessoal (escopo <code>repo</code>), clique em <em>Listar meus repositórios</em>, escolha um e <em>Importar e clonar</em>. Repositório público dispensa o token: digite <code>dono/nome</code>.</li>
+      <li><strong>Projeto de exemplo</strong> (cenários A/B/C): <code>docker compose exec api sh /examples/make-sample-repo.sh</code> cria <code>/data/repos/_sample/tasks-api.git</code>; use essa URL em <em>Projetos → Novo projeto</em>.</li>
+      <li><strong>Manual:</strong> <em>Projetos → Novo projeto</em> com nome, URL do repositório, branch base e (opcional) comandos de build e teste.</li>
+    </ul></li>
+  <li><strong>Nova demanda → Criar e iniciar refinamento.</strong> Descreva em linguagem natural o que quer. O Scrum Master lê o repositório e propõe as tarefas.</li>
+  <li><strong>Aprovar plano</strong> na tela da demanda. O quadro do projeto mostra as tarefas andando; clique numa tarefa para ver o log ao vivo, o diff e as execuções.</li>
+  <li>Em <strong>Aguardando aprovação</strong>, revise o diff e <strong>aprove</strong> ou <strong>rejeite com comentário</strong> (a tarefa volta ao Dev). Tarefas que voltam três vezes ficam <strong>Bloqueadas</strong>.</li>
+  <li>Depois de <strong>Done</strong>, o trabalho está no branch <code>agentforge/task-&lt;id&gt;</code> do clone local. <strong>Nenhum agente faz push:</strong> o merge é seu.</li>
+</ol>
+<p>Onde ficam os arquivos: clones em <code>&lt;raiz&gt;/&lt;id-do-projeto&gt;/repo</code> e worktrees em <code>&lt;raiz&gt;/&lt;id-do-projeto&gt;/worktrees/&lt;id-da-tarefa&gt;</code>, com a raiz em <code>/data/repos</code> (volume <code>repos</code>; A, B, C), <code>HOST_WORKSPACES_ROOT</code> (D) ou <code>.agentforge/repos</code> (E).</p>
+<div class="note"><p><strong>Modo automático:</strong> marque o projeto como automático para dispensar as duas aprovações humanas. Use só em projetos de teste. O agente de cada papel é escolhido em <strong>Agentes</strong> e os prompts, em <strong>Prompts</strong>.</p></div>
+
+<h2 id="privados">Repositórios privados</h2>
+<table>
+  <tr><th>Cenário</th><th>Como acessar</th></tr>
+  <tr><td>A, B, C (git no container)</td><td>Chave SSH gerada pela interface (abaixo) ou <strong>Importar do GitHub</strong>, que faz tudo sozinho</td></tr>
+  <tr><td>D, E (git do computador)</td><td>Use as credenciais que você já tem (chave SSH, credential manager). A tela Git não gera chave</td></tr>
+  <tr><td>Qualquer um</td><td>HTTPS com token: <code>https://&lt;token&gt;@github.com/org/repo.git</code> (o token fica na URL do projeto, no banco)</td></tr>
+</table>
+<h3>Chave SSH pela interface</h3>
+<ol class="steps">
+  <li>Abra <strong>Git</strong> e clique em <strong>Gerar chave SSH</strong>. Copie a <strong>chave pública</strong>: a privada (<code>ed25519</code>, volume <code>git-ssh</code>) nunca sai do servidor.</li>
+  <li>No GitHub, no repositório: <em>Settings → Deploy keys → Add deploy key</em>. Cole a chave e <strong>deixe "Allow write access" desmarcado</strong>. Para vários repositórios, use <em>Settings → SSH and GPG keys</em> da conta.</li>
+  <li>De volta em <strong>Git</strong>, use <strong>Testar acesso</strong> com a URL SSH (<code>git@github.com:org/repo.git</code>).</li>
+  <li>Cadastre o projeto com essa URL SSH.</li>
+</ol>
+<p>"Gerar outra" substitui a chave (a antiga deixa de valer); "Remover" apaga. Ao importar do GitHub, o token é usado só naquela chamada: não é guardado nem registrado em log, e a chave é registrada como <em>deploy key</em> somente leitura.</p>
+
+<h2 id="mcp">Controlar pelo Claude Code (MCP)</h2>
+<p>O AgentForge é também um <strong>servidor MCP</strong> (HTTP, <code>POST /mcp</code>). O Claude Code, ou qualquer cliente MCP, pode criar projetos e demandas, acompanhar tarefas, ler o diff e aprovar ou rejeitar entregas por conversa. Funciona em todos os cenários.</p>
+<ol class="steps">
+  <li>Abra <strong>Integração</strong> na interface e crie um <strong>token de acesso</strong> (<code>afk_...</code>). O valor aparece uma única vez; vale <strong>só no <code>/mcp</code></strong>, é guardado como hash e pode ser revogado ali.</li>
+  <li>Registre o servidor (a tela já gera o comando com seu token e endereço):
+<pre><code>claude mcp add --transport http agentforge http://localhost:8080/mcp --header "Authorization: Bearer afk_..."</code></pre>
+    Para outros clientes, em <code>.mcp.json</code>:
+<pre><code>{"mcpServers":{"agentforge":{"type":"http","url":"http://localhost:8080/mcp","headers":{"Authorization":"Bearer afk_..."}}}}</code></pre></li>
+  <li>Converse: <em>"crie uma demanda no projeto X para adicionar o filtro por status e inicie"</em>, <em>"o que depende de mim?"</em>, <em>"mostre o diff da tarefa e aprove"</em>.</li>
+</ol>
+<details><summary>As 18 ferramentas</summary>
+  <p><code>list_projects</code>, <code>get_project</code>, <code>create_project</code>, <code>create_demand</code>, <code>start_demand</code>, <code>approve_plan</code>, <code>get_demand</code>, <code>list_tasks</code>, <code>get_task</code>, <code>get_task_diff</code>, <code>get_run_output</code>, <code>approve_task</code>, <code>reject_task</code>, <code>retry_task</code>, <code>cancel_task</code>, <code>list_pending_actions</code>, <code>list_agents</code>, <code>test_agent</code>.</p>
+  <p>As de leitura são marcadas como somente leitura e <code>cancel_task</code> como destrutiva. <strong>Não existe ferramenta que faça push, merge ou apague projeto.</strong> <code>start_demand</code>, <code>create_demand</code> com <code>start</code> e <code>test_agent</code> gastam créditos.</p>
+</details>
+<div class="warn"><p>Atrás de um proxy reverso, repasse <code>/mcp</code> à API e use HTTPS: o token trafega no cabeçalho.</p></div>
+
+<h2 id="config">Configuração</h2>
+<h3>Variáveis do <code>.env</code></h3>
+<table>
+  <tr><th>Variável</th><th>Padrão</th><th>Para quê</th></tr>
+  <tr><td><code>ADMIN_USERNAME</code>, <code>ADMIN_PASSWORD</code></td><td><code>admin</code> / exemplo</td><td>Usuário único, criado no start (senha só como hash BCrypt)</td></tr>
+  <tr><td><code>JWT_SECRET</code></td><td>exemplo</td><td>Assinatura dos tokens; mínimo 32 caracteres</td></tr>
+  <tr><td><code>POSTGRES_USER</code>, <code>POSTGRES_PASSWORD</code></td><td><code>agentforge</code> / exemplo</td><td>Banco do compose. Só são lidos na criação do volume</td></tr>
+  <tr><td><code>COMPOSE_PROFILES</code></td><td><code>local-db</code></td><td>Sobe o Postgres do compose; vazio = não sobe</td></tr>
+  <tr><td><code>DATABASE_URL</code></td><td>vazio</td><td>String Npgsql de um Postgres existente (tem prioridade)</td></tr>
+  <tr><td><code>ANTHROPIC_API_KEY</code></td><td>vazio</td><td>Opcional: chave de API em vez do login de conta</td></tr>
+  <tr><td><code>CLAUDE_CONFIG_SOURCE</code></td><td>volume <code>claude-config</code></td><td>Pasta do computador com um login existente (cenário C)</td></tr>
+  <tr><td><code>HOST_AGENT_TOKEN</code>, <code>HOST_WORKSPACES_ROOT</code>, <code>HOST_AGENT_URL</code></td><td>—</td><td>Cenário D (preenchidos por <code>scripts/host-agent</code>)</td></tr>
+  <tr><td><code>NATIVE_DB_CONNECTION</code></td><td>Postgres local</td><td>Cenário E: connection string do banco</td></tr>
+  <tr><td><code>CLAUDE_CODE_VERSION</code></td><td><code>2.1.316</code></td><td>Versão do CLI instalada na imagem</td></tr>
+  <tr><td><code>ORCHESTRATOR_CONCURRENCY</code></td><td><code>1</code></td><td>Tarefas simultâneas; com mais de 1, Tech Lead e Security revisam em paralelo</td></tr>
+  <tr><td><code>WEB_PORT</code>, <code>API_DEBUG_PORT</code></td><td><code>8080</code>, <code>8081</code></td><td>Portas (a API só em <code>127.0.0.1</code>)</td></tr>
+  <tr><td><code>SWAGGER_ENABLED</code></td><td><code>true</code></td><td>Documentação da API em <code>/swagger</code></td></tr>
+</table>
+<div class="warn"><p><strong>Troque <code>ADMIN_PASSWORD</code>, <code>JWT_SECRET</code> e <code>POSTGRES_PASSWORD</code> antes de expor o sistema na rede.</strong> Os valores de exemplo servem só para experimentar; a API avisa no log enquanto estiverem em uso.</p></div>
+
+<h3>Como a aplicação sabe o modo de execução</h3>
+<p>Ela <strong>não detecta</strong>: o modo vem de <code>Agents:Launcher</code> (<code>local</code> ou <code>host</code>; padrão <code>local</code>). Não há seletor na interface: para trocar, mude como sobe e reinicie.</p>
+<table>
+  <tr><th>Modo</th><th>Como é escolhido</th><th><code>Agents:Launcher</code></th></tr>
+  <tr><td>2 — Docker, CLI no container</td><td><code>docker compose up</code> simples</td><td><code>local</code></td></tr>
+  <tr><td>1 — Docker, CLI no computador</td><td>Compose com <code>docker-compose.host-agent.yml</code></td><td><code>host</code></td></tr>
+  <tr><td>3 — tudo no computador</td><td><code>scripts/run-native</code></td><td><code>local</code></td></tr>
+</table>
+
+<h3><code>appsettings.json</code></h3>
+<p>Qualquer valor pode ser sobrescrito por variável de ambiente trocando <code>:</code> por <code>__</code> (ex.: <code>Auth__JwtSecret</code>). A API recusa subir sem <code>Auth:JwtSecret</code> (mín. 32) e <code>Auth:AdminPassword</code>.</p>
+<table>
+  <tr><th>Chave</th><th>Padrão</th><th>Para quê</th></tr>
+  <tr><td><code>ConnectionStrings:Default</code></td><td>Postgres local</td><td>Banco (Npgsql); migrations rodam no start</td></tr>
+  <tr><td><code>Auth:JwtSecret</code></td><td>obrigatório</td><td>Assinatura dos JWT</td></tr>
+  <tr><td><code>Auth:AccessTokenMinutes</code>, <code>Auth:RefreshTokenDays</code></td><td><code>15</code>, <code>7</code></td><td>Validade dos tokens (refresh fica no banco, em hash)</td></tr>
+  <tr><td><code>Agents:Launcher</code></td><td><code>local</code></td><td><code>local</code> ou <code>host</code></td></tr>
+  <tr><td><code>Agents:HostAgent:Url</code>, <code>:Token</code></td><td>vazio</td><td>Obrigatórios com <code>host</code> (token com 24+ caracteres)</td></tr>
+  <tr><td><code>Workspaces:Root</code></td><td><code>/data/repos</code></td><td>Clones e worktrees, do lado onde o git roda</td></tr>
+  <tr><td><code>Git:SshDir</code></td><td><code>~/.agentforge/ssh</code></td><td>Pasta da chave SSH gerada</td></tr>
+  <tr><td><code>Orchestrator:MaxConcurrency</code></td><td><code>1</code></td><td>Tarefas simultâneas</td></tr>
+  <tr><td><code>GitHub:ApiUrl</code></td><td><code>https://api.github.com</code></td><td>Muda para GitHub Enterprise ou testes</td></tr>
+  <tr><td><code>Prompts:Directory</code></td><td><code>&lt;app&gt;/prompts</code></td><td>Semente dos prompts no primeiro start</td></tr>
+  <tr><td><code>Swagger:Enabled</code></td><td><code>true</code></td><td>Swagger em <code>/swagger</code></td></tr>
+  <tr><td><code>Frontend:Path</code></td><td>vazio</td><td>Se preenchido, a API serve a interface compilada daquela pasta (modo 3)</td></tr>
+</table>
+<p>Os prompts de sistema dos papéis ficam em <code>prompts/&lt;papel&gt;.md</code> (semeiam o primeiro start) e depois são editados pela tela <strong>Prompts</strong>, ficando no banco.</p>
+
+<h2 id="proxy">Atrás de um proxy reverso</h2>
+<p>O <code>web</code> (Nginx) já repassa <code>/api</code>, <code>/hubs</code> (SignalR/WebSocket) e <code>/swagger</code> para a API. Aponte o seu proxy para <code>web:8080</code> e <strong>habilite WebSocket</strong> em <code>/hubs/</code>:</p>
+<pre><code>server {
+    server_name agentforge.exemplo.local;
+    location / {
+        proxy_pass http://127.0.0.1:8080;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 1h;
+    }
+}</code></pre>
+<p>Use HTTPS no proxy: o login e o token trafegam por ele.</p>
+
+<h2 id="backup">Backup e atualização</h2>
+<p>Volumes nomeados: <code>pgdata</code> (banco), <code>repos</code> (clones e worktrees) e <code>claude-config</code> (login).</p>
+<pre><code># backup do banco
+docker compose exec -T db pg_dump -U agentforge agentforge > backup.sql
+# restaurar (banco vazio)
+docker compose exec -T db psql -U agentforge agentforge < backup.sql
+
+# atualizar o AgentForge (cenário D: com os dois -f)
+git pull && docker compose up -d --build</code></pre>
+<ul>
+  <li>As migrations aplicam sozinhas no start. <strong>Faça backup antes</strong> de atualizar ambientes com dados que importam.</li>
+  <li>Atualizar o Claude do container: mude <code>CLAUDE_CODE_VERSION</code> no <code>.env</code> e rode <code>docker compose up -d --build api</code>.</li>
+  <li>Mais tarefas ao mesmo tempo: <code>ORCHESTRATOR_CONCURRENCY=2</code> (ou mais).</li>
+  <li><code>docker compose down</code> mantém os dados; <code>docker compose down -v</code> <strong>apaga</strong> banco, clones e login.</li>
+</ul>
+
+<h2 id="seguranca">Segurança</h2>
+<ul>
+  <li><code>db</code>, <code>api</code> e <code>web</code> rodam sem root (API com UID 1654, front com <code>nginx-unprivileged</code>), com <code>no-new-privileges</code> e <code>cap_drop: ALL</code>; o front tem sistema de arquivos somente leitura.</li>
+  <li>Só o <code>web</code> é publicado na rede; o Postgres não é exposto.</li>
+  <li>Nenhum agente faz push, e o backend não guarda credenciais de agentes.</li>
+</ul>
+<div class="warn"><p>No cenário de container, os agentes executam comandos (build, testes) <strong>dentro do container da API</strong>; nos cenários D e E, <strong>no seu computador</strong>, dentro do worktree da tarefa. Rode o AgentForge com repositórios em que você confia.</p></div>
+
+<h2 id="problemas">Problemas comuns</h2>
+<table>
+  <tr><th>Sintoma</th><th>Causa e solução</th></tr>
+  <tr><td>Faixa amarela "não está conectado"</td><td>Abra <strong>Agentes</strong> e conecte (link) ou use outro modo</td></tr>
+  <tr><td>Execuções falham em segundos</td><td>Claude Code sem login: veja <strong>Agentes</strong>; a saída da execução mostra o motivo</td></tr>
+  <tr><td>Host agent inacessível</td><td><code>scripts/host-agent</code> parado, porta/URL diferente de <code>HOST_AGENT_URL</code>, ou (Linux) escutando só em loopback</td></tr>
+  <tr><td>Host agent "recusou o token"</td><td><code>HOST_AGENT_TOKEN</code> mudou depois de iniciar: reinicie os dois</td></tr>
+  <tr><td><code>api</code> reinicia / "password authentication failed"</td><td>Trocou <code>POSTGRES_PASSWORD</code> depois da primeira subida: <code>docker compose down -v</code> (apaga os dados)</td></tr>
+  <tr><td>O quadro não atualiza sozinho</td><td>WebSocket bloqueado no proxy: habilite <code>Upgrade</code> em <code>/hubs/</code> (cai para long polling, mais lento)</td></tr>
+  <tr><td><code>defina ADMIN_PASSWORD no .env</code></td><td>Falta o <code>.env</code>: <code>cp .env.example .env</code></td></tr>
+  <tr><td>Porta 8080 ocupada</td><td>Mude <code>WEB_PORT</code> (modo 2) ou <code>-Urls</code> (modo 3)</td></tr>
+</table>
+
+<h2 id="dev">Desenvolvimento</h2>
+<p>Stack: backend C# (.NET 8), frontend Angular 18+ (standalone, signals), Postgres. Estrutura: <code>backend/</code> (Api, Domain, Infrastructure, Orchestrator, Execution, HostAgent, Tests), <code>frontend/</code>, <code>prompts/</code>, <code>examples/</code>, <code>scripts/</code> e <code>docs/adr/</code>.</p>
+<pre><code># testes do backend (Postgres via Testcontainers; rode no SDK 8)
+docker run --rm -v "$PWD/backend:/src" -v /var/run/docker.sock:/var/run/docker.sock \
+  -e TESTCONTAINERS_HOST_OVERRIDE=host.docker.internal -e TESTCONTAINERS_RYUK_DISABLED=true \
+  -w /src mcr.microsoft.com/dotnet/sdk:8.0 dotnet test -o /tmp/out
+
+# front: servidor de desenvolvimento (proxy para a API em 127.0.0.1:8081) e testes
+cd frontend && npm ci && npx ng serve
+cd frontend && npx ng test --watch=false --browsers=ChromeHeadless</code></pre>
+<p>As decisões de arquitetura estão em <a href="https://github.com/rafaelandrade74/AgentForge/tree/main/docs/adr">docs/adr</a> (14 ADRs: monorepo, autenticação, domínio, runner de agentes via CLI, workspaces Git, orquestrador, tempo real, interface, deploy, modos de execução, validação ponta a ponta, MCP, credenciais Git e importação do GitHub).</p>
+</main>
+</div>
+<footer>AgentForge · <a href="https://github.com/rafaelandrade74/AgentForge">código no GitHub</a></footer>
+<script src="script.js"></script>
+</body>
+</html>

@@ -8,6 +8,7 @@ import { DatePipe } from '@angular/common';
 import { ApiService } from '../core/api.service';
 import { ROLE_LABEL, RUN_LABEL, RUN_TONE, Tone, formatDuration, formatUsd } from '../core/labels';
 import { Run, RunEvent, RunSummary } from '../core/models';
+import { MarkdownComponent } from './markdown.component';
 
 @Component({
   selector: 'app-badge',
@@ -134,7 +135,7 @@ export class LiveLogComponent {
 @Component({
   selector: 'app-run-timeline',
   standalone: true,
-  imports: [BadgeComponent, DatePipe],
+  imports: [BadgeComponent, DatePipe, MarkdownComponent],
   template: `
     @for (r of runs(); track r.id) {
       <div class="run">
@@ -149,11 +150,25 @@ export class LiveLogComponent {
         @if (expandedId() === r.id) {
           <div class="body">
             @if (detail(); as d) {
-              <h4>Saída</h4>
-              <pre class="block">{{ d.output || '(vazia)' }}</pre>
+              <div class="row-head">
+                <h4>Saída</h4>
+                <span class="spacer"></span>
+                <button type="button" class="view-toggle" (click)="raw.set(!raw())" [attr.aria-pressed]="raw()">
+                  {{ raw() ? 'Ver formatado' : 'Ver texto bruto' }}
+                </button>
+              </div>
+              @if (raw()) {
+                <pre class="block">{{ d.output || '(vazia)' }}</pre>
+              } @else {
+                <div class="formatted" data-testid="output"><app-markdown [source]="d.output || '(vazia)'" /></div>
+              }
               <details>
                 <summary>Prompt enviado</summary>
-                <pre class="block">{{ d.prompt }}</pre>
+                @if (raw()) {
+                  <pre class="block">{{ d.prompt }}</pre>
+                } @else {
+                  <div class="formatted" data-testid="prompt"><app-markdown [source]="d.prompt" /></div>
+                }
               </details>
             } @else {
               <span class="muted">Carregando…</span>
@@ -173,12 +188,18 @@ export class LiveLogComponent {
     .body { padding: .25rem .5rem 1rem; }
     h4 { margin: .5rem 0 .25rem; }
     .spacer { flex: 1; }
+    .row-head { display: flex; align-items: center; gap: .5rem; }
+    .view-toggle { background: none; border: 1px solid #444; color: inherit; border-radius: 6px; padding: .15rem .6rem; font: inherit; font-size: .8rem; cursor: pointer; }
+    .view-toggle:hover { background: #222; }
+    .formatted { background: #131313; border-radius: 6px; padding: .5rem .9rem; max-height: 32rem; overflow: auto; }
   `,
 })
 export class RunTimelineComponent {
   private readonly api = inject(ApiService);
   readonly runs = input.required<RunSummary[]>();
   readonly expandedId = signal<string | null>(null);
+  /** false: saída formatada como Markdown (padrão); true: texto bruto. */
+  readonly raw = signal(false);
   readonly detail = signal<Run | null>(null);
 
   readonly roleLabel = ROLE_LABEL;

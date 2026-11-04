@@ -140,7 +140,8 @@ proxy reverso, repasse `/mcp` à API e use HTTPS (o token trafega no cabeçalho)
 2. **Projetos → Novo projeto:** nome, URL do repositório Git, branch base e (opcional) comandos de build e teste.
 3. **Nova demanda → Criar e iniciar refinamento.** O Scrum Master lê o repositório e propõe as tarefas.
 4. **Aprovar plano** na tela da demanda. O quadro do projeto mostra as tarefas andando; clique numa tarefa para ver o log ao
-   vivo, o diff e as execuções.
+   vivo, o diff e as execuções. A saída e o prompt de cada execução aparecem **formatados** (títulos, listas, código, tabelas);
+   o botão **Ver texto bruto** mostra o texto original.
 5. Ao chegar em *Aguardando aprovação*, revise o diff e **aprove** ou **rejeite com comentário**. Depois do `Done`, faça o
    merge do branch `agentforge/task-<id>` como preferir.
 

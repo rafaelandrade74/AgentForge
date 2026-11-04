@@ -15,13 +15,14 @@ import { RealtimeService } from '../core/realtime.service';
 import {
   ActionDialogComponent, ActionDialogData, BadgeComponent, LiveLine, LiveLogComponent, RunTimelineComponent, appendLine,
 } from '../shared/shared';
+import { MarkdownComponent } from '../shared/markdown.component';
 
 const MAX_DIFF_LINES = 4000;
 
 @Component({
   selector: 'app-task-page',
   standalone: true,
-  imports: [RouterLink, MatButtonModule, BadgeComponent, LiveLogComponent, RunTimelineComponent],
+  imports: [RouterLink, MatButtonModule, BadgeComponent, LiveLogComponent, MarkdownComponent, RunTimelineComponent],
   template: `
     <div class="page">
       @if (item(); as w) {
@@ -62,9 +63,9 @@ const MAX_DIFF_LINES = 4000;
         <div class="cols">
           <section>
             <h2>Descrição</h2>
-            <p class="pre">{{ w.description || '—' }}</p>
+            <app-markdown [source]="w.description || '—'" />
             <h3>Critérios de aceite</h3>
-            <p class="pre">{{ w.acceptanceCriteria || '—' }}</p>
+            <app-markdown [source]="w.acceptanceCriteria || '—'" />
             @if (w.branchName) {
               <p class="muted small">Branch: <span class="mono">{{ w.branchName }}</span> · base {{ project()?.baseBranch }}</p>
             }
@@ -81,7 +82,7 @@ const MAX_DIFF_LINES = 4000;
                   <span class="spacer"></span>
                   <span class="muted small">{{ f.resolved ? 'tratado' : 'aberto' }}</span>
                 </div>
-                <div>{{ f.message }}</div>
+                <app-markdown [source]="f.message" />
               </div>
             } @empty {
               <p class="muted">Nenhum apontamento.</p>

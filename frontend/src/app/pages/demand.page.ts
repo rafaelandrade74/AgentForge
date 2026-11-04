@@ -8,11 +8,12 @@ import { DEMAND_LABEL, DEMAND_TONE, STATE_LABEL, STATE_TONE, formatUsd } from '.
 import { Demand, Project, RunSummary, WorkItem } from '../core/models';
 import { RealtimeService } from '../core/realtime.service';
 import { BadgeComponent, LiveLine, LiveLogComponent, RunTimelineComponent, appendLine } from '../shared/shared';
+import { MarkdownComponent } from '../shared/markdown.component';
 
 @Component({
   selector: 'app-demand-page',
   standalone: true,
-  imports: [RouterLink, MatButtonModule, BadgeComponent, LiveLogComponent, RunTimelineComponent],
+  imports: [RouterLink, MatButtonModule, BadgeComponent, LiveLogComponent, MarkdownComponent, RunTimelineComponent],
   template: `
     <div class="page">
       @if (demand(); as d) {
@@ -31,7 +32,7 @@ import { BadgeComponent, LiveLine, LiveLogComponent, RunTimelineComponent, appen
           }
         </div>
         @if (d.description) {
-          <p class="desc">{{ d.description }}</p>
+          <div class="desc"><app-markdown [source]="d.description" /></div>
         }
         @if (d.status === 'Failed') {
           <p class="bad-text">O Scrum Master não conseguiu produzir um plano válido. Veja a saída nas execuções abaixo e reexecute.</p>
@@ -54,7 +55,7 @@ import { BadgeComponent, LiveLine, LiveLogComponent, RunTimelineComponent, appen
                 <div class="muted small">depende de: {{ depTitles(w) }}</div>
               }
               @if (w.acceptanceCriteria) {
-                <pre class="crit">{{ w.acceptanceCriteria }}</pre>
+                <div class="crit"><app-markdown [source]="w.acceptanceCriteria" [links]="false" /></div>
               }
             </a>
           } @empty {
@@ -73,12 +74,12 @@ import { BadgeComponent, LiveLine, LiveLogComponent, RunTimelineComponent, appen
     </div>
   `,
   styles: `
-    .desc { white-space: pre-wrap; max-width: 60rem; }
+    .desc { max-width: 60rem; }
     .items { display: flex; flex-direction: column; gap: .5rem; }
     .item { display: block; background: #1b1b1b; border-radius: 8px; padding: .6rem .8rem; text-decoration: none; color: inherit; }
     .item:hover { background: #242424; }
     .small { font-size: .8rem; }
-    .crit { margin: .4rem 0 0; font-family: inherit; font-size: .85rem; color: #aaa; white-space: pre-wrap; }
+    .crit { margin: .4rem 0 0; font-size: .85rem; color: #aaa; }
     .bad-text { color: #ffb4b4; }
   `,
 })

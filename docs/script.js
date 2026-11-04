@@ -31,6 +31,24 @@
   var h = location.hash.slice(1);
   if (h && document.getElementById(h) && document.getElementById(h).classList.contains('panel')) show(h);
 
+  // Abas por sistema operacional (Windows / Linux-macOS): a escolha vale para todas e fica lembrada
+  var osButtons = document.querySelectorAll('[data-os-tabs] [role="tab"]');
+  function showOs(os) {
+    osButtons.forEach(function (b) { b.setAttribute('aria-selected', String(b.dataset.os === os)); });
+    document.querySelectorAll('[data-os-tabs] .ospanel').forEach(function (p) { p.classList.toggle('on', p.dataset.os === os); });
+  }
+  osButtons.forEach(function (b) {
+    b.addEventListener('click', function () {
+      showOs(b.dataset.os);
+      try { localStorage.setItem('os', b.dataset.os); } catch (e) {}
+    });
+  });
+  if (osButtons.length) {
+    var os = null;
+    try { os = localStorage.getItem('os'); } catch (e) {}
+    showOs(os || (/Windows/i.test(navigator.userAgent) ? 'windows' : 'linux'));
+  }
+
   // Destaque do item ativo no menu
   var links = {};
   document.querySelectorAll('nav.side a').forEach(function (a) { links[a.getAttribute('href').slice(1)] = a; });

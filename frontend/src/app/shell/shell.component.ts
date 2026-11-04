@@ -16,6 +16,7 @@ import { RealtimeService } from '../core/realtime.service';
       <a mat-button routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }">Projetos</a>
       <a mat-button routerLink="/agents" routerLinkActive="active">Agentes</a>
       <a mat-button routerLink="/prompts" routerLinkActive="active">Prompts</a>
+      <a mat-button routerLink="/git" routerLinkActive="active">Git</a>
       <a mat-button routerLink="/integration" routerLinkActive="active">Integração</a>
       <span class="spacer"></span>
       <span class="rt" [class.on]="realtime.status() === 'connected'" [title]="'Tempo real: ' + realtime.status()">●</span>

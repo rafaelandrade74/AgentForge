@@ -134,10 +134,16 @@ Há um projeto de exemplo (API de tarefas em .NET, com testes) em `examples/task
 
 ### Repositórios privados
 
+- **Modo 2 (Docker, git no container) — chave SSH pela interface:** abra **Git** na barra, clique em **Gerar chave SSH** e copie
+  a **chave pública**. A chave é gerada no servidor (`ed25519`, no volume `git-ssh`) e a **parte privada nunca sai dele**. No GitHub:
+  no repositório, *Settings → Deploy keys → Add deploy key*, cole a chave e **deixe "Allow write access" desmarcado** (o AgentForge
+  nunca faz push; leitura basta); ou, para vários repositórios, *Settings → SSH and GPG keys* da sua conta. Depois use
+  **Testar acesso** com a URL SSH (`git@github.com:org/repo.git`) e cadastre o projeto com essa URL. A chave serve a todos os
+  projetos e o servidor Git novo é registrado no `known_hosts` na primeira conexão. "Gerar outra" substitui a chave (e a antiga
+  deixa de valer); "Remover" apaga.
+- **Modos 1 e 3:** o `git` é o do computador, com as credenciais que você já configurou (credential manager, chave SSH). A tela
+  Git avisa disso e não oferece gerar chave (a do AgentForge, no modo 3, fica em `~/.agentforge/ssh`, nunca no seu `~/.ssh`).
 - **HTTPS com token:** use `https://<token>@github.com/org/repo.git`. O token fica na URL do projeto (banco) e na configuração do clone.
-- **Modos 1 e 3:** o `git` é o do computador, com as credenciais que você já configurou (credential manager, chave SSH).
-- **Modo 2 com SSH:** a imagem tem o cliente `ssh`, mas a montagem de chaves não faz parte do compose e **não foi testada**.
-
 ## Configuração (`.env`)
 
 | Variável | Padrão | Para quê |

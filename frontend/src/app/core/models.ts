@@ -156,3 +156,17 @@ export interface McpToolInfo {
   description: string;
   annotations?: { readOnlyHint?: boolean; destructiveHint?: boolean };
 }
+// ---- credenciais Git (chave SSH)
+export interface GitSshStatus {
+  supported: boolean;
+  reason: string | null;
+  hasKey: boolean;
+  publicKey: string | null;
+  fingerprint: string | null;
+  createdAt: string | null;
+  directory: string;
+}
+export interface GitAccessResult {
+  ok: boolean;
+  message: string;
+}

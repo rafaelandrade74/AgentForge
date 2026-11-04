@@ -2,7 +2,7 @@ import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 import {
-  AgentInfo, AgentTestResult, ApiTokenInfo, CreatedApiToken, Demand, Finding, LoginSession, McpToolInfo, Project, ProjectInput, RoleConfig, Run, RunSummary, WorkItem,
+  AgentInfo, AgentTestResult, ApiTokenInfo, CreatedApiToken, Demand, Finding, GitAccessResult, GitSshStatus, LoginSession, McpToolInfo, Project, ProjectInput, RoleConfig, Run, RunSummary, WorkItem,
 } from './models';
 
 /** Chamadas REST da API (o interceptor de auth anexa o token). */
@@ -58,6 +58,12 @@ export class ApiService {
   revokeApiToken = (id: string) => this.http.delete<void>(`/api/tokens/${id}`);
   mcpTools = () =>
     this.http.post<{ result: { tools: McpToolInfo[] } }>('/mcp', { jsonrpc: '2.0', id: 1, method: 'tools/list' });
+
+  // credenciais Git (chave SSH gerada no servidor)
+  gitSsh = () => this.http.get<GitSshStatus>('/api/git/ssh');
+  generateGitSsh = (overwrite = false) => this.http.post<GitSshStatus>('/api/git/ssh/generate', { overwrite });
+  deleteGitSsh = () => this.http.delete<GitSshStatus>('/api/git/ssh');
+  testGitAccess = (repositoryUrl: string) => this.http.post<GitAccessResult>('/api/git/ssh/test', { repositoryUrl });
 
   // papéis
   roleConfigs = () => this.http.get<RoleConfig[]>('/api/role-configs');

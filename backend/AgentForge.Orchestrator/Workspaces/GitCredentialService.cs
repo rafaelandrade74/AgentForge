@@ -107,7 +107,7 @@ public sealed class GitCredentialService(IProcessLauncher launcher, GitOptions o
             var branches = output.Split('\n', StringSplitOptions.RemoveEmptyEntries).Length;
             return new GitAccessResult(true, branches == 0
                 ? "Acesso confirmado (o repositório ainda não tem branches)."
-                : $"Acesso confirmado ({branches} branch{(branches == 1 ? "" : "es")} visível{(branches == 1 ? "" : "is")}).");
+                : branches == 1 ? "Acesso confirmado (1 branch visível)." : $"Acesso confirmado ({branches} branches visíveis).");
         }
         catch (OperationCanceledException) when (!ct.IsCancellationRequested)
         {

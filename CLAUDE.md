@@ -25,6 +25,9 @@ Transições válidas ficam em tabela no código (`WorkflowDefinition`). Revisã
 ## MCP (ADR 0012)
 O AgentForge é também servidor MCP em `POST /mcp` (18 ferramentas; tokens de acesso `afk_...` criados na tela Integração, válidos só no `/mcp`). Código em `backend/AgentForge.Api/Mcp`, sem dependência nova.
 
+## Credenciais Git (ADR 0013)
+Tela **Git**: gera uma chave SSH ed25519 no servidor (modo 2; a privada nunca sai dele), mostra a pública para autorizar no GitHub e testa o acesso. O `git` usa a chave via `GIT_SSH_COMMAND` (só se ela existir). Testes que geram chave usam a imagem `backend/Dockerfile.tests` (`docker build -f backend/Dockerfile.tests -t agentforge-tests backend`).
+
 ## Modos de execução (ADR 0010)
 1 Docker + CLI no computador (host agent: `scripts/host-agent`, `docker-compose.host-agent.yml`) · 2 Docker + CLI no container (padrão; login pela tela Agentes) · 3 tudo no computador (`scripts/run-native`). Todo processo de CLI (agentes, git) passa pelo `IProcessLauncher` (`AgentForge.Execution`); `Agents:Launcher` = `local` | `host`.
 
@@ -32,7 +35,7 @@ O AgentForge é também servidor MCP em `POST /mcp` (18 ferramentas; tokens de a
 Siga as fases em ordem; não pule critérios de aceite; código simples e testável; registre decisões em `docs/adr/`; pergunte antes de adicionar dependências fora da stack.
 
 ## Comandos
-- Testes backend (precisam do Docker para o Postgres via Testcontainers; o TestServer 8 quebra no runtime 10, então rode no SDK 8): `docker run --rm -v "${PWD}/backend:/src" -v //var/run/docker.sock:/var/run/docker.sock -e TESTCONTAINERS_RYUK_DISABLED=true -w /src mcr.microsoft.com/dotnet/sdk:8.0 sh -c 'export TESTCONTAINERS_HOST_OVERRIDE=$(getent ahostsv4 host.docker.internal | head -1 | cut -d" " -f1); dotnet test -o /tmp/out'` (forçar IPv4 evita falhas intermitentes de conexão ao Postgres do Testcontainers)
+- Testes backend (precisam do Docker para o Postgres via Testcontainers; o TestServer 8 quebra no runtime 10, então rode no SDK 8): `docker run --rm -v "${PWD}/backend:/src" -v //var/run/docker.sock:/var/run/docker.sock -e TESTCONTAINERS_RYUK_DISABLED=true -w /src agentforge-tests sh -c 'export TESTCONTAINERS_HOST_OVERRIDE=$(getent ahostsv4 host.docker.internal | head -1 | cut -d" " -f1); dotnet test -o /tmp/out'` (forçar IPv4 evita falhas intermitentes de conexão ao Postgres do Testcontainers)
 - Teste real do Claude (gasta créditos): `AGENTFORGE_CLAUDE_INTEGRATION=1` + `AGENTFORGE_TEST_DB=<postgres>` e `dotnet test --filter Real_claude` (com `DOTNET_ROLL_FORWARD=Major` no SDK 10).
 - Nova migration: `dotnet ef migrations add <Nome> --project backend/AgentForge.Infrastructure --output-dir Persistence/Migrations` (com `DOTNET_ROLL_FORWARD=Major` se só houver o SDK 10). Swagger em `/swagger`.
 - Se mudar `POSTGRES_PASSWORD` depois do primeiro start, recrie o volume (`docker compose down -v`): o Postgres só lê a senha ao inicializar.

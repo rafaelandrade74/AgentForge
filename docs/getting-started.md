@@ -59,8 +59,8 @@ O login do Claude é feito pela interface e fica num volume.
    API_DEBUG_PORT=8081
    SWAGGER_ENABLED=true
    ```
-   Para gerar um `JWT_SECRET` aleatório: `openssl rand -base64 48 | tr -d '/+='` (Linux/macOS) ou, no PowerShell 7,
-   `[Convert]::ToBase64String([Security.Cryptography.RandomNumberGenerator]::GetBytes(48)) -replace '[/+=]',''`.
+   Para gerar um `JWT_SECRET` aleatório: `openssl rand -base64 48 | tr -d '/+='` (Linux/macOS) ou, no Windows PowerShell (5.1 ou 7),
+   `$b = New-Object byte[] 48; [Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($b); [Convert]::ToBase64String($b) -replace '[/+=]',''`.
    Use só letras e números nas senhas: em `POSTGRES_PASSWORD`, `;` e `=` quebram a string de conexão e `$` é interpretado pelo
    Docker Compose. **Aspas:** o `docker compose` aceita (`DATABASE_URL="Host=...;Password=..."`; com aspas simples o `$` fica literal, com duplas é interpolado), mas os scripts `init-env`, `host-agent` e `run-native` leem o `.env` à mão e **não removem as aspas**: nos cenários D e E, deixe sem aspas. `cp .env.example .env` também funciona, mas troque as mesmas três senhas. Os
    valores de exemplo servem para experimentar; a API avisa no log enquanto estiverem em uso.

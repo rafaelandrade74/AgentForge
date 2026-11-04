@@ -124,7 +124,7 @@ API_DEBUG_PORT=8081
 SWAGGER_ENABLED=true</code></pre>
         <p>Para gerar um <code>JWT_SECRET</code> aleatório:</p>
 <pre><code>openssl rand -base64 48 | tr -d '/+='            # Linux/macOS
-[Convert]::ToBase64String([Security.Cryptography.RandomNumberGenerator]::GetBytes(48)) -replace '[/+=]',''   # PowerShell 7</code></pre>
+$b = New-Object byte[] 48; [Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($b); [Convert]::ToBase64String($b) -replace '[/+=]',''   # Windows PowerShell 5.1 ou 7</code></pre>
         <div class="warn"><p>Use só letras e números nas senhas. Em <code>POSTGRES_PASSWORD</code>, <code>;</code> e <code>=</code> quebram a string de conexão, e <code>$</code> é interpretado pelo Docker Compose. <strong>Aspas:</strong> o <code>docker compose</code> aceita (com aspas simples o <code>$</code> fica literal; com duplas é interpolado), mas os scripts <code>host-agent</code> e <code>run-native</code> não removem as aspas: nos cenários D e E, deixe sem. A linha <code>COMPOSE_PROFILES=local-db</code> é a que sobe o Postgres do compose.</p></div>
         <p>Atalho: <code>cp .env.example .env</code> também funciona, mas troque as mesmas três senhas.</p>
       </details></li>

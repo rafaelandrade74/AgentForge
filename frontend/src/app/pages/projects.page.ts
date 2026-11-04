@@ -1,6 +1,6 @@
 import { Component, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatCheckboxModule } from '@angular/material/checkbox';
@@ -9,22 +9,28 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { ApiService } from '../core/api.service';
-import { Project, ProjectInput } from '../core/models';
+import { GitHubImportResult, Project, ProjectInput } from '../core/models';
 import { ActionDialogComponent, BadgeComponent } from '../shared/shared';
+import { GithubImportComponent } from './github-import.component';
 
 const EMPTY: ProjectInput = { name: '', repositoryUrl: '', baseBranch: 'main', buildCommand: '', testCommand: '', autoMode: false };
 
 @Component({
   selector: 'app-projects-page',
   standalone: true,
-  imports: [FormsModule, RouterLink, MatButtonModule, MatCardModule, MatCheckboxModule, MatFormFieldModule, MatInputModule, BadgeComponent],
+  imports: [FormsModule, RouterLink, MatButtonModule, MatCardModule, MatCheckboxModule, MatFormFieldModule, MatInputModule, BadgeComponent, GithubImportComponent],
   template: `
     <div class="page">
       <div class="row">
         <h1>Projetos</h1>
         <span class="spacer"></span>
+        <button mat-stroked-button type="button" (click)="importOpen.set(!importOpen())">Importar do GitHub</button>
         <button mat-flat-button type="button" (click)="toggleForm()">{{ formOpen() ? 'Fechar' : 'Novo projeto' }}</button>
       </div>
+
+      @if (importOpen()) {
+        <app-github-import (imported)="onImported($event)" (closed)="importOpen.set(false)" />
+      }
 
       @if (formOpen()) {
         <mat-card class="form">
@@ -109,6 +115,8 @@ export class ProjectsPage {
   readonly formOpen = signal(false);
   readonly editingId = signal<string | null>(null);
   readonly saving = signal(false);
+  readonly importOpen = signal(false);
+  private readonly router = inject(Router);
   draft: ProjectInput = { ...EMPTY };
 
   constructor() {
@@ -120,6 +128,11 @@ export class ProjectsPage {
       this.projects.set(p);
       this.loaded.set(true);
     });
+  }
+
+  onImported(r: GitHubImportResult): void {
+    this.snack.open(`Projeto "${r.project.name}" importado e clonado.`, 'OK', { duration: 4000 });
+    void this.router.navigate(['/projects', r.project.id]);
   }
 
   toggleForm(): void {

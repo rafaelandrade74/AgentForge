@@ -144,6 +144,11 @@ Há um projeto de exemplo (API de tarefas em .NET, com testes) em `examples/task
 - **Modos 1 e 3:** o `git` é o do computador, com as credenciais que você já configurou (credential manager, chave SSH). A tela
   Git avisa disso e não oferece gerar chave (a do AgentForge, no modo 3, fica em `~/.agentforge/ssh`, nunca no seu `~/.ssh`).
 - **HTTPS com token:** use `https://<token>@github.com/org/repo.git`. O token fica na URL do projeto (banco) e na configuração do clone.
+- **Importar do GitHub (mais simples):** em **Projetos → Importar do GitHub**, cole um token pessoal (escopo `repo`), liste seus
+  repositórios e escolha um. O AgentForge cria o projeto (URL SSH se privado, HTTPS se público; branch base = a padrão do
+  GitHub), gera a chave SSH se faltar, a registra como **deploy key somente leitura** e **já clona**. Se o clone falhar, o projeto
+  não é criado. O token é usado só nessa chamada: não é guardado nem registrado em log. Repositório público dispensa o token
+  (digite `dono/nome`). Veja o ADR 0014.
 ## Configuração (`.env`)
 
 | Variável | Padrão | Para quê |

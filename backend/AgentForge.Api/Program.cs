@@ -2,6 +2,7 @@ using System.Text;
 using System.Text.Json.Serialization;
 using AgentForge.Api.Auth;
 using AgentForge.Api.Endpoints;
+using AgentForge.Api.GitHub;
 using AgentForge.Api.Mcp;
 using AgentForge.Api.Realtime;
 using AgentForge.Infrastructure.Auth;
@@ -59,6 +60,11 @@ builder.Services.AddScoped<AuthService>();
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer()
     .AddScheme<Microsoft.AspNetCore.Authentication.AuthenticationSchemeOptions, ApiTokenHandler>(ApiTokens.Scheme, null);
+builder.Services.AddHttpClient<GitHubClient>(c =>
+{
+    c.BaseAddress = new Uri((builder.Configuration["GitHub:ApiUrl"] ?? "https://api.github.com").TrimEnd('/') + "/");
+    c.Timeout = TimeSpan.FromSeconds(30);
+});
 builder.Services.AddSingleton<McpToolRegistry>();
 builder.Services.AddSingleton<McpServer>();
 builder.Services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme)
@@ -127,6 +133,7 @@ app.MapWorkflowEndpoints();
 app.MapAgentEndpoints();
 app.MapTokenEndpoints();
 app.MapGitEndpoints();
+app.MapGitHubEndpoints();
 app.MapMcp();
 app.MapHub<RunsHub>("/hubs/runs");
 

@@ -2,7 +2,7 @@ import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 import {
-  AgentInfo, AgentTestResult, ApiTokenInfo, CreatedApiToken, Demand, Finding, GitAccessResult, GitSshStatus, LoginSession, McpToolInfo, Project, ProjectInput, RoleConfig, Run, RunSummary, WorkItem,
+  AgentInfo, AgentTestResult, ApiTokenInfo, CreatedApiToken, Demand, Finding, GitAccessResult, GitHubImportRequest, GitHubImportResult, GitHubRepo, GitSshStatus, LoginSession, McpToolInfo, Project, ProjectInput, RoleConfig, Run, RunSummary, WorkItem,
 } from './models';
 
 /** Chamadas REST da API (o interceptor de auth anexa o token). */
@@ -64,6 +64,10 @@ export class ApiService {
   generateGitSsh = (overwrite = false) => this.http.post<GitSshStatus>('/api/git/ssh/generate', { overwrite });
   deleteGitSsh = () => this.http.delete<GitSshStatus>('/api/git/ssh');
   testGitAccess = (repositoryUrl: string) => this.http.post<GitAccessResult>('/api/git/ssh/test', { repositoryUrl });
+
+  // importação do GitHub (o token vai só nestas chamadas; o servidor não o guarda)
+  githubRepos = (token: string) => this.http.post<GitHubRepo[]>('/api/github/repos', { token });
+  githubImport = (req: GitHubImportRequest) => this.http.post<GitHubImportResult>('/api/github/import', req);
 
   // papéis
   roleConfigs = () => this.http.get<RoleConfig[]>('/api/role-configs');

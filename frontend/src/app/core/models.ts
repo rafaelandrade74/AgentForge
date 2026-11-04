@@ -170,3 +170,31 @@ export interface GitAccessResult {
   ok: boolean;
   message: string;
 }
+
+// ---- importação do GitHub
+export interface GitHubRepo {
+  fullName: string;
+  name: string;
+  private: boolean;
+  defaultBranch: string;
+  description: string | null;
+  cloneUrl: string;
+  sshUrl: string;
+  updatedAt: string | null;
+  canAdmin: boolean;
+}
+export interface GitHubImportRequest {
+  repository: string;
+  token?: string;
+  addDeployKey: boolean;
+  buildCommand: string;
+  testCommand: string;
+  autoMode: boolean;
+}
+export interface GitHubImportResult {
+  project: Project;
+  cloned: boolean;
+  deployKeyAdded: boolean;
+  notes: string[];
+  repository: GitHubRepo;
+}

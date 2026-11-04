@@ -22,6 +22,9 @@ Transições válidas ficam em tabela no código (`WorkflowDefinition`). Revisã
 ## Fases (executar uma por vez; parar para validação; commit `fase-N: <resumo>`)
 0 Fundação do repositório (feita) · 1 Autenticação (feita) · 2 Domínio e persistência (feita; ADR 0003) · 3 CliAgentRunner (feita; ADR 0004) · 4 Workspaces Git (feita; ADR 0005) · 5 Orquestrador (feita; ADR 0006) · 6 Tempo real (feita; ADR 0007) · 7 Interface web (feita; ADR 0008) · 8 Deploy homelab (feita; ADR 0009, README) · 9 Validação ponta a ponta (feita; ADR 0010 e ADR 0011 — com lacunas a corrigir: tarefas dependentes devem nascer das branches das dependências).
 
+## Importar do GitHub (ADR 0014)
+Projetos → "Importar do GitHub": lista repositórios pelo token (usado só na chamada, nunca guardado/logado), cria o projeto, autoriza a chave SSH como deploy key somente leitura (privados) e já clona; clone falho desfaz o cadastro. Código em `backend/AgentForge.Api/GitHub`.
+
 ## MCP (ADR 0012)
 O AgentForge é também servidor MCP em `POST /mcp` (18 ferramentas; tokens de acesso `afk_...` criados na tela Integração, válidos só no `/mcp`). Código em `backend/AgentForge.Api/Mcp`, sem dependência nova.
 

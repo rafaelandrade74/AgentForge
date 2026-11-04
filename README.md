@@ -171,18 +171,19 @@ Há um projeto de exemplo (API de tarefas em .NET, com testes) em `examples/task
 > **Troque `ADMIN_PASSWORD`, `JWT_SECRET` e `POSTGRES_PASSWORD` antes de expor o sistema na rede.**
 > `./scripts/init-env.sh` (Linux/macOS) ou `./scripts/init-env.ps1` (Windows) criam o `.env` já com segredos aleatórios.
 
-### Usar um Postgres que você já tem (sem o banco no compose)
+### Subir o banco é opcional
 
-Defina `DATABASE_URL` no `.env` (string Npgsql: `Host=...;Port=5432;Database=agentforge;Username=...;Password=...`), crie o
-banco e o usuário vazios e suba só a aplicação:
+O Postgres do compose está no profile `local-db`, e o `.env` escolhe se ele sobe (`COMPOSE_PROFILES`):
 
-```bash
-docker compose -f docker-compose.external-db.yml up -d --build
-```
+| Quero | No `.env` | Comando |
+|---|---|---|
+| O Postgres do compose (padrão) | `COMPOSE_PROFILES=local-db` | `docker compose up -d` |
+| Um Postgres que já tenho | `COMPOSE_PROFILES=` (vazio) e `DATABASE_URL=Host=...;Port=5432;Database=agentforge;Username=...;Password=...` | `docker compose up -d` |
 
-As tabelas são criadas pelas migrations no primeiro start. Para um Postgres no próprio computador, use
-`Host=host.docker.internal`. Com o modo 1, junte `-f docker-compose.host-agent.yml` depois do arquivo acima. `POSTGRES_*` do
-`.env` não são usados nesse arquivo.
+No segundo caso o serviço `db` e o volume `pgdata` nem entram. Crie o banco e o usuário vazios; as tabelas são criadas pelas
+migrations no primeiro start. Para um Postgres no próprio computador, use `Host=host.docker.internal`. `POSTGRES_*` só valem
+com o banco do compose. Se o seu `.env` é antigo e não tem `COMPOSE_PROFILES`, acrescente `COMPOSE_PROFILES=local-db`, senão o
+banco do compose não sobe.
 
 ### Como a aplicação sabe o modo de execução
 

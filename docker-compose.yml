@@ -1,7 +1,10 @@
 name: agentforge
 
 services:
+  # Postgres do próprio compose. Sobe quando COMPOSE_PROFILES contém "local-db" (padrão do .env.example).
+  # Para usar um banco que você já tem: tire "local-db" de COMPOSE_PROFILES e defina DATABASE_URL no .env.
   db:
+    profiles: ["local-db"]
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
@@ -24,7 +27,8 @@ services:
         API_BASE_IMAGE: ${API_BASE_IMAGE:-mcr.microsoft.com/dotnet/sdk:8.0}
     restart: unless-stopped
     environment:
-      ConnectionStrings__Default: Host=db;Database=agentforge;Username=${POSTGRES_USER:-agentforge};Password=${POSTGRES_PASSWORD:-agentforge}
+      # DATABASE_URL (banco externo) tem prioridade; vazio = o Postgres do compose
+      ConnectionStrings__Default: ${DATABASE_URL:-Host=db;Database=agentforge;Username=${POSTGRES_USER:-agentforge};Password=${POSTGRES_PASSWORD:-agentforge}}
       Auth__AdminUsername: ${ADMIN_USERNAME:-admin}
       Auth__AdminPassword: ${ADMIN_PASSWORD:?defina ADMIN_PASSWORD no .env (cp .env.example .env)}
       Auth__JwtSecret: ${JWT_SECRET:?defina JWT_SECRET no .env (cp .env.example .env)}
@@ -46,6 +50,9 @@ services:
     depends_on:
       db:
         condition: service_healthy
+        required: false   # sem o profile local-db o serviço não existe e a API segue com DATABASE_URL
+    extra_hosts:
+      - "host.docker.internal:host-gateway"   # permite DATABASE_URL apontar para um Postgres do próprio computador
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:8080/health"]
       interval: 10s

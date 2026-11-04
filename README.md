@@ -37,7 +37,7 @@ cp .env.example .env          # ou ./scripts/init-env.sh para gerar segredos ale
 docker compose up -d
 ```
 
-Sem usar o `init-env`, um `.env` mínimo (troque as três senhas; use só letras e números, sem aspas, espaços, `;`, `=` ou `$`):
+Sem usar o `init-env`, um `.env` mínimo (troque as três senhas; use só letras e números nas senhas; aspas no `.env` só valem para o `docker compose`, veja [docs/getting-started.md](docs/getting-started.md)):
 
 ```
 ADMIN_PASSWORD=TroqueEstaSenha2026

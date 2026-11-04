@@ -62,7 +62,7 @@ O login do Claude é feito pela interface e fica num volume.
    Para gerar um `JWT_SECRET` aleatório: `openssl rand -base64 48 | tr -d '/+='` (Linux/macOS) ou, no PowerShell 7,
    `[Convert]::ToBase64String([Security.Cryptography.RandomNumberGenerator]::GetBytes(48)) -replace '[/+=]',''`.
    Use só letras e números nas senhas: em `POSTGRES_PASSWORD`, `;` e `=` quebram a string de conexão e `$` é interpretado pelo
-   Docker Compose; não use aspas nem espaços. `cp .env.example .env` também funciona, mas troque as mesmas três senhas. Os
+   Docker Compose. **Aspas:** o `docker compose` aceita (`DATABASE_URL="Host=...;Password=..."`; com aspas simples o `$` fica literal, com duplas é interpolado), mas os scripts `init-env`, `host-agent` e `run-native` leem o `.env` à mão e **não removem as aspas**: nos cenários D e E, deixe sem aspas. `cp .env.example .env` também funciona, mas troque as mesmas três senhas. Os
    valores de exemplo servem para experimentar; a API avisa no log enquanto estiverem em uso.
 3. Confira no `.env` que existe a linha `COMPOSE_PROFILES=local-db`. É ela que faz o Postgres do compose subir.
    (O `.env.example` já traz; só um `.env` antigo pode não ter.)

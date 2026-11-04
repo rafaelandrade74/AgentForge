@@ -31,7 +31,7 @@ COPY --from=node /usr/local/lib/node_modules /usr/local/lib/node_modules
 RUN ln -s ../lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
     && ln -s ../lib/node_modules/npm/bin/npx-cli.js /usr/local/bin/npx \
     && apt-get update \
-    && apt-get install -y --no-install-recommends git openssh-client ca-certificates curl \
+    && apt-get install -y --no-install-recommends git openssh-client ca-certificates curl sudo \
     && rm -rf /var/lib/apt/lists/* \
     && npm install -g "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}" \
     && npm cache clean --force \
@@ -47,6 +47,14 @@ ENV HOME=/home/app \
 RUN mkdir -p /data/repos /home/app/.claude /home/app/.ssh \
     && chmod 700 /home/app/.ssh \
     && chown -R $APP_UID /data/repos /home/app
+
+# Os agentes precisam instalar o que o projeto exige (apt, outra versão de Node, Python...). Com AGENT_SUDO=true
+# (padrão) o usuário da API ganha sudo sem senha DENTRO deste container. Efeito: um agente pode alterar tudo no
+# container (não no computador). Para desligar: AGENT_SUDO=false e API_NO_NEW_PRIVILEGES=true no .env. Ver ADR 0016.
+ARG AGENT_SUDO=true
+RUN if [ "$AGENT_SUDO" = "true" ]; then \
+      echo "#${APP_UID} ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/agentforge && chmod 440 /etc/sudoers.d/agentforge; \
+    fi
 
 WORKDIR /app
 COPY --from=build /app .

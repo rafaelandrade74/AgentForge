@@ -50,3 +50,6 @@ Siga as fases em ordem; não pule critérios de aceite; código simples e testá
 - Subir tudo: `cp .env.example .env && docker compose up --build` (front em http://localhost:8080)
 - Banco opcional: o `db` do compose está no profile `local-db` (`COMPOSE_PROFILES=local-db` no `.env`, padrão). Para usar um Postgres existente: `COMPOSE_PROFILES=` vazio + `DATABASE_URL=<string Npgsql>`. `.env` antigo precisa da linha `COMPOSE_PROFILES=local-db`.
 - Configuração: `Agents:Launcher` (`local`|`host`) define o modo de execução; referência completa das chaves no README ("appsettings.json"). Migrations rodam sozinhas no start (`MigrateAsync` no `Program.cs`).
+
+## Dependências dos agentes (ADR 0016)
+No modo 2 o usuário `app` do container da API tem sudo sem senha (`AGENT_SUDO=true`, `API_NO_NEW_PRIVILEGES=false`): agentes instalam apt/Node/Python no container (efêmero; o permanente vai no `backend/Dockerfile`). Endurecer: `AGENT_SUDO=false` + `API_NO_NEW_PRIVILEGES=true`. Modos 1 e 3 usam as permissões do seu usuário no computador.

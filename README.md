@@ -149,6 +149,7 @@ Há um projeto de exemplo (API de tarefas em .NET, com testes) em `examples/task
   GitHub), gera a chave SSH se faltar, a registra como **deploy key somente leitura** e **já clona**. Se o clone falhar, o projeto
   não é criado. O token é usado só nessa chamada: não é guardado nem registrado em log. Repositório público dispensa o token
   (digite `dono/nome`). Veja o ADR 0014.
+
 ## Configuração (`.env`)
 
 | Variável | Padrão | Para quê |
@@ -169,6 +170,53 @@ Há um projeto de exemplo (API de tarefas em .NET, com testes) em `examples/task
 > Os valores de exemplo do `.env.example` bastam para experimentar, mas a API avisa no log enquanto estiverem em uso.
 > **Troque `ADMIN_PASSWORD`, `JWT_SECRET` e `POSTGRES_PASSWORD` antes de expor o sistema na rede.**
 > `./scripts/init-env.sh` (Linux/macOS) ou `./scripts/init-env.ps1` (Windows) criam o `.env` já com segredos aleatórios.
+
+### Como a aplicação sabe o modo de execução
+
+Ela **não detecta** o modo: ele vem da configuração `Agents:Launcher` (`local` ou `host`; padrão `local`).
+
+| Modo | Como é escolhido | `Agents:Launcher` |
+|---|---|---|
+| 2 — Docker, CLI no container | `docker compose up` simples | `local` (padrão) |
+| 1 — Docker, CLI no computador | compose com `docker-compose.host-agent.yml`, que define `Agents__Launcher=host`, `Agents__HostAgent__Url` e `Agents__HostAgent__Token` | `host` |
+| 3 — tudo no computador | `scripts/run-native`, que define `Agents__Launcher=local` | `local` |
+
+Com `host`, todo processo (`claude` e `git`) vai por HTTP para o host agent (`scripts/host-agent`), que roda no computador, só
+executa os nomes da lista `HostAgent:Executables` e só em pastas de `HostAgent:Roots`. Com `local`, a própria API executa.
+O modo também muda o comportamento da tela **Git** e do import do GitHub: só em `local` o AgentForge gera a chave SSH e a
+registra como deploy key; em `host` vale o git do computador, com as credenciais dele. Para trocar de modo, mude como sobe e
+reinicie (não há seletor na interface).
+
+Sobre o Claude Code: a imagem da API **instala** o CLI no build (`npm install -g @anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}`);
+em execução nada é baixado. Nos modos 1 e 3 usa-se o `claude` já instalado e logado no computador.
+
+### `appsettings.json` (referência)
+
+Todos os valores podem ser sobrescritos por variável de ambiente, trocando `:` por `__` (ex.: `Auth__JwtSecret`). O
+`docker-compose.yml` já faz isso a partir do `.env`. `Git:SshDir` e `Prompts:Directory` não estão no arquivo de propósito:
+vazios, anulariam o padrão do código (defina-os só se quiser mudar). Os segredos vêm vazios de propósito: a API recusa subir sem `Auth:JwtSecret`
+(mínimo de 32 caracteres) e `Auth:AdminPassword`.
+
+| Seção:chave | Padrão | Para quê |
+|---|---|---|
+| `ConnectionStrings:Default` | Postgres local | Banco (Npgsql). As migrations rodam sozinhas no start |
+| `Auth:JwtSecret` | *(obrigatório)* | Assinatura dos JWT; mínimo de 32 caracteres |
+| `Auth:Issuer` | `agentforge` | Emissor e audiência dos JWT |
+| `Auth:AccessTokenMinutes`, `Auth:RefreshTokenDays` | `15`, `7` | Validade do token de acesso e do refresh (este fica no banco, em hash) |
+| `Auth:AdminUsername`, `Auth:AdminPassword` | `admin` / *(obrigatório)* | Usuário único; a senha vira hash BCrypt |
+| `Agents:Launcher` | `local` | `local` ou `host` (ver acima) |
+| `Agents:HostAgent:Url`, `:Token` | vazio | Obrigatórios com `host`: endereço do host agent visto pela API e segredo compartilhado (mínimo de 24 caracteres) |
+| `Workspaces:Root` | `/data/repos` | Onde ficam os clones e worktrees; é um caminho do lado onde o git roda (no modo `host`, do computador) |
+| `Git:SshDir` | `~/.agentforge/ssh` (Docker: `/home/app/.ssh`) | Pasta da chave SSH gerada pelo AgentForge |
+| `Orchestrator:MaxConcurrency` | `1` | Tarefas simultâneas |
+| `GitHub:ApiUrl` | `https://api.github.com` | Base da API do GitHub (muda para GitHub Enterprise ou testes) |
+| `Prompts:Directory` | `<app>/prompts` | De onde os prompts dos papéis semeiam o primeiro start |
+| `Swagger:Enabled` | `true` | Documentação em `/swagger` |
+| `Frontend:Path` | vazio | Se preenchido, a API serve a interface compilada daquela pasta (modo 3) |
+
+O **host agent** (`backend/AgentForge.HostAgent/appsettings.json`) tem o seu próprio conjunto: `urls` (padrão
+`http://127.0.0.1:8787`), `HostAgent:Token` (o mesmo de `Agents:HostAgent:Token`), `HostAgent:Roots` (pastas permitidas; ao
+menos uma) e `HostAgent:Executables` (nome lógico → binário; só `claude` e `git` por padrão). `scripts/host-agent` preenche tudo.
 
 Os prompts de sistema dos papéis ficam em `prompts/<papel>.md` (semeiam o primeiro start) e são editados depois pela tela
 **Prompts**; ficam no banco.

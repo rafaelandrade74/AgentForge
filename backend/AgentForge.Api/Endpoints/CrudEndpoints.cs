@@ -26,6 +26,43 @@ public static class CrudEndpoints
     internal static ProjectDto ToDto(Project p) =>
         new(p.Id, p.Name, Secrets.MaskUrls(p.RepositoryUrl), p.BaseBranch, p.BuildCommand, p.TestCommand, p.AutoMode, p.CreatedAt, p.EnvironmentId, p.StackProfileId);
 
+    internal static ProjectDto ToDtoWithRoles(Project p, IReadOnlyDictionary<string, Guid>? roles) =>
+        ToDto(p) with { RoleEnvironments = roles is { Count: > 0 } ? new Dictionary<string, Guid>(roles) : null };
+
+    /// <summary>Só Tech Lead e Security podem rodar em outro ambiente: Dev e QA precisam do worktree, que mora no ambiente do projeto.</summary>
+    internal static readonly AgentRole[] MovableRoles = [AgentRole.TechLead, AgentRole.Security];
+
+    private static async Task<Dictionary<Guid, Dictionary<string, Guid>>> RolesByProjectAsync(AppDbContext db) =>
+        (await db.ProjectRoleEnvironments.AsNoTracking().ToListAsync())
+            .GroupBy(r => r.ProjectId).ToDictionary(g => g.Key, g => g.ToDictionary(r => r.Role.ToString(), r => r.EnvironmentId));
+
+    private static async Task<IReadOnlyDictionary<string, Guid>> RolesOfAsync(AppDbContext db, Guid projectId) =>
+        (await db.ProjectRoleEnvironments.AsNoTracking().Where(r => r.ProjectId == projectId).ToListAsync())
+            .ToDictionary(r => r.Role.ToString(), r => r.EnvironmentId);
+
+    private static async Task<IResult?> ValidateRolesAsync(ProjectInput i, AppDbContext db)
+    {
+        foreach (var (name, environmentId) in i.RoleEnvironments ?? [])
+        {
+            if (!Enum.TryParse<AgentRole>(name, out var role) || !MovableRoles.Contains(role))
+                return Invalid(nameof(i.RoleEnvironments), $"O papel '{name}' não pode mudar de ambiente (só TechLead e Security: Dev e QA usam o worktree do projeto).");
+            if (environmentId is { } id && !await db.ExecutionEnvironments.AnyAsync(e => e.Id == id))
+                return Invalid(nameof(i.RoleEnvironments), $"Ambiente do papel {name} não encontrado.");
+        }
+        return null;
+    }
+
+    /// <summary>null = não mexe; senão substitui (entradas sem ambiente são removidas).</summary>
+    private static async Task SaveRolesAsync(AppDbContext db, Guid projectId, Dictionary<string, Guid?>? roles)
+    {
+        if (roles is null) return;
+        db.ProjectRoleEnvironments.RemoveRange(await db.ProjectRoleEnvironments.Where(r => r.ProjectId == projectId).ToListAsync());
+        foreach (var (name, environmentId) in roles)
+            if (environmentId is { } id && Enum.TryParse<AgentRole>(name, out var role))
+                db.ProjectRoleEnvironments.Add(new ProjectRoleEnvironment { ProjectId = projectId, Role = role, EnvironmentId = id });
+        await db.SaveChangesAsync();
+    }
+
     private static void Apply(Project p, ProjectInput i)
     {
         p.Name = i.Name.Trim();
@@ -63,19 +100,24 @@ public static class CrudEndpoints
     private static void MapProjects(RouteGroupBuilder g)
     {
         g.MapGet("/", async (AppDbContext db) =>
-            (await db.Projects.OrderBy(p => p.Name).ToListAsync()).Select(ToDto));
+            {
+                var roles = await RolesByProjectAsync(db);
+                return (await db.Projects.OrderBy(p => p.Name).ToListAsync()).Select(p => ToDtoWithRoles(p, roles.GetValueOrDefault(p.Id)));
+            });
         g.MapGet("/{id:guid}", async (Guid id, AppDbContext db) =>
-            await db.Projects.FindAsync(id) is { } p ? Results.Ok(ToDto(p)) : Results.NotFound());
+            await db.Projects.FindAsync(id) is { } p ? Results.Ok(ToDtoWithRoles(p, await RolesOfAsync(db, id))) : Results.NotFound());
         g.MapPost("/", async (ProjectInput i, AppDbContext db) =>
         {
             if (Validate(i) is { } bad) return bad;
             if (ValidateMasked(i, null) is { } masked) return masked;
             if (await ValidateEnvironmentAsync(i, db) is { } badEnvironment) return badEnvironment;
+            if (await ValidateRolesAsync(i, db) is { } badRoles) return badRoles;
             var p = new Project();
             Apply(p, i);
             db.Projects.Add(p);
             await db.SaveChangesAsync();
-            return Results.Created($"/api/projects/{p.Id}", ToDto(p));
+            await SaveRolesAsync(db, p.Id, i.RoleEnvironments);
+            return Results.Created($"/api/projects/{p.Id}", ToDtoWithRoles(p, await RolesOfAsync(db, p.Id)));
         });
         g.MapPut("/{id:guid}", async (Guid id, ProjectInput i, AppDbContext db) =>
         {
@@ -83,9 +125,11 @@ public static class CrudEndpoints
             if (await db.Projects.FindAsync(id) is not { } p) return Results.NotFound();
             if (ValidateMasked(i, p) is { } masked) return masked;
             if (await ValidateEnvironmentAsync(i, db) is { } badEnvironment) return badEnvironment;
+            if (await ValidateRolesAsync(i, db) is { } badRoles) return badRoles;
             Apply(p, i);
             await db.SaveChangesAsync();
-            return Results.Ok(ToDto(p));
+            await SaveRolesAsync(db, p.Id, i.RoleEnvironments);
+            return Results.Ok(ToDtoWithRoles(p, await RolesOfAsync(db, p.Id)));
         });
         g.MapDelete("/{id:guid}", async (Guid id, AppDbContext db) =>
             await db.Projects.Where(p => p.Id == id).ExecuteDeleteAsync() > 0 ? Results.NoContent() : Results.NotFound());
@@ -132,7 +176,7 @@ public static class CrudEndpoints
     // ---------- WorkItems ----------
     internal static WorkItemDto ToDto(WorkItem w) =>
         new(w.Id, w.DemandId, w.Title, w.Description, w.AcceptanceCriteria, w.Estimate, w.State, w.ReworkCount,
-            w.BranchName, w.BlockedReason, w.Dependencies.Select(d => d.Id).ToList(), w.CreatedAt);
+            w.BranchName, w.BlockedReason, w.Dependencies.Select(d => d.Id).ToList(), w.CreatedAt, w.WaitingReason);
 
     private static async Task<(IResult? Error, List<WorkItem> Deps)> ResolveAsync(WorkItemInput i, Guid? selfId, AppDbContext db)
     {

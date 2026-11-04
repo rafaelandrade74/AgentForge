@@ -34,6 +34,8 @@ public class ExecutionEnvironment
     public string WorkspaceRoot { get; set; } = "";
     /// <summary>Rótulos livres da stack disponível (ex.: "node20, dotnet8, docker").</summary>
     public string Tags { get; set; } = "";
+    /// <summary>Quantas tarefas (de projetos deste ambiente) rodam ao mesmo tempo nesta máquina; as demais esperam na fila do ambiente.</summary>
+    public int MaxConcurrency { get; set; } = 1;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }
 
@@ -63,6 +65,8 @@ public class WorkItem
     public string? BaseCommit { get; set; }
     /// <summary>Por que a tarefa está em Blocked (falha do agente, limite de retrabalho...).</summary>
     public string? BlockedReason { get; set; }
+    /// <summary>A máquina do ambiente está fora do ar: a tarefa continua no estado atual e será retomada quando ela voltar (não é Blocked).</summary>
+    public string? WaitingReason { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public List<WorkItem> Dependencies { get; set; } = [];
 }
@@ -78,6 +82,8 @@ public class AgentRun
     public decimal CostUsd { get; set; }
     public long DurationMs { get; set; }
     public AgentRunStatus Status { get; set; } = AgentRunStatus.Pending;
+    /// <summary>Ambiente onde a execução rodou (null = padrão do servidor). Sem chave estrangeira: o histórico sobrevive ao ambiente.</summary>
+    public Guid? EnvironmentId { get; set; }
     public DateTime StartedAt { get; set; } = DateTime.UtcNow;
     public DateTime? FinishedAt { get; set; }
 }
@@ -151,4 +157,15 @@ public class StackProfile
     /// <summary>Perfis prontos (Node, .NET, Python) são recriados no start e não podem ser editados nem apagados.</summary>
     public bool BuiltIn { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+}
+
+/// <summary>
+/// Papel que roda em OUTRO ambiente que o do projeto (ex.: Tech Lead e Security numa máquina leve). Só papéis que trabalham sobre o
+/// diff (Tech Lead e Security) podem ser movidos: Dev e QA precisam do worktree, que mora no ambiente do projeto.
+/// </summary>
+public class ProjectRoleEnvironment
+{
+    public Guid ProjectId { get; set; }
+    public AgentRole Role { get; set; }
+    public Guid EnvironmentId { get; set; }
 }

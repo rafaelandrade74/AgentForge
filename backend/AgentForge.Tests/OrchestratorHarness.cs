@@ -105,19 +105,23 @@ public sealed class OrchestratorHarness : IAsyncDisposable
     }
 
     public static async Task<OrchestratorHarness> StartAsync(string connectionString, string reposRoot,
-        ScriptedAdapter? adapter = null, int concurrency = 1)
+        ScriptedAdapter? adapter = null, int concurrency = 1, Action<IServiceCollection>? configure = null,
+        Dictionary<string, string?>? settings = null)
     {
         adapter ??= new ScriptedAdapter();
-        var config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        var values = new Dictionary<string, string?>
         {
             ["Workspaces:Root"] = reposRoot,
             ["Orchestrator:MaxConcurrency"] = concurrency.ToString(),
-        }).Build();
+        };
+        foreach (var (k, v) in settings ?? []) values[k] = v;
+        var config = new ConfigurationBuilder().AddInMemoryCollection(values).Build();
 
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddDbContext<AppDbContext>(o => o.UseNpgsql(connectionString));
         services.AddSingleton<ICliAgentAdapter>(adapter);
+        configure?.Invoke(services);   // ex.: IEnvironmentLaunchers de teste (registrado antes do padrão)
         services.AddAgentRunner();
         services.AddWorkspaces(config);
         services.AddOrchestrator(config);
@@ -137,6 +141,9 @@ public sealed class OrchestratorHarness : IAsyncDisposable
     }
 
     public AsyncServiceScope Scope() => _provider.CreateAsyncScope();
+
+    /// <summary>Serviços singleton do orquestrador (fila, carga por ambiente).</summary>
+    public IServiceProvider Services => _provider;
 
     public async Task<T> WithDb<T>(Func<AppDbContext, Task<T>> action)
     {

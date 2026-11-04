@@ -6,6 +6,21 @@ public class OrchestratorOptions
 
     /// <summary>Quantas tarefas (e demandas em refinamento) andam ao mesmo tempo. Com mais de 1, Tech Lead e Security revisam em paralelo.</summary>
     public int MaxConcurrency { get; set; } = 1;
+
+    /// <summary>Máquina fora do ar: espera antes da 1ª nova tentativa (dobra a cada falha até <see cref="EnvironmentRetryMaxSeconds"/>).</summary>
+    public double EnvironmentRetryInitialSeconds { get; set; } = 15;
+
+    public double EnvironmentRetryMaxSeconds { get; set; } = 300;
+}
+
+/// <summary>Uma tarefa/demanda que espera a máquina do ambiente voltar (não está Blocked).</summary>
+public record WaitingEntry(bool IsDemand, Guid Id, string Reason, DateTime RetryAt, int Attempts);
+
+/// <summary>Carga do orquestrador por ambiente (chave = id do ambiente ou "default"): para a tela Ambientes e o MCP.</summary>
+public interface IEnvironmentLoad
+{
+    IReadOnlyList<EnvironmentSlotInfo> Slots();
+    IReadOnlyList<WaitingEntry> Waiting();
 }
 
 public enum StepResult { Continue, Stop }

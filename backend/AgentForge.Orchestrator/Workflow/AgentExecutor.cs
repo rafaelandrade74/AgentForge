@@ -6,11 +6,24 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace AgentForge.Orchestrator.Workflow;
 
-public enum ExecOutcome { Ok, Failed, Cancelled }
+public enum ExecOutcome { Ok, Failed, Cancelled, Unavailable }
+
+/// <summary>
+/// A máquina do ambiente não respondeu: o passo não deve virar falha nem Blocked. O orquestrador solta o item, espera e tenta de
+/// novo (backoff) até a máquina voltar; o estado persistido não muda, então nada se perde.
+/// </summary>
+public class EnvironmentDeferredException(string reason) : Exception(reason);
+
+/// <summary>Papel movido para outro ambiente que o do projeto (ver <see cref="ProjectRoleEnvironment"/>).</summary>
+public record RoleEnvironment(Guid EnvironmentId);
 
 public record ExecResult<T>(ExecOutcome Outcome, T? Value, string? Error, Guid? RunId = null)
 {
     public static ExecResult<T> Cancelled(Guid? runId = null) => new(ExecOutcome.Cancelled, default, null, runId);
+
+    /// <exception cref="EnvironmentDeferredException">a máquina do ambiente está fora do ar.</exception>
+    public ExecResult<T> ThrowIfUnavailable() =>
+        Outcome == ExecOutcome.Unavailable ? throw new EnvironmentDeferredException(Error ?? "Ambiente indisponível.") : this;
 }
 
 /// <summary>
@@ -22,7 +35,7 @@ public class AgentExecutor(IServiceScopeFactory scopes)
 {
     public async Task<ExecResult<T>> RunAsync<T>(
         AgentRole role, string prompt, string workingDirectory, Guid projectId, Guid? demandId, Guid? workItemId,
-        Func<string?, Task<Parsed<T>>> parse, CancellationToken ct)
+        Func<string?, Task<Parsed<T>>> parse, CancellationToken ct, RoleEnvironment? roleEnvironment = null)
     {
         AgentRoleConfig? config;
         using (var scope = scopes.CreateScope())
@@ -40,10 +53,12 @@ public class AgentExecutor(IServiceScopeFactory scopes)
 
             using var scope = scopes.CreateScope();
             var runner = scope.ServiceProvider.GetRequiredService<IAgentRunner>();
-            var run = await runner.RunAsync(AgentRequest.FromConfig(config, text, workingDirectory, demandId, workItemId, projectId: projectId), ct);
+            var run = await runner.RunAsync(AgentRequest.FromConfig(config, text, workingDirectory, demandId, workItemId, projectId: projectId,
+                environmentId: roleEnvironment?.EnvironmentId, environmentOverride: roleEnvironment is not null), ct);
 
             runId = run.RunId;
             if (run.Status == AgentRunStatus.Cancelled) return ExecResult<T>.Cancelled(runId);
+            if (run.EnvironmentDown) return new(ExecOutcome.Unavailable, default, Truncate(run.Output, 500), runId);   // não gasta a 2ª tentativa
             if (run.Status == AgentRunStatus.Succeeded)
             {
                 var parsed = await parse(run.Json);

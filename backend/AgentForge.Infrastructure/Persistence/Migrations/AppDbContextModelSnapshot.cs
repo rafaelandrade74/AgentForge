@@ -78,6 +78,9 @@ namespace AgentForge.Infrastructure.Persistence.Migrations
                     b.Property<long>("DurationMs")
                         .HasColumnType("bigint");
 
+                    b.Property<Guid?>("EnvironmentId")
+                        .HasColumnType("uuid");
+
                     b.Property<DateTime?>("FinishedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -199,6 +202,11 @@ namespace AgentForge.Infrastructure.Persistence.Migrations
                         .HasMaxLength(32)
                         .HasColumnType("character varying(32)");
 
+                    b.Property<int>("MaxConcurrency")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(1);
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -280,6 +288,25 @@ namespace AgentForge.Infrastructure.Persistence.Migrations
                     b.HasIndex("StackProfileId");
 
                     b.ToTable("Projects");
+                });
+
+            modelBuilder.Entity("AgentForge.Domain.ProjectRoleEnvironment", b =>
+                {
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Role")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<Guid>("EnvironmentId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("ProjectId", "Role");
+
+                    b.HasIndex("EnvironmentId");
+
+                    b.ToTable("ProjectRoleEnvironments");
                 });
 
             modelBuilder.Entity("AgentForge.Domain.RefreshToken", b =>
@@ -451,6 +478,10 @@ namespace AgentForge.Infrastructure.Persistence.Migrations
                         .HasMaxLength(300)
                         .HasColumnType("character varying(300)");
 
+                    b.Property<string>("WaitingReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
                     b.HasKey("Id");
 
                     b.HasIndex("DemandId");
@@ -506,6 +537,21 @@ namespace AgentForge.Infrastructure.Persistence.Migrations
                         .WithMany()
                         .HasForeignKey("StackProfileId")
                         .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("AgentForge.Domain.ProjectRoleEnvironment", b =>
+                {
+                    b.HasOne("AgentForge.Domain.ExecutionEnvironment", null)
+                        .WithMany()
+                        .HasForeignKey("EnvironmentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AgentForge.Domain.Project", null)
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("AgentForge.Domain.ReviewFinding", b =>

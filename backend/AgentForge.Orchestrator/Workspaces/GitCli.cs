@@ -34,6 +34,7 @@ public static class GitCli
             throw new GitException($"Não foi possível iniciar o git: {ex.Message}", -1);
         }
 
+        if (result.Unreachable) throw new HostUnreachableException(result.Stderr);   // não é erro do git: a máquina está fora do ar
         if (!result.Started) throw new GitException($"Não foi possível iniciar o git: {result.Stderr}", -1);
         if (result.TimedOut) throw new GitException($"git {arguments.FirstOrDefault()} excedeu o tempo limite.", -1);
         if (result.ExitCode != 0)

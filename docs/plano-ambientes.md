@@ -1,6 +1,6 @@
 # Plano: ambientes de execução por stack
 
-Continuação das fases do projeto (0 a 9 concluídas; 10, 11 e 12 feitas). Cada fase tem ADR, testes e commit `fase-N: <resumo>`; paramos para
+Continuação das fases do projeto (0 a 9 concluídas; 10 a 13 feitas). Cada fase tem ADR, testes e commit `fase-N: <resumo>`; paramos para
 validação antes da seguinte.
 
 **Decisões já tomadas:** o token de cada máquina fica no banco, **criptografado** (Data Protection, chaves em volume próprio);
@@ -30,7 +30,7 @@ isolamento entre ambientes.
 - Build do Dockerfile na máquina do ambiente, com o log visível.
 Pronto quando: um projeto Node 22 e um .NET 8 rodam lado a lado em containers diferentes, com `npm ci` e `dotnet test` dentro.
 
-## Fase 13 — Ambiente por papel, fila e carga
+## Fase 13 — Ambiente por papel, fila e carga (feita; ADR 0020)
 Sobrescrita por papel no projeto (Dev e QA no ambiente da stack; Tech Lead e Security no leve), fila e concorrência máxima por
 ambiente, novas tentativas quando a máquina volta, painel de carga/estado, MCP e documentação atualizados.
 Pronto quando: uma demanda usa dois ambientes entre os papéis e a queda de uma máquina não perde tarefas.

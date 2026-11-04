@@ -14,6 +14,9 @@ public record LaunchSpec(
 
 public class ProcessStartException(string message) : Exception(message);
 
+/// <summary>A máquina do host agent não respondeu (desligada, sem rede). Diferente de recusa/erro: vale tentar de novo quando ela voltar.</summary>
+public class HostUnreachableException(string message) : ProcessStartException(message);
+
 /// <summary>Um processo em execução, local ou no computador hospedeiro. Leituras devolvem null no fim do fluxo.</summary>
 public interface IRunningProcess : IAsyncDisposable
 {
@@ -47,7 +50,8 @@ public interface IProcessLauncher
     Task DeleteDirectoryAsync(string path, CancellationToken ct);
 }
 
-public record CompletedProcess(int ExitCode, string Stdout, string Stderr, bool Started, bool TimedOut);
+/// <param name="Unreachable">Não iniciou porque a máquina do host agent não respondeu (vale tentar de novo depois).</param>
+public record CompletedProcess(int ExitCode, string Stdout, string Stderr, bool Started, bool TimedOut, bool Unreachable = false);
 
 public static class ProcessLauncherExtensions
 {
@@ -61,7 +65,7 @@ public static class ProcessLauncherExtensions
         }
         catch (ProcessStartException ex)
         {
-            return new CompletedProcess(-1, "", ex.Message, Started: false, TimedOut: false);
+            return new CompletedProcess(-1, "", ex.Message, Started: false, TimedOut: false, Unreachable: ex is HostUnreachableException);
         }
 
         await using (process)

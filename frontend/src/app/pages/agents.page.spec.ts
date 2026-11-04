@@ -147,7 +147,7 @@ describe('AgentsPage', () => {
 
   it('escolher uma máquina consulta, testa e conecta o agente DAQUELA máquina, sem mexer no aviso global do servidor', () => {
     const machine: ExecutionEnvironment = {
-      id: 'e1', name: 'notebook-node22', url: 'http://192.168.0.20:8787', workspaceRoot: '/home/eu/af', tags: '', hasToken: true, projectCount: 0, createdAt: '',
+      id: 'e1', name: 'notebook-node22', url: 'http://192.168.0.20:8787', workspaceRoot: '/home/eu/af', tags: '', hasToken: true, projectCount: 0, createdAt: '', maxConcurrency: 1,
     };
     open([agent({ authenticated: true, lastTest: { ok: true, message: 'OK', durationMs: 1, costUsd: 0, at: '' } })], [machine]);
     const shared = TestBed.inject(AgentsService);
@@ -183,7 +183,7 @@ describe('AgentsPage', () => {
 
   it('máquina offline: mostra o motivo real, não "reconstrua a imagem"', () => {
     const machine: ExecutionEnvironment = {
-      id: 'e1', name: 'notebook', url: 'http://192.168.0.20:8787', workspaceRoot: '/x', tags: '', hasToken: true, projectCount: 0, createdAt: '',
+      id: 'e1', name: 'notebook', url: 'http://192.168.0.20:8787', workspaceRoot: '/x', tags: '', hasToken: true, projectCount: 0, createdAt: '', maxConcurrency: 1,
     };
     open([agent({ authenticated: true, lastTest: { ok: true, message: 'OK', durationMs: 1, costUsd: 0, at: '' } })], [machine]);
 

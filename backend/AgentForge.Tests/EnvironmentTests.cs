@@ -258,7 +258,7 @@ public sealed class EnvironmentTests(PostgresFixture pg) : IAsyncLifetime
         var env = (await CreateEnvironment(Body(url: "http://127.0.0.1:1"))).GetProperty("id").GetGuid();
         var project = await CreateProject("https://h/r.git", env);
 
-        var ex = await Assert.ThrowsAsync<ProcessStartException>(() =>
+        var ex = await Assert.ThrowsAsync<HostUnreachableException>(() =>
             _factory.Services.GetRequiredService<IWorkspaceManager>().EnsureRepositoryAsync(project, default));
         Assert.Contains("inacessível", ex.Message);
 

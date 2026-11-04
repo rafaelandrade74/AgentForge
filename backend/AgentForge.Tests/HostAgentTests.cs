@@ -170,7 +170,7 @@ public sealed class HostAgentTests(PostgresFixture pg) : IAsyncLifetime
     {
         var offline = new RemoteProcessLauncher(new HttpClient(), "http://127.0.0.1:1", Token);
 
-        var ex = await Assert.ThrowsAsync<ProcessStartException>(() => offline.StartAsync(Sh("echo oi"), default));
+        var ex = await Assert.ThrowsAsync<HostUnreachableException>(() => offline.StartAsync(Sh("echo oi"), default));
 
         Assert.Contains("inacessível", ex.Message);
     }

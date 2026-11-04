@@ -57,6 +57,8 @@ public class CliAgentRunner(
         AgentResult? result = null;
         string? failure = null;
         var timedOut = false;
+        var environmentDown = false;
+        var workingDirectory = request.WorkingDirectory;
 
         using var timeoutCts = new CancellationTokenSource(request.Timeout ?? DefaultTimeout);
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, timeoutCts.Token);
@@ -66,7 +68,13 @@ public class CliAgentRunner(
             // o processo roda no ambiente do projeto (aqui, ou numa máquina com host agent); sem projeto, no padrão
             EnvironmentTarget target;
             ContainerSpec? container = null;
-            if (request.ProjectId is { } projectId)
+            if (request.EnvironmentOverride)
+            {
+                // papel movido para outra máquina: sem worktree do projeto, sem perfil de stack
+                target = await environments.ResolveAsync(request.EnvironmentId, linked.Token);
+                workingDirectory = await target.Launcher.ScratchDirectoryAsync(linked.Token);
+            }
+            else if (request.ProjectId is { } projectId)
             {
                 var where = await db.Projects.AsNoTracking().Where(p => p.Id == projectId)
                     .Select(p => new { p.EnvironmentId, p.StackProfileId }).FirstOrDefaultAsync(linked.Token);
@@ -79,9 +87,12 @@ public class CliAgentRunner(
                 target = await environments.ResolveAsync(request.EnvironmentId, linked.Token);
             }
 
+            run.EnvironmentId = target.EnvironmentId;
+            if (!request.Ephemeral) await db.SaveChangesAsync(CancellationToken.None);
+
             // o prompt vai pelo stdin (e o stdin fecha)
             await using var process = await target.Launcher.StartAsync(
-                new LaunchSpec(adapter.Executable, adapter.BuildArguments(request), request.WorkingDirectory, request.Prompt, Container: container), linked.Token);
+                new LaunchSpec(adapter.Executable, adapter.BuildArguments(request), workingDirectory, request.Prompt, Container: container), linked.Token);
             using var killOnCancel = linked.Token.Register(process.Kill);
 
             var errTask = ReadStderrAsync(process, stderr);
@@ -105,6 +116,7 @@ public class CliAgentRunner(
         }
         catch (Exception ex) when (ex is ProcessStartException or EnvironmentUnavailableException or InvalidOperationException or IOException)
         {
+            environmentDown = ex is HostUnreachableException;
             logger.LogError(ex, "Falha ao executar o CLI do agente {Adapter}", adapter.Name);
             failure = $"Falha ao executar '{adapter.Executable}': {ex.Message}";
         }
@@ -130,7 +142,7 @@ public class CliAgentRunner(
         if (!request.Ephemeral) await db.SaveChangesAsync(CancellationToken.None);
         await Emit("run_finished", status.ToString());
 
-        return new AgentRunResult(run.Id, status, output, result?.Json, run.CostUsd, clock.Elapsed, exitCode);
+        return new AgentRunResult(run.Id, status, output, result?.Json, run.CostUsd, clock.Elapsed, exitCode, environmentDown);
     }
 
     /// <summary>

@@ -155,7 +155,21 @@ capacidades.
 
 Para usar uma imagem sua, ela precisa ter o `claude`, o `git` e `CLAUDE_CONFIG_DIR=/agent-config`. Decisão na [ADR 0019](docs/adr/0019-perfis-de-stack-e-container-por-tarefa.md).
 
-Decisões nas [ADR 0017](docs/adr/0017-ambientes-de-execucao.md) e [ADR 0018](docs/adr/0018-git-e-login-por-ambiente.md); o plano completo (próxima fase: ambiente por papel e fila) está em [docs/plano-ambientes.md](docs/plano-ambientes.md).
+### Fila por ambiente, máquina fora do ar e revisão em outra máquina
+
+- **Concorrência por ambiente:** cada ambiente tem *Tarefas ao mesmo tempo* (1 a 32). O que não cabe espera na fila **daquele**
+  ambiente sem travar os outros. Para usar várias máquinas em paralelo, suba também `ORCHESTRATOR_CONCURRENCY` (o teto global).
+- **Painel de carga** na tela **Ambientes** (atualiza a cada 5 s) e a ferramenta MCP `get_environment_load`: tarefas rodando/limite,
+  na fila, agentes rodando agora e o que espera uma máquina voltar.
+- **Máquina fora do ar não bloqueia a tarefa:** ela continua no estado em que estava, mostra "Aguardando o ambiente voltar…" e é
+  tentada de novo com espera crescente (15 s, 30 s… até 5 min) até a máquina responder — sem ação humana, também depois de
+  reiniciar a API. Vale para o refinamento da demanda. Erros que pedem uma pessoa (token recusado, ambiente removido, falha do
+  agente) continuam indo para Blocked/Failed. Ajustes: `Orchestrator:EnvironmentRetryInitialSeconds` e `:EnvironmentRetryMaxSeconds`.
+- **Revisão em outra máquina:** no projeto, *Tech Lead roda em* e *Security roda em* mandam esses papéis para uma máquina leve. Eles
+  recebem **só o diff e a descrição** (sem o repositório e sem perfil de stack) — menos contexto, menos custo na máquina pesada. Dev
+  e QA ficam sempre no ambiente do projeto, onde está o worktree.
+
+Decisões nas [ADR 0017](docs/adr/0017-ambientes-de-execucao.md), [ADR 0018](docs/adr/0018-git-e-login-por-ambiente.md), [ADR 0019](docs/adr/0019-perfis-de-stack-e-container-por-tarefa.md) e [ADR 0020](docs/adr/0020-ambiente-por-papel-fila-e-carga.md); o plano completo (próxima fase: validação ponta a ponta) está em [docs/plano-ambientes.md](docs/plano-ambientes.md).
 
 ## Controlar o AgentForge pelo Claude Code (MCP)
 
@@ -232,7 +246,7 @@ Há um projeto de exemplo (API de tarefas em .NET, com testes) em `examples/task
 | `HOST_AGENT_TOKEN`, `HOST_WORKSPACES_ROOT`, `HOST_AGENT_URL` | — | Modo 1 (preenchidos por `scripts/host-agent`) |
 | `NATIVE_DB_CONNECTION` | Postgres local | Modo 3: connection string do banco |
 | `CLAUDE_CODE_VERSION` | `2.1.316` | Versão do CLI instalada na imagem (modo 2) |
-| `ORCHESTRATOR_CONCURRENCY` | `1` | Tarefas simultâneas; com mais de 1, Tech Lead e Security revisam em paralelo |
+| `ORCHESTRATOR_CONCURRENCY` | `1` | Teto global de tarefas simultâneas; com mais de 1, Tech Lead e Security revisam em paralelo. Cada ambiente tem ainda o seu limite (tela Ambientes) |
 | `WEB_PORT`, `API_DEBUG_PORT` | `8080`, `8081` | Portas (a API só em `127.0.0.1`) |
 | `SWAGGER_ENABLED` | `true` | Documentação em `/swagger` |
 | *(tela Integração)* | — | Tokens de acesso do servidor MCP (`/mcp`) |
@@ -294,7 +308,8 @@ vazios, anulariam o padrão do código (defina-os só se quiser mudar). Os segre
 | `Agents:HostAgent:Url`, `:Token` | vazio | Obrigatórios com `host`: endereço do host agent visto pela API e segredo compartilhado (mínimo de 24 caracteres) |
 | `Workspaces:Root` | `/data/repos` | Onde ficam os clones e worktrees; é um caminho do lado onde o git roda (no modo `host`, do computador) |
 | `Git:SshDir` | `~/.agentforge/ssh` (Docker: `/home/app/.ssh`) | Pasta da chave SSH gerada pelo AgentForge |
-| `Orchestrator:MaxConcurrency` | `1` | Tarefas simultâneas |
+| `Orchestrator:MaxConcurrency` | `1` | Teto global de tarefas simultâneas (cada ambiente tem o seu limite) |
+| `Orchestrator:EnvironmentRetryInitialSeconds`, `:EnvironmentRetryMaxSeconds` | `15`, `300` | Espera antes de tentar de novo quando a máquina de um ambiente não responde (dobra até o máximo) |
 | `GitHub:ApiUrl` | `https://api.github.com` | Base da API do GitHub (muda para GitHub Enterprise ou testes) |
 | `Prompts:Directory` | `<app>/prompts` | De onde os prompts dos papéis semeiam o primeiro start |
 | `Swagger:Enabled` | `true` | Documentação em `/swagger` |

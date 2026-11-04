@@ -12,7 +12,7 @@ const nodeProfile: StackProfile = {
 };
 
 const machine: ExecutionEnvironment = {
-  id: 'e1', name: 'notebook-node22', url: 'http://192.168.0.20:8787', workspaceRoot: '/home/eu/af', tags: '', hasToken: true, projectCount: 1, createdAt: '',
+  id: 'e1', name: 'notebook-node22', url: 'http://192.168.0.20:8787', workspaceRoot: '/home/eu/af', tags: '', hasToken: true, projectCount: 1, createdAt: '', maxConcurrency: 1,
 };
 const project = (over: Partial<Project> = {}): Project => ({
   id: 'p1', name: 'Loja', repositoryUrl: 'git@github.com:org/loja.git', baseBranch: 'main', buildCommand: '', testCommand: '',
@@ -105,5 +105,41 @@ describe('ProjectsPage (troca de ambiente)', () => {
     open(project({ environmentId: 'e1', stackProfileId: 's1' }));
 
     expect((fixture.nativeElement as HTMLElement).textContent).toContain('perfil: Node 22');
+  });
+
+  it('Tech Lead e Security podem rodar em outra máquina; Dev e QA não aparecem para escolha', () => {
+    open(project());
+    const page = fixture.componentInstance;
+    const root = fixture.nativeElement as HTMLElement;
+
+    page.toggleForm();
+    fixture.detectChanges();
+    const block = root.querySelector('[data-testid="role-envs"]')!;
+    expect(block.textContent).toContain('Tech Lead roda em');
+    expect(block.textContent).toContain('Security roda em');
+    expect(block.textContent).not.toContain('Dev roda em');
+    expect(block.textContent).not.toContain('QA roda em');
+
+    page.draft.name = 'Loja';
+    page.draft.repositoryUrl = 'x';
+    page.draft.environmentId = 'e1';
+    page.setRoleEnv('TechLead', 'e1');
+    page.setRoleEnv('Security', null);
+    page.save();
+
+    const req = http.expectOne({ method: 'POST', url: '/api/projects' });
+    expect(req.request.body.roleEnvironments).toEqual({ TechLead: 'e1', Security: null });
+    req.flush(project());
+    http.expectOne('/api/projects').flush([project()]);
+  });
+
+  it('ao editar, os papéis já movidos aparecem selecionados', () => {
+    open(project({ environmentId: 'e1', roleEnvironments: { Security: 'e1' } }));
+    const page = fixture.componentInstance;
+
+    page.edit(project({ environmentId: 'e1', roleEnvironments: { Security: 'e1' } }));
+
+    expect(page.roleEnv('Security')).toBe('e1');
+    expect(page.roleEnv('TechLead')).toBeNull();
   });
 });

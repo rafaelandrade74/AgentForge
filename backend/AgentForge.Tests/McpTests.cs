@@ -199,6 +199,20 @@ public sealed class McpTests(PostgresFixture pg) : IAsyncLifetime
 
     // ---------------------------------------------------------------------------- catálogo
 
+
+    [Fact]
+    public async Task Environment_load_tool_reports_every_environment_read_only()
+    {
+        var (isError, text) = await ToolAsync("get_environment_load");
+
+        Assert.False(isError);
+        var report = JsonDocument.Parse(text).RootElement;
+        var first = report.GetProperty("environments")[0];
+        Assert.Equal("default", first.GetProperty("kind").GetString());
+        Assert.Equal(0, first.GetProperty("queuedTasks").GetInt32());
+        Assert.Equal(0, report.GetProperty("waiting").GetArrayLength());
+    }
+
     [Fact]
     public async Task Tool_catalog_is_complete_and_well_described()
     {
@@ -209,7 +223,7 @@ public sealed class McpTests(PostgresFixture pg) : IAsyncLifetime
         [
             "list_projects", "get_project", "create_project", "create_demand", "start_demand", "approve_plan", "get_demand",
             "list_tasks", "get_task", "get_task_diff", "get_run_output", "approve_task", "reject_task", "retry_task",
-            "cancel_task", "list_pending_actions", "list_agents", "test_agent",
+            "cancel_task", "list_pending_actions", "list_agents", "test_agent", "get_environment_load",
         ];
         Assert.Equal(expected.Order(), byName.Keys.Order());
         foreach (var tool in byName.Values)

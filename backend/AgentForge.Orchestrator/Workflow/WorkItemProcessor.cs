@@ -88,6 +88,7 @@ public partial class WorkItemProcessor(
         var result = await executor.RunAsync(AgentRole.Dev, prompt, ws.Path, project.Id, demand.Id, item.Id,
             json => ParseDevAsync(json, project, ws.Path, ws.BaseCommit, ct), ct);
         if (result.Outcome == ExecOutcome.Cancelled) return StepResult.Stop;
+        result.ThrowIfUnavailable();
         if (result.Outcome == ExecOutcome.Failed) return Continue(await BlockAsync(item, project, "Dev", result.Error, ct));
 
         foreach (var f in open) f.Resolved = true;   // o Dev tratou os apontamentos; a próxima revisão gera novos se faltar algo
@@ -95,17 +96,24 @@ public partial class WorkItemProcessor(
             w => w.BranchName = ws.Branch, ct: ct));
     }
 
+    /// <summary>O ambiente alternativo do papel no projeto (Tech Lead/Security numa máquina leve); null = o do projeto.</summary>
+    private async Task<RoleEnvironment?> RoleEnvironmentAsync(Project project, AgentRole role, CancellationToken ct) =>
+        await db.ProjectRoleEnvironments.AsNoTracking().Where(r => r.ProjectId == project.Id && r.Role == role)
+            .Select(r => new RoleEnvironment(r.EnvironmentId)).FirstOrDefaultAsync(ct);
+
     private async Task<StepResult> ReviewStepAsync(WorkItem item, Demand demand, Project project, CancellationToken ct)
     {
         var ws = await OpenWorkspaceAsync(item, project, ct);
         var diff = await DiffAsync(project, ws.Path, ws.BaseCommit, ct);
         var parallel = options.Value.MaxConcurrency > 1;
+        var tlEnv = await RoleEnvironmentAsync(project, AgentRole.TechLead, ct);
+        var secEnv = await RoleEnvironmentAsync(project, AgentRole.Security, ct);
 
-        var tlTask = executor.RunAsync(AgentRole.TechLead, PromptBuilder.TechLead(item, project, diff), ws.Path,
-            project.Id, demand.Id, item.Id, json => Task.FromResult(OutputParsers.ParseReview(json)), ct);
+        var tlTask = executor.RunAsync(AgentRole.TechLead, PromptBuilder.TechLead(item, project, diff, repoAvailable: tlEnv is null), ws.Path,
+            project.Id, demand.Id, item.Id, json => Task.FromResult(OutputParsers.ParseReview(json)), ct, tlEnv);
         var secTask = parallel
-            ? executor.RunAsync(AgentRole.Security, PromptBuilder.Security(item, project, diff), ws.Path,
-                project.Id, demand.Id, item.Id, json => Task.FromResult(OutputParsers.ParseReview(json)), ct)
+            ? executor.RunAsync(AgentRole.Security, PromptBuilder.Security(item, project, diff, repoAvailable: secEnv is null), ws.Path,
+                project.Id, demand.Id, item.Id, json => Task.FromResult(OutputParsers.ParseReview(json)), ct, secEnv)
             : null;
 
         var reviews = new List<(AgentRole Role, ExecResult<ReviewReport> Result)> { (AgentRole.TechLead, await tlTask) };
@@ -118,8 +126,9 @@ public partial class WorkItemProcessor(
     {
         var ws = await OpenWorkspaceAsync(item, project, ct);
         var diff = await DiffAsync(project, ws.Path, ws.BaseCommit, ct);
-        var result = await executor.RunAsync(AgentRole.Security, PromptBuilder.Security(item, project, diff), ws.Path,
-            project.Id, demand.Id, item.Id, json => Task.FromResult(OutputParsers.ParseReview(json)), ct);
+        var secEnv = await RoleEnvironmentAsync(project, AgentRole.Security, ct);
+        var result = await executor.RunAsync(AgentRole.Security, PromptBuilder.Security(item, project, diff, repoAvailable: secEnv is null), ws.Path,
+            project.Id, demand.Id, item.Id, json => Task.FromResult(OutputParsers.ParseReview(json)), ct, secEnv);
         return await ConcludeReviewsAsync(item, project, [(AgentRole.Security, result)], WorkflowEvent.SecurityApproved, ct);
     }
 
@@ -127,6 +136,7 @@ public partial class WorkItemProcessor(
         List<(AgentRole Role, ExecResult<ReviewReport> Result)> reviews, WorkflowEvent approvedEvent, CancellationToken ct)
     {
         if (reviews.Any(r => r.Result.Outcome == ExecOutcome.Cancelled)) return StepResult.Stop;
+        foreach (var r in reviews) r.Result.ThrowIfUnavailable();
         var failed = reviews.FirstOrDefault(r => r.Result.Outcome == ExecOutcome.Failed);
         if (failed.Result is not null) return Continue(await BlockAsync(item, project, failed.Role.ToString(), failed.Result.Error, ct));
 
@@ -149,6 +159,7 @@ public partial class WorkItemProcessor(
         var result = await executor.RunAsync(AgentRole.Qa, PromptBuilder.Qa(item, project), ws.Path, project.Id, demand.Id, item.Id,
             json => Task.FromResult(OutputParsers.ParseQa(json)), ct);
         if (result.Outcome == ExecOutcome.Cancelled) return StepResult.Stop;
+        result.ThrowIfUnavailable();
         if (result.Outcome == ExecOutcome.Failed) return Continue(await BlockAsync(item, project, "QA", result.Error, ct));
 
         if (result.Value!.Passed) return Continue(await TransitionAsync(item, project, WorkflowEvent.QaPassed, ct: ct));
@@ -233,6 +244,7 @@ public partial class WorkItemProcessor(
         mutate?.Invoke(item);
         item.State = next;
         item.BlockedReason = next == WorkItemState.Blocked ? reason : null;
+        item.WaitingReason = null;
         await db.SaveChangesAsync(CancellationToken.None);
         logger.LogInformation("WorkItem {Id}: {From} --{Event}--> {To}", item.Id, expected, evt, next);
 

@@ -1,5 +1,7 @@
 import { NgTemplateOutlet } from '@angular/common';
 import { Component, inject, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { interval } from 'rxjs';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDialog } from '@angular/material/dialog';
@@ -8,10 +10,10 @@ import { MatInputModule } from '@angular/material/input';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { RouterLink } from '@angular/router';
 import { ApiService } from '../core/api.service';
-import { EnvironmentInput, EnvironmentList, EnvironmentTest, ExecutionEnvironment } from '../core/models';
+import { EnvironmentInput, EnvironmentList, EnvironmentLoadReport, EnvironmentTest, ExecutionEnvironment } from '../core/models';
 import { ActionDialogComponent, BadgeComponent } from '../shared/shared';
 
-const EMPTY: EnvironmentInput = { name: '', url: '', token: '', workspaceRoot: '', tags: '' };
+const EMPTY: EnvironmentInput = { name: '', url: '', token: '', workspaceRoot: '', tags: '', maxConcurrency: 1 };
 
 @Component({
   selector: 'app-environments-page',
@@ -54,6 +56,10 @@ const EMPTY: EnvironmentInput = { name: '', url: '', token: '', workspaceRoot: '
               <mat-label>Stack (rótulos, separados por vírgula)</mat-label>
               <input matInput name="tags" [(ngModel)]="draft.tags" placeholder="node22, dotnet8" />
             </mat-form-field>
+            <mat-form-field appearance="outline">
+              <mat-label>Tarefas ao mesmo tempo (1 a 32)</mat-label>
+              <input matInput type="number" min="1" max="32" name="maxConcurrency" [(ngModel)]="draft.maxConcurrency" required />
+            </mat-form-field>
             <div class="row">
               <button mat-flat-button type="submit" [disabled]="f.invalid || saving()">Salvar</button>
               <button mat-button type="button" (click)="closeForm()">Cancelar</button>
@@ -63,6 +69,38 @@ const EMPTY: EnvironmentInput = { name: '', url: '', token: '', workspaceRoot: '
             O token é guardado criptografado e nunca volta para esta tela. A pasta precisa estar entre as permitidas
             (<span class="mono">HostAgent:Roots</span>) do host agent.
           </p>
+        </section>
+      }
+
+      @if (load(); as report) {
+        <section class="card" data-testid="load">
+          <div class="row">
+            <h2>Carga</h2>
+            <span class="muted small">atualiza a cada 5 s</span>
+            <span class="spacer"></span>
+            <button mat-button type="button" (click)="refreshLoad()">Atualizar</button>
+          </div>
+          <table class="load">
+            <thead><tr><th>Ambiente</th><th>Tarefas rodando</th><th>Na fila</th><th>Agentes agora</th><th>Projetos</th></tr></thead>
+            <tbody>
+              @for (r of report.environments; track r.name) {
+                <tr data-testid="load-row">
+                  <td>{{ r.name }}</td>
+                  <td>{{ r.runningTasks }} / {{ r.maxConcurrency }}</td>
+                  <td>@if (r.queuedTasks > 0) { <app-badge [label]="r.queuedTasks + ' esperando vaga'" tone="warn" /> } @else { 0 }</td>
+                  <td>{{ r.runningAgents }}</td>
+                  <td>{{ r.projectCount }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+          @for (w of report.waiting; track w.id) {
+            <div class="alert-waiting" role="status" data-testid="waiting-row">
+              <app-badge label="aguardando a máquina" tone="warn" />
+              <strong>{{ w.title }}</strong> <span class="muted small">({{ w.project }}, {{ w.kind === 'demand' ? 'refinamento' : 'tarefa' }})</span>
+              <span class="muted small">{{ w.reason }} · tentativa {{ w.attempts }}, próxima em {{ retryIn(w.retryAt) }}</span>
+            </div>
+          }
         </section>
       }
 
@@ -94,7 +132,7 @@ const EMPTY: EnvironmentInput = { name: '', url: '', token: '', workspaceRoot: '
             </div>
             <p class="muted small">
               <span class="mono">{{ e.url }}</span> · clones em <span class="mono">{{ e.workspaceRoot }}</span> ·
-              {{ e.projectCount }} projeto(s)
+              {{ e.projectCount }} projeto(s) · até {{ e.maxConcurrency }} tarefa(s) ao mesmo tempo
             </p>
             @if (results()[e.id]; as r) {
               <ng-container *ngTemplateOutlet="result; context: { $implicit: r, showRoot: true }" />
@@ -135,6 +173,9 @@ const EMPTY: EnvironmentInput = { name: '', url: '', token: '', workspaceRoot: '
     .small { font-size: .85rem; }
     .result { margin-top: .5rem; padding: .5rem .75rem; border-radius: 8px; background: #151515; }
     .result.ok { border-left: 4px solid #3f9f58; } .result.bad { border-left: 4px solid #c25555; }
+    .load { width: 100%; border-collapse: collapse; margin-top: .5rem; }
+    .load th, .load td { text-align: left; padding: .3rem .5rem; border-bottom: 1px solid #2a2a2a; }
+    .alert-waiting { margin-top: .5rem; padding: .4rem .75rem; border-left: 4px solid #c9a227; background: #151515; border-radius: 6px; display: flex; gap: .5rem; flex-wrap: wrap; align-items: center; }
     .tools { list-style: none; padding: 0; margin: .5rem 0 0; display: flex; flex-wrap: wrap; gap: .25rem 1rem; }
   `,
 })
@@ -144,6 +185,7 @@ export class EnvironmentsPage {
   private readonly snack = inject(MatSnackBar);
 
   readonly list = signal<EnvironmentList | null>(null);
+  readonly load = signal<EnvironmentLoadReport | null>(null);
   readonly results = signal<Record<string, EnvironmentTest>>({});
   readonly testing = signal<string | null>(null);
   readonly formOpen = signal(false);
@@ -152,14 +194,26 @@ export class EnvironmentsPage {
   draft: EnvironmentInput = { ...EMPTY };
 
   constructor() {
-    this.load();
+    this.loadList();
+    this.refreshLoad();
+    interval(5000).pipe(takeUntilDestroyed()).subscribe(() => this.refreshLoad());
+  }
+
+  refreshLoad(): void {
+    this.api.environmentLoad().subscribe({ next: (r) => this.load.set(r), error: () => undefined });
+  }
+
+  /** "em 12 s" / "agora": quanto falta para a próxima tentativa de uma máquina fora do ar. */
+  retryIn(at: string): string {
+    const seconds = Math.round((new Date(at).getTime() - Date.now()) / 1000);
+    return seconds > 1 ? `${seconds} s` : 'instantes';
   }
 
   tags(e: ExecutionEnvironment): string[] {
     return e.tags.split(',').map((t) => t.trim()).filter((t) => t.length > 0);
   }
 
-  private load(): void {
+  private loadList(): void {
     this.api.environments().subscribe((l) => this.list.set(l));
   }
 
@@ -169,7 +223,7 @@ export class EnvironmentsPage {
   }
 
   edit(e: ExecutionEnvironment): void {
-    this.open(e.id, { name: e.name, url: e.url, token: '', workspaceRoot: e.workspaceRoot, tags: e.tags });
+    this.open(e.id, { name: e.name, url: e.url, token: '', workspaceRoot: e.workspaceRoot, tags: e.tags, maxConcurrency: e.maxConcurrency });
   }
 
   private open(id: string | null, draft: EnvironmentInput): void {
@@ -195,7 +249,7 @@ export class EnvironmentsPage {
         // o resultado de um teste antigo não vale mais depois de editar
         this.results.update(({ [saved.id]: _old, ...rest }) => rest);
         this.snack.open('Ambiente salvo.', 'OK', { duration: 3000 });
-        this.load();
+        this.loadList();
       },
       error: (err) => {
         this.saving.set(false);
@@ -231,7 +285,7 @@ export class EnvironmentsPage {
       .subscribe((ok) => {
         if (!ok) return;
         this.api.deleteEnvironment(e.id).subscribe({
-          next: () => this.load(),
+          next: () => this.loadList(),
           error: (err) => this.snack.open(this.message(err, 'Não foi possível excluir.'), 'OK', { duration: 6000 }),
         });
       });

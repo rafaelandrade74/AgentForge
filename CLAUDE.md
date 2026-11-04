@@ -20,7 +20,7 @@ Aplicação web auto-hospedada (homelab) que orquestra o ciclo de desenvolviment
 Transições válidas ficam em tabela no código (`WorkflowDefinition`). Revisão reprovada devolve ao Dev com os apontamentos; no terceiro retorno vai para Blocked. Dependências só liberam a tarefa quando estão em Done.
 
 ## Fases (executar uma por vez; parar para validação; commit `fase-N: <resumo>`)
-0 Fundação do repositório (feita) · 1 Autenticação (feita) · 2 Domínio e persistência (feita; ADR 0003) · 3 CliAgentRunner (feita; ADR 0004) · 4 Workspaces Git (feita; ADR 0005) · 5 Orquestrador (feita; ADR 0006) · 6 Tempo real (feita; ADR 0007) · 7 Interface web (feita; ADR 0008) · 8 Deploy homelab (feita; ADR 0009, README) · 9 Validação ponta a ponta (feita; ADR 0010 e ADR 0011 — com lacunas a corrigir: tarefas dependentes devem nascer das branches das dependências). · 10 Ambientes de execução (feita; ADR 0017) · 11 Git e login por ambiente (feita; ADR 0018) · 12 Perfis de stack e container por tarefa (feita; ADR 0019) — próximas: 13 Ambiente por papel e fila · 14 Validação (plano em `docs/plano-ambientes.md`).
+0 Fundação do repositório (feita) · 1 Autenticação (feita) · 2 Domínio e persistência (feita; ADR 0003) · 3 CliAgentRunner (feita; ADR 0004) · 4 Workspaces Git (feita; ADR 0005) · 5 Orquestrador (feita; ADR 0006) · 6 Tempo real (feita; ADR 0007) · 7 Interface web (feita; ADR 0008) · 8 Deploy homelab (feita; ADR 0009, README) · 9 Validação ponta a ponta (feita; ADR 0010 e ADR 0011 — com lacunas a corrigir: tarefas dependentes devem nascer das branches das dependências). · 10 Ambientes de execução (feita; ADR 0017) · 11 Git e login por ambiente (feita; ADR 0018) · 12 Perfis de stack e container por tarefa (feita; ADR 0019) · 13 Ambiente por papel, fila e carga (feita; ADR 0020) — próxima: 14 Validação (plano em `docs/plano-ambientes.md`).
 
 ## Importar do GitHub (ADR 0014)
 Projetos → "Importar do GitHub": lista repositórios pelo token (usado só na chamada, nunca guardado/logado), cria o projeto, autoriza a chave SSH como deploy key somente leitura (privados) e já clona; clone falho desfaz o cadastro. Código em `backend/AgentForge.Api/GitHub`.
@@ -29,7 +29,7 @@ Projetos → "Importar do GitHub": lista repositórios pelo token (usado só na 
 Processos filhos (`claude`, `git`) nascem sem os segredos da aplicação (`Secrets.ScrubEnvironment`); URLs com token saem mascaradas (`Secrets.MaskUrls`); login limitado (`Auth:LoginAttemptsPerMinute`). Nunca logar nem devolver token/senha.
 
 ## MCP (ADR 0012)
-O AgentForge é também servidor MCP em `POST /mcp` (18 ferramentas; tokens de acesso `afk_...` criados na tela Integração, válidos só no `/mcp`). Código em `backend/AgentForge.Api/Mcp`, sem dependência nova.
+O AgentForge é também servidor MCP em `POST /mcp` (19 ferramentas; tokens de acesso `afk_...` criados na tela Integração, válidos só no `/mcp`). Código em `backend/AgentForge.Api/Mcp`, sem dependência nova.
 
 ## Credenciais Git (ADR 0013)
 Tela **Git**: gera uma chave SSH ed25519 no servidor (modo 2; a privada nunca sai dele), mostra a pública para autorizar no GitHub e testa o acesso. O `git` usa a chave via `GIT_SSH_COMMAND` (só se ela existir). Testes que geram chave usam a imagem `backend/Dockerfile.tests` (`docker build -f backend/Dockerfile.tests -t agentforge-tests backend`).
@@ -62,3 +62,6 @@ Telas **Git** e **Agentes** têm seletor de ambiente (`?environmentId=` em `/api
 
 ## Perfis de stack e container por tarefa (ADR 0019)
 `StackProfile` (imagem OU Dockerfile, rede, CPU, memória; prontos: Node 22, .NET 8, Python 3.12) + `Project.StackProfileId` (exige ambiente). O agente roda DENTRO de um container do perfil, só em host agent Linux/macOS com `HostAgent:Docker:Enabled` (desligado por padrão): `POST /v1/containers` e `/v1/images/ensure`, argumentos montados por `ContainerRules` (sem `--privileged`, sem socket, `--cap-drop ALL`, só a pasta do projeto no mesmo caminho + `/agent-config`), imagens `agentforge/*` ou `HostAgent:Docker:AllowedImages`. `LaunchSpec.Container` leva o pedido; `CliAgentRunner.PrepareContainerAsync` garante a imagem. API `/api/stack-profiles` (JWT), tela Perfis.
+
+## Ambiente por papel, fila e carga (ADR 0020)
+`ExecutionEnvironment.MaxConcurrency` + `EnvironmentGate`: o que não cabe fica estacionado no ambiente (não prende trabalhador); `Orchestrator:MaxConcurrency` segue como teto global. Máquina fora do ar (`HostUnreachableException`) não bloqueia: `ExecOutcome.Unavailable` → `EnvironmentDeferredException` → backoff (`Orchestrator:EnvironmentRetry*Seconds`), `WorkItem.WaitingReason`. `ProjectRoleEnvironment`: só TechLead/Security rodam em outro ambiente (sem repositório, só o diff; `AgentRequest.EnvironmentOverride`). `AgentRun.EnvironmentId`. Painel: `GET /api/environments/load` e MCP `get_environment_load`.

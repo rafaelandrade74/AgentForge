@@ -68,8 +68,14 @@ public static class PromptBuilder
         return sb.ToString();
     }
 
-    public static string TechLead(WorkItem item, Project project, string diff) => $"""
+    /// <summary>Quando o papel roda em outra máquina, ele NÃO tem o repositório: só o diff e a descrição da tarefa.</summary>
+    private const string NoRepoNote = "ATENÇÃO: você roda numa máquina sem o repositório. Baseie-se apenas no diff e na descrição abaixo; não tente ler arquivos do projeto nem rodar build/testes. Se faltar contexto para decidir, registre isso como achado.";
+
+    private static string RepoNote(bool repoAvailable) => repoAvailable ? "" : NoRepoNote;
+
+    public static string TechLead(WorkItem item, Project project, string diff, bool repoAvailable = true) => $"""
         Revise a tarefa abaixo quanto a qualidade, arquitetura, legibilidade e cobertura de testes. Não altere arquivos.
+        {RepoNote(repoAvailable)}
 
         Tarefa: {item.Title}
         Critérios de aceite:
@@ -83,8 +89,9 @@ public static class PromptBuilder
         {ReviewFormat}
         """;
 
-    public static string Security(WorkItem item, Project project, string diff) => $"""
+    public static string Security(WorkItem item, Project project, string diff, bool repoAvailable = true) => $"""
         Revise o diff abaixo contra o OWASP Top 10, segredos expostos e dependências vulneráveis. Use scanners se estiverem disponíveis. Não altere arquivos.
+        {RepoNote(repoAvailable)}
 
         Tarefa: {item.Title}
 

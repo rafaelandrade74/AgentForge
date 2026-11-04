@@ -41,7 +41,7 @@ public sealed class RemoteProcessLauncher : IProcessLauncher
         }
         catch (HttpRequestException ex)
         {
-            throw new ProcessStartException($"Host agent inacessível em {_baseUrl}: {ex.Message}");
+            throw new HostUnreachableException($"Host agent inacessível em {_baseUrl}: {ex.Message}");
         }
     }
 
@@ -62,9 +62,16 @@ public sealed class RemoteProcessLauncher : IProcessLauncher
         }
         catch (HttpRequestException ex)
         {
-            throw new ProcessStartException($"Host agent inacessível em {_baseUrl}: {ex.Message}");
+            throw new HostUnreachableException($"Host agent inacessível em {_baseUrl}: {ex.Message}");
         }
-        return await RemoteRunningProcess.AttachAsync(_http, id, ct);
+        try
+        {
+            return await RemoteRunningProcess.AttachAsync(_http, id, ct);
+        }
+        catch (HttpRequestException ex)
+        {
+            throw new HostUnreachableException($"Host agent inacessível em {_baseUrl}: {ex.Message}");
+        }
     }
 
     public Task<bool> DirectoryExistsAsync(string path, CancellationToken ct) => FsAsync(HostAgentRoutes.FsExists, path, ct, reads: true);
@@ -81,7 +88,7 @@ public sealed class RemoteProcessLauncher : IProcessLauncher
         }
         catch (HttpRequestException ex)
         {
-            throw new ProcessStartException($"Host agent inacessível em {_baseUrl}: {ex.Message}");
+            throw new HostUnreachableException($"Host agent inacessível em {_baseUrl}: {ex.Message}");
         }
     }
 
@@ -96,7 +103,7 @@ public sealed class RemoteProcessLauncher : IProcessLauncher
         }
         catch (HttpRequestException ex)
         {
-            throw new ProcessStartException($"Host agent inacessível em {_baseUrl}: {ex.Message}");
+            throw new HostUnreachableException($"Host agent inacessível em {_baseUrl}: {ex.Message}");
         }
     }
 
@@ -126,7 +133,7 @@ public sealed class RemoteProcessLauncher : IProcessLauncher
         }
         catch (HttpRequestException ex)
         {
-            throw new ProcessStartException($"Host agent inacessível em {_baseUrl}: {ex.Message}");
+            throw new HostUnreachableException($"Host agent inacessível em {_baseUrl}: {ex.Message}");
         }
     }
 

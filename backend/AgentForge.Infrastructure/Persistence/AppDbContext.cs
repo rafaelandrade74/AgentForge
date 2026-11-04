@@ -15,6 +15,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<ApiToken> ApiTokens => Set<ApiToken>();
     public DbSet<ExecutionEnvironment> ExecutionEnvironments => Set<ExecutionEnvironment>();
     public DbSet<StackProfile> StackProfiles => Set<StackProfile>();
+    public DbSet<ProjectRoleEnvironment> ProjectRoleEnvironments => Set<ProjectRoleEnvironment>();
 
     protected override void ConfigureConventions(ModelConfigurationBuilder b) =>
         b.Properties<Enum>().HaveConversion<string>().HaveMaxLength(32);
@@ -29,6 +30,13 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             // um ambiente em uso não pode ser apagado (o clone do projeto mora nele)
             e.HasOne<ExecutionEnvironment>().WithMany().HasForeignKey(x => x.EnvironmentId).OnDelete(DeleteBehavior.Restrict);
             e.HasOne<StackProfile>().WithMany().HasForeignKey(x => x.StackProfileId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        b.Entity<ProjectRoleEnvironment>(e =>
+        {
+            e.HasKey(x => new { x.ProjectId, x.Role });
+            e.HasOne<Project>().WithMany().HasForeignKey(x => x.ProjectId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne<ExecutionEnvironment>().WithMany().HasForeignKey(x => x.EnvironmentId).OnDelete(DeleteBehavior.Restrict);
         });
 
         b.Entity<StackProfile>(e =>
@@ -49,6 +57,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.Property(x => x.ProtectedToken).HasMaxLength(2000);
             e.Property(x => x.WorkspaceRoot).HasMaxLength(500);
             e.Property(x => x.Tags).HasMaxLength(300);
+            e.Property(x => x.MaxConcurrency).HasDefaultValue(1);
         });
 
         b.Entity<Demand>(e =>
@@ -62,6 +71,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.HasOne<Demand>().WithMany().HasForeignKey(x => x.DemandId).OnDelete(DeleteBehavior.Cascade);
             e.Property(x => x.Title).HasMaxLength(300);
             e.Property(x => x.BranchName).HasMaxLength(200);
+            e.Property(x => x.WaitingReason).HasMaxLength(500);
             e.HasMany(x => x.Dependencies).WithMany()
                 .UsingEntity("WorkItemDependencies",
                     l => l.HasOne(typeof(WorkItem)).WithMany().HasForeignKey("DependsOnId").OnDelete(DeleteBehavior.Cascade),

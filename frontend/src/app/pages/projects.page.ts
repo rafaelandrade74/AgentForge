@@ -14,7 +14,7 @@ import { ExecutionEnvironment, GitHubImportResult, Project, ProjectInput, StackP
 import { ActionDialogComponent, BadgeComponent } from '../shared/shared';
 import { GithubImportComponent } from './github-import.component';
 
-const EMPTY: ProjectInput = { name: '', repositoryUrl: '', baseBranch: 'main', buildCommand: '', testCommand: '', autoMode: false, environmentId: null, stackProfileId: null };
+const EMPTY: ProjectInput = { name: '', repositoryUrl: '', baseBranch: 'main', buildCommand: '', testCommand: '', autoMode: false, environmentId: null, stackProfileId: null, roleEnvironments: {} };
 
 @Component({
   selector: 'app-projects-page',
@@ -73,6 +73,20 @@ const EMPTY: ProjectInput = { name: '', repositoryUrl: '', baseBranch: 'main', b
                     @for (s of profiles(); track s.id) { <mat-option [value]="s.id">{{ s.name }}</mat-option> }
                   </mat-select>
                 </mat-form-field>
+              }
+              @if (environments().length > 0) {
+                <div class="roles-env" data-testid="role-envs">
+                  <p class="muted small">Revisão em outra máquina (opcional): Tech Lead e Security recebem só o diff, sem o repositório. Dev e QA ficam sempre no ambiente do projeto.</p>
+                  @for (role of movableRoles; track role.key) {
+                    <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                      <mat-label>{{ role.label }} roda em</mat-label>
+                      <mat-select [name]="'role-' + role.key" [ngModel]="roleEnv(role.key)" (ngModelChange)="setRoleEnv(role.key, $event)">
+                        <mat-option [value]="null">Mesmo ambiente do projeto</mat-option>
+                        @for (e of environments(); track e.id) { <mat-option [value]="e.id">{{ e.name }}</mat-option> }
+                      </mat-select>
+                    </mat-form-field>
+                  }
+                </div>
               }
               @if (environmentChanged()) {
                 <p class="muted small env-hint" data-testid="env-change-hint">
@@ -138,6 +152,16 @@ export class ProjectsPage {
   readonly projects = signal<Project[]>([]);
   readonly environments = signal<ExecutionEnvironment[]>([]);
   readonly profiles = signal<StackProfile[]>([]);
+  /** Só estes papéis podem rodar em outra máquina (revisam pelo diff); Dev e QA precisam do worktree do projeto. */
+  readonly movableRoles = [{ key: 'TechLead', label: 'Tech Lead' }, { key: 'Security', label: 'Security' }];
+
+  roleEnv(role: string): string | null {
+    return this.draft.roleEnvironments?.[role] ?? null;
+  }
+
+  setRoleEnv(role: string, environmentId: string | null): void {
+    this.draft.roleEnvironments = { ...(this.draft.roleEnvironments ?? {}), [role]: environmentId };
+  }
   readonly loaded = signal(false);
   readonly formOpen = signal(false);
   readonly editingId = signal<string | null>(null);
@@ -179,7 +203,7 @@ export class ProjectsPage {
   }
 
   edit(p: Project): void {
-    this.openForm(p.id, { name: p.name, repositoryUrl: p.repositoryUrl, baseBranch: p.baseBranch, buildCommand: p.buildCommand, testCommand: p.testCommand, autoMode: p.autoMode, environmentId: p.environmentId ?? null, stackProfileId: p.stackProfileId ?? null });
+    this.openForm(p.id, { name: p.name, repositoryUrl: p.repositoryUrl, baseBranch: p.baseBranch, buildCommand: p.buildCommand, testCommand: p.testCommand, autoMode: p.autoMode, environmentId: p.environmentId ?? null, stackProfileId: p.stackProfileId ?? null, roleEnvironments: p.roleEnvironments ?? {} });
   }
 
   /** Editando um projeto e trocando a máquina dele: avisa o que acontece com o clone existente. */

@@ -41,7 +41,10 @@ const MAX_DIFF_LINES = 4000;
           @if (w.state === 'Backlog') {
             <button mat-flat-button type="button" (click)="approve()">Aprovar tarefa</button>
           }
-          @if (w.state === 'AwaitingApproval') {
+          @if (w.waitingReason) {
+          <div class="alert warn" role="status" data-testid="waiting">{{ w.waitingReason }} A tarefa continua em andamento e retoma sozinha.</div>
+        }
+        @if (w.state === 'AwaitingApproval') {
             <button mat-flat-button type="button" (click)="approve()">Aprovar entrega</button>
             <button mat-stroked-button type="button" (click)="reject()">Rejeitar…</button>
           }
@@ -178,7 +181,7 @@ export class TaskPage {
       if (e.workItemId !== this.id()) return;
       const previous = this.item()?.state;
       this.item.update((w) => (w
-        ? { ...w, state: e.state, reworkCount: e.reworkCount, blockedReason: e.blockedReason, branchName: e.branchName }
+        ? { ...w, state: e.state, reworkCount: e.reworkCount, blockedReason: e.blockedReason, waitingReason: e.waitingReason, branchName: e.branchName }
         : w));
       this.loadFindings();
       this.loadRuns();

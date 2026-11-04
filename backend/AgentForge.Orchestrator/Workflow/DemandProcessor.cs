@@ -26,6 +26,7 @@ public class DemandProcessor(
             project.Id, demand.Id, null, json => Task.FromResult(OutputParsers.ParsePlan(json)), ct);
 
         if (result.Outcome == ExecOutcome.Cancelled) return;   // restart/cancelamento: continua Refining e é retomada
+        result.ThrowIfUnavailable();                           // máquina fora do ar: a demanda continua Refining e é tentada de novo
         if (result.Outcome == ExecOutcome.Failed)
         {
             logger.LogWarning("Refinamento da demanda {Id} falhou: {Error}", demandId, result.Error);

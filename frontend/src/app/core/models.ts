@@ -18,6 +18,8 @@ export interface Project {
   environmentId?: string | null;
   /** Perfil de stack: os agentes do projeto rodam num container dele (só em ambiente com host agent com Docker). */
   stackProfileId?: string | null;
+  /** Papel (TechLead | Security) → ambiente onde ele roda no lugar do ambiente do projeto (revisa só pelo diff). */
+  roleEnvironments?: Record<string, string | null> | null;
   createdAt: string;
 }
 export type ProjectInput = Omit<Project, 'id' | 'createdAt'>;
@@ -42,6 +44,8 @@ export interface WorkItem {
   reworkCount: number;
   branchName: string | null;
   blockedReason: string | null;
+  /** A máquina do ambiente está fora do ar: a tarefa continua no estado atual e retoma sozinha quando ela voltar. */
+  waitingReason?: string | null;
   dependsOnIds: string[];
   createdAt: string;
 }
@@ -102,6 +106,7 @@ export interface WorkItemChanged {
   state: WorkItemState;
   reworkCount: number;
   blockedReason: string | null;
+  waitingReason?: string | null;
   branchName: string | null;
   at: string;
 }
@@ -214,6 +219,8 @@ export interface ExecutionEnvironment {
   hasToken: boolean;
   projectCount: number;
   createdAt: string;
+  /** Tarefas simultâneas nesta máquina; as demais esperam vaga. */
+  maxConcurrency: number;
 }
 export interface EnvironmentList {
   default: { mode: string; description: string };
@@ -226,6 +233,7 @@ export interface EnvironmentInput {
   token: string;
   workspaceRoot: string;
   tags: string;
+  maxConcurrency?: number;
 }
 export interface ToolCheck {
   tool: string;
@@ -269,4 +277,29 @@ export interface BuildImageResult {
   image: string;
   built: boolean;
   log: string;
+}
+
+// carga por ambiente (painel da tela Ambientes)
+export interface EnvironmentLoadRow {
+  id: string | null;
+  name: string;
+  kind: 'default' | 'host';
+  maxConcurrency: number;
+  runningTasks: number;
+  queuedTasks: number;
+  runningAgents: number;
+  projectCount: number;
+}
+export interface WaitingEntry {
+  kind: 'task' | 'demand';
+  id: string;
+  title: string;
+  project: string;
+  reason: string;
+  retryAt: string;
+  attempts: number;
+}
+export interface EnvironmentLoadReport {
+  environments: EnvironmentLoadRow[];
+  waiting: WaitingEntry[];
 }

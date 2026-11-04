@@ -19,12 +19,20 @@ public record AgentRequest(
     /// <summary>Execução avulsa (ex.: teste da conexão): não grava AgentRun nem publica eventos.</summary>
     bool Ephemeral = false,
     /// <summary>Ambiente onde rodar quando não há projeto (ex.: teste de conexão de uma máquina). Com projeto, vale o do projeto.</summary>
-    Guid? EnvironmentId = null)
+    Guid? EnvironmentId = null,
+    /// <summary>
+    /// Rodar em <see cref="EnvironmentId"/> (null = padrão do servidor) MESMO havendo projeto: papel movido para outro ambiente
+    /// (Tech Lead/Security numa máquina leve). Sem o worktree do projeto: o diretório de trabalho é o temporário da máquina e
+    /// não há container de perfil.
+    /// </summary>
+    bool EnvironmentOverride = false)
 {
     public static AgentRequest FromConfig(AgentRoleConfig config, string prompt, string workingDirectory,
-        Guid? demandId = null, Guid? workItemId = null, TimeSpan? timeout = null, Guid? projectId = null) =>
+        Guid? demandId = null, Guid? workItemId = null, TimeSpan? timeout = null, Guid? projectId = null,
+        Guid? environmentId = null, bool environmentOverride = false) =>
         new(config.Role, prompt, workingDirectory, config.AdapterName, config.SystemPrompt, config.AllowedTools,
-            config.Model, config.MaxTurns, demandId, workItemId, timeout, projectId);
+            config.Model, config.MaxTurns, demandId, workItemId, timeout, projectId, EnvironmentId: environmentId,
+            EnvironmentOverride: environmentOverride);
 }
 
 /// <summary>Evento interpretado de uma linha de saída do CLI (ex.: "assistant", "tool", "result").</summary>
@@ -46,7 +54,9 @@ public record AgentRunResult(
     string? Json,
     decimal CostUsd,
     TimeSpan Duration,
-    int? ExitCode);
+    int? ExitCode,
+    /// <summary>Falhou porque a máquina do ambiente não respondeu (vale tentar de novo quando voltar), não por erro do agente.</summary>
+    bool EnvironmentDown = false);
 
 public interface IAgentRunner
 {

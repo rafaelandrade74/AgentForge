@@ -10,7 +10,7 @@ const profile = (over: Partial<StackProfile> = {}): StackProfile => ({
   builtIn: true, projectCount: 1, createdAt: '', ...over,
 });
 const machine: ExecutionEnvironment = {
-  id: 'e1', name: 'linux-node', url: 'http://192.168.0.20:8787', workspaceRoot: '/home/eu/af', tags: '', hasToken: true, projectCount: 0, createdAt: '',
+  id: 'e1', name: 'linux-node', url: 'http://192.168.0.20:8787', workspaceRoot: '/home/eu/af', tags: '', hasToken: true, projectCount: 0, createdAt: '', maxConcurrency: 1,
 };
 
 describe('ProfilesPage', () => {

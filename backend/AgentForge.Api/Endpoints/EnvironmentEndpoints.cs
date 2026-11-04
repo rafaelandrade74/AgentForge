@@ -2,18 +2,29 @@ using AgentForge.Domain;
 using AgentForge.Execution;
 using AgentForge.Infrastructure.Persistence;
 using AgentForge.Orchestrator.Environments;
+using AgentForge.Orchestrator.Workflow;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace AgentForge.Api.Endpoints;
 
 /// <param name="Token">Token do host agent. Obrigatório ao criar; ao editar, vazio mantém o token guardado.</param>
-public record EnvironmentInput(string? Name, string? Url, string? Token, string? WorkspaceRoot, string? Tags);
+/// <param name="MaxConcurrency">Tarefas simultâneas nesta máquina (1 a 32). Omitido: mantém o atual (1 ao criar).</param>
+public record EnvironmentInput(string? Name, string? Url, string? Token, string? WorkspaceRoot, string? Tags, int? MaxConcurrency = null);
 
 /// <summary>O token nunca é devolvido: só se há um guardado.</summary>
-public record EnvironmentDto(Guid Id, string Name, string Url, string WorkspaceRoot, string Tags, bool HasToken, int ProjectCount, DateTime CreatedAt);
+public record EnvironmentDto(Guid Id, string Name, string Url, string WorkspaceRoot, string Tags, bool HasToken, int ProjectCount, DateTime CreatedAt, int MaxConcurrency = 1);
 
 public record DefaultEnvironmentDto(string Mode, string Description);
 public record EnvironmentListDto(DefaultEnvironmentDto Default, List<EnvironmentDto> Items);
+
+/// <summary>Uma linha do painel de carga: o ambiente, quantas tarefas rodam/esperam vaga e quantos agentes estão rodando agora.</summary>
+public record EnvironmentLoadDto(Guid? Id, string Name, string Kind, int MaxConcurrency, int RunningTasks, int QueuedTasks, int RunningAgents, int ProjectCount);
+
+/// <summary>Tarefa/demanda que espera a máquina do ambiente voltar (não está Blocked).</summary>
+public record WaitingDto(string Kind, Guid Id, string Title, string Project, string Reason, DateTime RetryAt, int Attempts);
+
+public record EnvironmentLoadReport(List<EnvironmentLoadDto> Environments, List<WaitingDto> Waiting);
 
 public record ToolCheckDto(string Tool, bool Ok, string Detail);
 public record EnvironmentTestDto(bool Reachable, string? Error, bool WorkspaceRootExists, List<ToolCheckDto> Tools,
@@ -41,6 +52,10 @@ public static class EnvironmentEndpoints
             return new EnvironmentListDto(new DefaultEnvironmentDto(launcher.Mode, launcher.Description),
                 items.Select(e => ToDto(e, counts.GetValueOrDefault(e.Id))).ToList());
         }).WithSummary("Ambientes cadastrados e o ambiente padrão do servidor.");
+
+        g.MapGet("/load", (AppDbContext db, IEnvironmentLoad load, IOptions<OrchestratorOptions> options, CancellationToken ct) =>
+                LoadAsync(db, load, options.Value, ct))
+            .WithSummary("Carga por ambiente: tarefas rodando, na fila e esperando a máquina voltar.");
 
         g.MapPost("/", async (EnvironmentInput input, AppDbContext db, ISecretProtector protector) =>
         {
@@ -73,6 +88,8 @@ public static class EnvironmentEndpoints
         {
             if (await db.Projects.CountAsync(p => p.EnvironmentId == id) is var used and > 0)
                 return Results.Conflict(new { error = $"O ambiente está em uso por {used} projeto(s). Mude o ambiente deles antes de apagar." });
+            if (await db.ProjectRoleEnvironments.CountAsync(r => r.EnvironmentId == id) is var roles and > 0)
+                return Results.Conflict(new { error = $"O ambiente roda papéis (Tech Lead/Security) de {roles} projeto(s). Mude isso nos projetos antes de apagar." });
             return await db.ExecutionEnvironments.Where(e => e.Id == id).ExecuteDeleteAsync() > 0 ? Results.NoContent() : Results.NotFound();
         });
 
@@ -95,8 +112,46 @@ public static class EnvironmentEndpoints
             .WithSummary("O mesmo teste, para o ambiente padrão do servidor.");
     }
 
+    /// <summary>Monta o painel de carga (tela Ambientes e ferramenta do MCP).</summary>
+    internal static async Task<EnvironmentLoadReport> LoadAsync(AppDbContext db, IEnvironmentLoad load, OrchestratorOptions options, CancellationToken ct)
+    {
+        var slots = load.Slots().ToDictionary(s => s.Key);
+        var environments = await db.ExecutionEnvironments.AsNoTracking().OrderBy(e => e.Name).ToListAsync(ct);
+        var runningAgents = await db.AgentRuns.AsNoTracking().Where(r => r.Status == AgentRunStatus.Running)
+            .GroupBy(r => r.EnvironmentId).Select(g => new { Id = g.Key, N = g.Count() }).ToListAsync(ct);
+        var projects = await db.Projects.AsNoTracking().GroupBy(p => p.EnvironmentId).Select(g => new { Id = g.Key, N = g.Count() }).ToListAsync(ct);
+
+        EnvironmentLoadDto Row(Guid? id, string name, string kind, int max)
+        {
+            var slot = slots.GetValueOrDefault(id?.ToString() ?? EnvironmentKeys.Default);
+            return new EnvironmentLoadDto(id, name, kind, max, slot?.Running ?? 0, slot?.Queued ?? 0,
+                runningAgents.FirstOrDefault(r => r.Id == id)?.N ?? 0, projects.FirstOrDefault(p => p.Id == id)?.N ?? 0);
+        }
+
+        var rows = new List<EnvironmentLoadDto> { Row(null, "Padrão do servidor", "default", Math.Max(1, options.MaxConcurrency)) };
+        rows.AddRange(environments.Select(e => Row(e.Id, e.Name, "host", e.MaxConcurrency)));
+
+        var waiting = load.Waiting();
+        var itemIds = waiting.Where(w => !w.IsDemand).Select(w => w.Id).ToList();
+        var demandIds = waiting.Where(w => w.IsDemand).Select(w => w.Id).ToList();
+        var items = await db.WorkItems.AsNoTracking().Where(w => itemIds.Contains(w.Id))
+            .Join(db.Demands, w => w.DemandId, d => d.Id, (w, d) => new { w.Id, w.Title, d.ProjectId }).ToListAsync(ct);
+        var demands = await db.Demands.AsNoTracking().Where(d => demandIds.Contains(d.Id)).Select(d => new { d.Id, d.Title, d.ProjectId }).ToListAsync(ct);
+        var projectNames = await db.Projects.AsNoTracking().ToDictionaryAsync(p => p.Id, p => p.Name, ct);
+
+        var entries = waiting.Select(w =>
+        {
+            var (title, projectId) = w.IsDemand
+                ? (demands.FirstOrDefault(d => d.Id == w.Id)?.Title, demands.FirstOrDefault(d => d.Id == w.Id)?.ProjectId)
+                : (items.FirstOrDefault(i => i.Id == w.Id)?.Title, items.FirstOrDefault(i => i.Id == w.Id)?.ProjectId);
+            return new WaitingDto(w.IsDemand ? "demand" : "task", w.Id, title ?? "(removida)",
+                projectId is { } p ? projectNames.GetValueOrDefault(p, "") : "", w.Reason, w.RetryAt, w.Attempts);
+        }).ToList();
+        return new EnvironmentLoadReport(rows, entries);
+    }
+
     internal static EnvironmentDto ToDto(ExecutionEnvironment e, int projectCount) =>
-        new(e.Id, e.Name, e.Url, e.WorkspaceRoot, e.Tags, e.ProtectedToken.Length > 0, projectCount, e.CreatedAt);
+        new(e.Id, e.Name, e.Url, e.WorkspaceRoot, e.Tags, e.ProtectedToken.Length > 0, projectCount, e.CreatedAt, e.MaxConcurrency);
 
     private static void Apply(ExecutionEnvironment e, EnvironmentInput i, ISecretProtector protector)
     {
@@ -104,6 +159,7 @@ public static class EnvironmentEndpoints
         e.Url = i.Url!.Trim().TrimEnd('/');
         e.WorkspaceRoot = i.WorkspaceRoot!.Trim();
         e.Tags = string.Join(", ", (i.Tags ?? "").Split([',', ';'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+        if (i.MaxConcurrency is { } max) e.MaxConcurrency = max;
         if (!string.IsNullOrWhiteSpace(i.Token)) e.ProtectedToken = protector.Protect(i.Token.Trim());
     }
 
@@ -116,6 +172,7 @@ public static class EnvironmentEndpoints
         if (string.IsNullOrWhiteSpace(i.WorkspaceRoot))
             return Invalid("workspaceRoot", "Informe a pasta, nessa máquina, onde ficam os clones (ex.: C:/agentforge ou /home/me/agentforge).");
         if (requireToken && string.IsNullOrWhiteSpace(i.Token)) return Invalid("token", "Informe o token do host agent.");
+        if (i.MaxConcurrency is < 1 or > 32) return Invalid("maxConcurrency", "A concorrência máxima vai de 1 a 32 tarefas.");
         return null;
     }
 

@@ -3,15 +3,24 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { provideRouter } from '@angular/router';
-import { EnvironmentList, EnvironmentTest, ExecutionEnvironment } from '../core/models';
+import { EnvironmentList, EnvironmentLoadReport, EnvironmentTest, ExecutionEnvironment } from '../core/models';
 import { EnvironmentsPage } from './environments.page';
 
 const env = (over: Partial<ExecutionEnvironment> = {}): ExecutionEnvironment => ({
   id: 'e1', name: 'notebook-node22', url: 'http://192.168.0.20:8787', workspaceRoot: 'C:/agentforge', tags: 'node22, dotnet8',
-  hasToken: true, projectCount: 2, createdAt: '2026-01-01T00:00:00Z', ...over,
+  hasToken: true, projectCount: 2, createdAt: '2026-01-01T00:00:00Z', maxConcurrency: 2, ...over,
 });
 const list = (items: ExecutionEnvironment[] = [env()]): EnvironmentList => ({
   default: { mode: 'local', description: 'No container da API' }, items,
+});
+
+const loadReport = (over: Partial<EnvironmentLoadReport> = {}): EnvironmentLoadReport => ({
+  environments: [
+    { id: null, name: 'Padrão do servidor', kind: 'default', maxConcurrency: 1, runningTasks: 0, queuedTasks: 0, runningAgents: 0, projectCount: 0 },
+    { id: 'e1', name: 'notebook-node22', kind: 'host', maxConcurrency: 2, runningTasks: 2, queuedTasks: 3, runningAgents: 1, projectCount: 2 },
+  ],
+  waiting: [],
+  ...over,
 });
 
 describe('EnvironmentsPage (ambientes de execução)', () => {
@@ -28,12 +37,13 @@ describe('EnvironmentsPage (ambientes de execução)', () => {
   };
   const card = (testId: string) => root().querySelector(`[data-testid="${testId}"]`) as HTMLElement;
 
-  function open(initial: EnvironmentList = list()): void {
+  function open(initial: EnvironmentList = list(), report: EnvironmentLoadReport = loadReport()): void {
     TestBed.configureTestingModule({ providers: [provideHttpClient(), provideHttpClientTesting(), provideNoopAnimations(), provideRouter([])] });
     http = TestBed.inject(HttpTestingController);
     fixture = TestBed.createComponent(EnvironmentsPage);
     fixture.detectChanges();
     http.expectOne('/api/environments').flush(initial);
+    http.expectOne('/api/environments/load').flush(report);
     fixture.detectChanges();
   }
 
@@ -147,5 +157,44 @@ describe('EnvironmentsPage (ambientes de execução)', () => {
       .flush({ error: 'O ambiente está em uso por 2 projeto(s).' }, { status: 409, statusText: 'Conflict' });
 
     expect(messages).toEqual(['O ambiente está em uso por 2 projeto(s).']);
+  });
+
+  it('o painel de carga mostra tarefas rodando, na fila e as que esperam uma máquina fora do ar', () => {
+    open(list(), loadReport({
+      waiting: [{ kind: 'task', id: 't1', title: 'Criar API', project: 'Loja', reason: 'Host agent inacessível em http://192.168.0.20:8787/', retryAt: new Date(Date.now() + 30000).toISOString(), attempts: 2 }],
+    }));
+
+    const rows = Array.from(root().querySelectorAll('[data-testid="load-row"]')).map((r) => r.textContent ?? '');
+    expect(rows.length).toBe(2);
+    expect(rows[1]).toContain('notebook-node22');
+    expect(rows[1]).toContain('2 / 2');
+    expect(rows[1]).toContain('3 esperando vaga');
+    const waiting = root().querySelector('[data-testid="waiting-row"]')!.textContent!;
+    expect(waiting).toContain('Criar API');
+    expect(waiting).toContain('Host agent inacessível');
+    expect(waiting).toContain('tentativa 2');
+  });
+
+  it('o botão Atualizar recarrega a carga', () => {
+    open();
+
+    const b = Array.from(root().querySelectorAll('button')).find((x) => x.textContent?.trim() === 'Atualizar')!;
+    b.click();
+
+    http.expectOne('/api/environments/load').flush(loadReport({ environments: [] }));
+    fixture.detectChanges();
+    expect(root().querySelectorAll('[data-testid="load-row"]').length).toBe(0);
+  });
+
+  it('cadastra a máquina com o limite de tarefas simultâneas', () => {
+    open();
+
+    fixture.componentInstance.draft = { name: 'novo', url: 'http://192.168.0.30:8787', token: 'segredo-do-host-agent-1234567890', workspaceRoot: '/af', tags: '', maxConcurrency: 4 };
+    fixture.componentInstance.save();
+
+    const req = http.expectOne({ method: 'POST', url: '/api/environments' });
+    expect(req.request.body.maxConcurrency).toBe(4);
+    req.flush(env({ id: 'e9', name: 'novo', maxConcurrency: 4 }));
+    http.expectOne('/api/environments').flush(list([env({ id: 'e9', name: 'novo', maxConcurrency: 4 })]));
   });
 });

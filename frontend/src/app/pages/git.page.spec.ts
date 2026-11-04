@@ -11,7 +11,7 @@ const status = (over: Partial<GitSshStatus> = {}): GitSshStatus => ({
 });
 
 const machine = (over: Partial<ExecutionEnvironment> = {}): ExecutionEnvironment => ({
-  id: 'e1', name: 'notebook-node22', url: 'http://192.168.0.20:8787', workspaceRoot: '/home/eu/af', tags: '', hasToken: true, projectCount: 0, createdAt: '', ...over,
+  id: 'e1', name: 'notebook-node22', url: 'http://192.168.0.20:8787', workspaceRoot: '/home/eu/af', tags: '', hasToken: true, projectCount: 0, createdAt: '', maxConcurrency: 1, ...over,
 });
 
 describe('GitPage (credenciais SSH)', () => {

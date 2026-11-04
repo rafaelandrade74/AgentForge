@@ -103,17 +103,31 @@ Para parar: `docker compose down` (mantém os dados). Para apagar tudo, incluind
 Os do cenário A, mais um Postgres 14+ acessível a partir do container da API.
 
 ### Passo a passo
-1. Faça os passos 1 e 2 do cenário A (clone e `.env`).
+1. Clone o repositório (passo 1 do cenário A).
 2. No seu Postgres, crie um banco e um usuário **vazios**. Exemplo:
    ```sql
    CREATE USER agentforge WITH PASSWORD 'uma-senha-forte';
    CREATE DATABASE agentforge OWNER agentforge;
    ```
    O usuário precisa poder criar tabelas nesse banco (o dono pode). As tabelas são criadas pelas migrations no primeiro start.
-3. Edite o `.env`:
+3. Crie o `.env` assim (arquivo completo para este cenário):
    ```
+   # --- TROQUE ---
+   ADMIN_PASSWORD=TroqueEstaSenha2026
+   JWT_SECRET=troque-por-uma-sequencia-aleatoria-de-pelo-menos-32-caracteres
+   ADMIN_USERNAME=admin
+
+   # --- banco externo: COMPOSE_PROFILES VAZIO + string de conexão do SEU Postgres ---
    COMPOSE_PROFILES=
    DATABASE_URL=Host=meu-postgres;Port=5432;Database=agentforge;Username=agentforge;Password=uma-senha-forte
+
+   # --- pode deixar como está ---
+   ANTHROPIC_API_KEY=
+   CLAUDE_CODE_VERSION=2.1.316
+   ORCHESTRATOR_CONCURRENCY=1
+   WEB_PORT=8080
+   API_DEBUG_PORT=8081
+   SWAGGER_ENABLED=true
    ```
    - `COMPOSE_PROFILES=` **vazio** é o que impede o `db` do compose de subir.
    - Se o Postgres roda **no próprio computador**, use `Host=host.docker.internal`. Ele precisa aceitar conexões que não sejam
@@ -153,12 +167,29 @@ Os do cenário A, mais um Postgres 14+ acessível a partir do container da API.
    ```bash
    ls ~/.claude/.credentials.json                              # Linux
    ```
-2. Faça os passos 1 e 2 do cenário A.
-3. No `.env`, aponte para a pasta (use barras `/` mesmo no Windows):
+2. Clone o repositório (passo 1 do cenário A).
+3. Crie o `.env` assim (o do cenário A mais `CLAUDE_CONFIG_SOURCE`, com barras `/` mesmo no Windows):
    ```
+   # --- TROQUE ---
+   ADMIN_PASSWORD=TroqueEstaSenha2026
+   JWT_SECRET=troque-por-uma-sequencia-aleatoria-de-pelo-menos-32-caracteres
+   POSTGRES_PASSWORD=TroqueSenhaDoBanco2026
+
+   # --- login do computador: pasta ~/.claude (Linux: /home/voce/.claude) ---
    CLAUDE_CONFIG_SOURCE=C:/Users/voce/.claude
+
+   # --- pode deixar como está ---
+   ADMIN_USERNAME=admin
+   POSTGRES_USER=agentforge
+   COMPOSE_PROFILES=local-db
+   ANTHROPIC_API_KEY=
+   CLAUDE_CODE_VERSION=2.1.316
+   ORCHESTRATOR_CONCURRENCY=1
+   WEB_PORT=8080
+   API_DEBUG_PORT=8081
+   SWAGGER_ENABLED=true
    ```
-   No Linux: `CLAUDE_CONFIG_SOURCE=/home/voce/.claude`.
+   Deixe `ANTHROPIC_API_KEY` vazio: com uma chave definida, o CLI usa a chave e ignora o login.
 4. No Linux, o container roda com o UID `1654`: a pasta precisa ser gravável por ele
    (por exemplo `chmod -R g+rw` e um grupo compartilhado, ou `setfacl -R -m u:1654:rwX ~/.claude`).
 5. Suba: `docker compose up -d --build` e siga os passos 5 a 8 do cenário A. Em **Agentes** o Claude já deve aparecer **Conectado**.
@@ -188,7 +219,34 @@ Os do cenário A, mais um Postgres 14+ acessível a partir do container da API.
 - Porta `8787` livre em `127.0.0.1`.
 
 ### Passo a passo
-1. Faça os passos 1 e 2 do cenário A (clone e `.env`).
+1. Clone o repositório (passo 1 do cenário A) e crie o `.env`. Os três itens do host agent **podem ficar de fora**: o script
+   do passo seguinte os cria. Se preferir, preencha à mão:
+   ```
+   # --- TROQUE ---
+   ADMIN_PASSWORD=TroqueEstaSenha2026
+   JWT_SECRET=troque-por-uma-sequencia-aleatoria-de-pelo-menos-32-caracteres
+   POSTGRES_PASSWORD=TroqueSenhaDoBanco2026
+
+   # --- host agent (o script preenche se faltar) ---
+   HOST_AGENT_TOKEN=troque-por-um-token-aleatorio-de-40-letras-e-numeros
+   HOST_WORKSPACES_ROOT=C:/Users/voce/agentforge/repos
+   HOST_AGENT_URL=http://host.docker.internal:8787
+
+   # --- pode deixar como está ---
+   ADMIN_USERNAME=admin
+   POSTGRES_USER=agentforge
+   COMPOSE_PROFILES=local-db
+   CLAUDE_CODE_VERSION=2.1.316
+   ORCHESTRATOR_CONCURRENCY=1
+   WEB_PORT=8080
+   API_DEBUG_PORT=8081
+   SWAGGER_ENABLED=true
+   ```
+   - `HOST_AGENT_TOKEN`: mínimo de **24** caracteres, só letras e números.
+   - `HOST_WORKSPACES_ROOT`: pasta **do computador**, caminho absoluto com `/` (Linux: `/home/voce/agentforge/repos`). Os
+     clones e worktrees ficam aqui.
+   - `HOST_AGENT_URL`: no Docker Desktop (Windows/macOS) é este mesmo. Linux com Docker nativo: veja a seção abaixo.
+   - Sem `ANTHROPIC_API_KEY`: o `claude` do computador usa o login dele.
 2. **Terminal 1 — inicie o host agent e deixe aberto:**
    ```powershell
    ./scripts/host-agent.ps1                  # Windows
@@ -242,8 +300,23 @@ Só o Postgres pode ficar num container.
 - Porta `8080` livre (ou escolha outra com `-Urls`).
 
 ### Passo a passo
-1. Clone o repositório e crie o `.env` (passos 1 e 2 do cenário A). O script também cria o `.env` se faltar, mas com os
-   valores de exemplo: rode o `init-env` antes.
+1. Clone o repositório (passo 1 do cenário A) e crie o `.env` **antes** de rodar o script (ele cria um com os valores de
+   exemplo se faltar). Aqui só estas variáveis são lidas; portas e `COMPOSE_PROFILES` não valem (a porta vem de `-Urls`):
+   ```
+   # --- TROQUE ---
+   ADMIN_PASSWORD=TroqueEstaSenha2026
+   JWT_SECRET=troque-por-uma-sequencia-aleatoria-de-pelo-menos-32-caracteres
+   ADMIN_USERNAME=admin
+
+   # --- banco: com -StartPostgres / --start-postgres o script sobe um Postgres com estes dados ---
+   POSTGRES_USER=agentforge
+   POSTGRES_PASSWORD=TroqueSenhaDoBanco2026
+
+   # --- OU um Postgres seu (descomente; tem prioridade e dispensa -StartPostgres) ---
+   # NATIVE_DB_CONNECTION=Host=localhost;Port=5432;Database=agentforge;Username=agentforge;Password=troque
+
+   ORCHESTRATOR_CONCURRENCY=1
+   ```
 2. Suba, escolhendo **uma** das opções de banco:
    - **Sem Postgres instalado** (o script sobe um container `agentforge-native-db` só em `127.0.0.1:5432`):
      ```powershell

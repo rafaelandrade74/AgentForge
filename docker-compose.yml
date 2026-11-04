@@ -44,6 +44,8 @@ services:
       - repos:/data/repos
       # chave SSH gerada pela tela "Credenciais Git" (a privada fica aqui, nunca sai do servidor)
       - git-ssh:/home/app/.ssh
+      # chaves de proteção (Data Protection) dos tokens dos ambientes cadastrados; sem este volume os tokens se perdem
+      - dp-keys:/home/app/.agentforge
       # volume nomeado por padrão; CLAUDE_CONFIG_SOURCE=<pasta do computador> reaproveita um login já existente (ver README)
       - ${CLAUDE_CONFIG_SOURCE:-claude-config}:/home/app/.claude
       - ./prompts:/app/prompts:ro
@@ -105,3 +107,4 @@ volumes:
   repos:
   claude-config:
   git-ssh:
+  dp-keys:

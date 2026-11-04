@@ -10,6 +10,28 @@ public class Project
     public string TestCommand { get; set; } = "";
     /// <summary>Quando true, desliga as aprovações humanas do fluxo (modo automático).</summary>
     public bool AutoMode { get; set; }
+    /// <summary>Onde os agentes e o git deste projeto rodam. Null = o ambiente padrão do servidor (Agents:Launcher).</summary>
+    public Guid? EnvironmentId { get; set; }
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+}
+
+/// <summary>
+/// Uma máquina onde os CLIs (agentes e git) rodam, por um host agent. O ambiente padrão (o container da API ou o
+/// que Agents:Launcher define) não é gravado: é o que vale quando o projeto não escolhe nenhum.
+/// </summary>
+public class ExecutionEnvironment
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public string Name { get; set; } = "";
+    public EnvironmentKind Kind { get; set; } = EnvironmentKind.HostAgent;
+    /// <summary>Endereço do host agent visto pela API (ex.: http://192.168.0.20:8787).</summary>
+    public string Url { get; set; } = "";
+    /// <summary>Token do host agent, protegido (ASP.NET Data Protection). Nunca sai da API nem entra em log.</summary>
+    public string ProtectedToken { get; set; } = "";
+    /// <summary>Pasta, NESSA máquina, onde ficam clones e worktrees: {raiz}/{projeto}/repo e .../worktrees/{tarefa}.</summary>
+    public string WorkspaceRoot { get; set; } = "";
+    /// <summary>Rótulos livres da stack disponível (ex.: "node20, dotnet8, docker").</summary>
+    public string Tags { get; set; } = "";
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }
 

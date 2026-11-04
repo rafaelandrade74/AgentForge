@@ -24,7 +24,7 @@ public static class CrudEndpoints
 
     // ---------- Projects ----------
     internal static ProjectDto ToDto(Project p) =>
-        new(p.Id, p.Name, Secrets.MaskUrls(p.RepositoryUrl), p.BaseBranch, p.BuildCommand, p.TestCommand, p.AutoMode, p.CreatedAt);
+        new(p.Id, p.Name, Secrets.MaskUrls(p.RepositoryUrl), p.BaseBranch, p.BuildCommand, p.TestCommand, p.AutoMode, p.CreatedAt, p.EnvironmentId);
 
     private static void Apply(Project p, ProjectInput i)
     {
@@ -36,7 +36,13 @@ public static class CrudEndpoints
         p.BuildCommand = i.BuildCommand;
         p.TestCommand = i.TestCommand;
         p.AutoMode = i.AutoMode;
+        p.EnvironmentId = i.EnvironmentId;
     }
+
+    private static async Task<IResult?> ValidateEnvironmentAsync(ProjectInput i, AppDbContext db) =>
+        i.EnvironmentId is { } id && !await db.ExecutionEnvironments.AnyAsync(e => e.Id == id)
+            ? Invalid(nameof(i.EnvironmentId), "Ambiente não encontrado.")
+            : null;
 
     private static IResult? Validate(ProjectInput i) =>
         string.IsNullOrWhiteSpace(i.Name) ? Invalid(nameof(i.Name), "Informe o nome.")
@@ -59,6 +65,7 @@ public static class CrudEndpoints
         {
             if (Validate(i) is { } bad) return bad;
             if (ValidateMasked(i, null) is { } masked) return masked;
+            if (await ValidateEnvironmentAsync(i, db) is { } badEnvironment) return badEnvironment;
             var p = new Project();
             Apply(p, i);
             db.Projects.Add(p);
@@ -70,6 +77,7 @@ public static class CrudEndpoints
             if (Validate(i) is { } bad) return bad;
             if (await db.Projects.FindAsync(id) is not { } p) return Results.NotFound();
             if (ValidateMasked(i, p) is { } masked) return masked;
+            if (await ValidateEnvironmentAsync(i, db) is { } badEnvironment) return badEnvironment;
             Apply(p, i);
             await db.SaveChangesAsync();
             return Results.Ok(ToDto(p));

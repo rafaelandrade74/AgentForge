@@ -66,7 +66,7 @@ describe('GithubImportComponent', () => {
 
     const req = http.expectOne({ method: 'POST', url: '/api/github/import' });
     expect(req.request.body).toEqual({
-      repository: 'octo/privado', token: 'ghp_abcdefghijklmnopqrstuvwxyz', addDeployKey: true, buildCommand: '', testCommand: 'dotnet test', autoMode: false,
+      repository: 'octo/privado', token: 'ghp_abcdefghijklmnopqrstuvwxyz', addDeployKey: true, buildCommand: '', testCommand: 'dotnet test', autoMode: false, environmentId: null,
     });
     const result: GitHubImportResult = {
       project: { id: 'p1', name: 'privado', repositoryUrl: 'git@github.com:octo/privado.git', baseBranch: 'main', buildCommand: '', testCommand: 'dotnet test', autoMode: false, createdAt: '' },

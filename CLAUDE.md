@@ -20,7 +20,7 @@ Aplicação web auto-hospedada (homelab) que orquestra o ciclo de desenvolviment
 Transições válidas ficam em tabela no código (`WorkflowDefinition`). Revisão reprovada devolve ao Dev com os apontamentos; no terceiro retorno vai para Blocked. Dependências só liberam a tarefa quando estão em Done.
 
 ## Fases (executar uma por vez; parar para validação; commit `fase-N: <resumo>`)
-0 Fundação do repositório (feita) · 1 Autenticação (feita) · 2 Domínio e persistência (feita; ADR 0003) · 3 CliAgentRunner (feita; ADR 0004) · 4 Workspaces Git (feita; ADR 0005) · 5 Orquestrador (feita; ADR 0006) · 6 Tempo real (feita; ADR 0007) · 7 Interface web (feita; ADR 0008) · 8 Deploy homelab (feita; ADR 0009, README) · 9 Validação ponta a ponta (feita; ADR 0010 e ADR 0011 — com lacunas a corrigir: tarefas dependentes devem nascer das branches das dependências).
+0 Fundação do repositório (feita) · 1 Autenticação (feita) · 2 Domínio e persistência (feita; ADR 0003) · 3 CliAgentRunner (feita; ADR 0004) · 4 Workspaces Git (feita; ADR 0005) · 5 Orquestrador (feita; ADR 0006) · 6 Tempo real (feita; ADR 0007) · 7 Interface web (feita; ADR 0008) · 8 Deploy homelab (feita; ADR 0009, README) · 9 Validação ponta a ponta (feita; ADR 0010 e ADR 0011 — com lacunas a corrigir: tarefas dependentes devem nascer das branches das dependências). · 10 Ambientes de execução (feita; ADR 0017) — próximas: 11 Git/login por ambiente · 12 Perfis de stack e container por tarefa · 13 Ambiente por papel e fila · 14 Validação (plano em `docs/plano-ambientes.md`).
 
 ## Importar do GitHub (ADR 0014)
 Projetos → "Importar do GitHub": lista repositórios pelo token (usado só na chamada, nunca guardado/logado), cria o projeto, autoriza a chave SSH como deploy key somente leitura (privados) e já clona; clone falho desfaz o cadastro. Código em `backend/AgentForge.Api/GitHub`.
@@ -53,3 +53,6 @@ Siga as fases em ordem; não pule critérios de aceite; código simples e testá
 
 ## Dependências dos agentes (ADR 0016)
 No modo 2 o usuário `app` do container da API tem sudo sem senha (`AGENT_SUDO=true`, `API_NO_NEW_PRIVILEGES=false`): agentes instalam apt/Node/Python no container (efêmero; o permanente vai no `backend/Dockerfile`). Endurecer: `AGENT_SUDO=false` + `API_NO_NEW_PRIVILEGES=true`. Modos 1 e 3 usam as permissões do seu usuário no computador.
+
+## Ambientes de execução (ADR 0017)
+Tela **Ambientes**: máquinas com host agent cadastradas (URL, token, pasta de clones). `Project.EnvironmentId` (nulo = padrão do servidor, `Agents:Launcher`). `IEnvironmentLaunchers` entrega launcher + raiz de clones por projeto (usado por `WorkspaceManager`, `CliAgentRunner`, `WorkItemProcessor`). O token fica no banco protegido pelo Data Protection (chaves no volume `dp-keys`, `DataProtection:KeysDir`) e nunca sai pela API. `/api/environments` é só JWT. Código em `backend/AgentForge.Orchestrator/Environments` e `AgentForge.Api/Endpoints/EnvironmentEndpoints.cs`.

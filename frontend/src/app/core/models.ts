@@ -14,6 +14,8 @@ export interface Project {
   buildCommand: string;
   testCommand: string;
   autoMode: boolean;
+  /** Onde os agentes e o git do projeto rodam; ausente/null = o ambiente padrão do servidor. */
+  environmentId?: string | null;
   createdAt: string;
 }
 export type ProjectInput = Omit<Project, 'id' | 'createdAt'>;
@@ -190,6 +192,7 @@ export interface GitHubImportRequest {
   buildCommand: string;
   testCommand: string;
   autoMode: boolean;
+  environmentId?: string | null;
 }
 export interface GitHubImportResult {
   project: Project;
@@ -197,4 +200,39 @@ export interface GitHubImportResult {
   deployKeyAdded: boolean;
   notes: string[];
   repository: GitHubRepo;
+}
+// ambientes de execução (máquinas com host agent)
+export interface ExecutionEnvironment {
+  id: string;
+  name: string;
+  url: string;
+  workspaceRoot: string;
+  tags: string;
+  /** O token nunca é devolvido pela API: só se há um guardado. */
+  hasToken: boolean;
+  projectCount: number;
+  createdAt: string;
+}
+export interface EnvironmentList {
+  default: { mode: string; description: string };
+  items: ExecutionEnvironment[];
+}
+export interface EnvironmentInput {
+  name: string;
+  url: string;
+  /** Obrigatório ao criar; ao editar, vazio mantém o token guardado. */
+  token: string;
+  workspaceRoot: string;
+  tags: string;
+}
+export interface ToolCheck {
+  tool: string;
+  ok: boolean;
+  detail: string;
+}
+export interface EnvironmentTest {
+  reachable: boolean;
+  error: string | null;
+  workspaceRootExists: boolean;
+  tools: ToolCheck[];
 }

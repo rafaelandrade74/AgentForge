@@ -1,21 +1,22 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { Component, computed, inject, output, signal } from '@angular/core';
+import { Component, computed, inject, input, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
+import { MatSelectModule } from '@angular/material/select';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { ApiService } from '../core/api.service';
-import { GitHubImportResult, GitHubRepo } from '../core/models';
+import { ExecutionEnvironment, GitHubImportResult, GitHubRepo } from '../core/models';
 import { BadgeComponent } from '../shared/shared';
 
 /** Importar do GitHub: lista os repositórios do token (ou aceita dono/repo de um repositório público) e já clona. */
 @Component({
   selector: 'app-github-import',
   standalone: true,
-  imports: [FormsModule, MatButtonModule, MatCardModule, MatCheckboxModule, MatFormFieldModule, MatInputModule, MatProgressSpinnerModule, BadgeComponent],
+  imports: [FormsModule, MatButtonModule, MatCardModule, MatCheckboxModule, MatFormFieldModule, MatInputModule, MatSelectModule, MatProgressSpinnerModule, BadgeComponent],
   template: `
     <mat-card class="box">
       <mat-card-header><mat-card-title>Importar do GitHub</mat-card-title></mat-card-header>
@@ -71,6 +72,15 @@ import { BadgeComponent } from '../shared/shared';
             <input matInput name="ghTest" [(ngModel)]="testCommand" placeholder="dotnet test" />
           </mat-form-field>
         </div>
+        @if (environments().length > 0) {
+          <mat-form-field appearance="outline">
+            <mat-label>Ambiente de execução</mat-label>
+            <mat-select name="ghEnv" [(ngModel)]="environmentId" data-testid="environment">
+              <mat-option [value]="null">Padrão do servidor</mat-option>
+              @for (e of environments(); track e.id) { <mat-option [value]="e.id">{{ e.name }}</mat-option> }
+            </mat-select>
+          </mat-form-field>
+        }
         <mat-checkbox name="ghDeploy" [(ngModel)]="addDeployKey">
           Autorizar a chave SSH do AgentForge no repositório (deploy key somente leitura, só para repositórios privados)
         </mat-checkbox>
@@ -113,6 +123,8 @@ export class GithubImportComponent {
   /** Emite o resultado quando o projeto foi criado e clonado. */
   readonly imported = output<GitHubImportResult>();
   readonly closed = output<void>();
+  /** Ambientes cadastrados, para escolher onde o projeto roda (vazio = só o padrão do servidor). */
+  readonly environments = input<ExecutionEnvironment[]>([]);
 
   token = '';
   repository = '';
@@ -120,6 +132,7 @@ export class GithubImportComponent {
   testCommand = '';
   addDeployKey = true;
   autoMode = false;
+  environmentId: string | null = null;
 
   readonly repos = signal<GitHubRepo[]>([]);
   readonly filter = signal('');
@@ -163,6 +176,7 @@ export class GithubImportComponent {
       .githubImport({
         repository: this.repository.trim(), ...(token ? { token } : {}), addDeployKey: this.addDeployKey,
         buildCommand: this.buildCommand, testCommand: this.testCommand, autoMode: this.autoMode,
+        environmentId: this.environmentId,
       })
       .subscribe({
         next: (r) => {

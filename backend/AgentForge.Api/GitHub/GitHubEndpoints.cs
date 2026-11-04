@@ -10,7 +10,7 @@ public record GitHubListRequest(string? Token);
 
 public record GitHubImportRequest(
     string? Repository, string? Token, bool AddDeployKey = true, string? Name = null,
-    string? BuildCommand = null, string? TestCommand = null, bool AutoMode = false);
+    string? BuildCommand = null, string? TestCommand = null, bool AutoMode = false, Guid? EnvironmentId = null);
 
 public static class GitHubEndpoints
 {
@@ -40,6 +40,8 @@ public static class GitHubEndpoints
             var fullName = GitHubClient.ParseFullName(req.Repository);
             if (fullName is null)
                 return Results.ValidationProblem(Problem("repository", "Informe o repositório como dono/nome ou a URL do GitHub."));
+            if (req.EnvironmentId is { } envId && !await db.ExecutionEnvironments.AnyAsync(e => e.Id == envId, ct))
+                return Results.ValidationProblem(Problem("environmentId", "Ambiente não encontrado."));
             var token = string.IsNullOrWhiteSpace(req.Token) ? null : req.Token.Trim();
             if (token is not null && !ValidToken(token)) return Results.ValidationProblem(Problem("token", "Token inválido."));
 
@@ -52,13 +54,16 @@ public static class GitHubEndpoints
 
                 var notes = new List<string>();
                 var deployKeyAdded = false;
-                if (repo.Private) deployKeyAdded = await PrepareAccessAsync(req, token, repo, github, git, notes, ct);
+                if (repo.Private && req.EnvironmentId is not null)
+                    notes.Add("O projeto roda em outro ambiente: a chave SSH do servidor não vale lá. A máquina precisa ter acesso ao repositório (chave ou credenciais do git dela).");
+                else if (repo.Private) deployKeyAdded = await PrepareAccessAsync(req, token, repo, github, git, notes, ct);
 
                 var project = new Project
                 {
                     Name = string.IsNullOrWhiteSpace(req.Name) ? repo.Name : req.Name.Trim(),
                     RepositoryUrl = url, BaseBranch = repo.DefaultBranch,
                     BuildCommand = req.BuildCommand ?? "", TestCommand = req.TestCommand ?? "", AutoMode = req.AutoMode,
+                    EnvironmentId = req.EnvironmentId,
                 };
                 db.Projects.Add(project);
                 await db.SaveChangesAsync(ct);
@@ -122,7 +127,7 @@ public static class GitHubEndpoints
                 await workspaces.EnsureRepositoryAsync(project, ct);
                 return (true, null);
             }
-            catch (GitException ex)
+            catch (Exception ex) when (ex is GitException or AgentForge.Execution.ProcessStartException or AgentForge.Orchestrator.Environments.EnvironmentUnavailableException)
             {
                 error = Friendly(ex.Message);
                 log.LogWarning("Clone do projeto {Name} falhou (tentativa {Attempt})", project.Name, attempt + 1);

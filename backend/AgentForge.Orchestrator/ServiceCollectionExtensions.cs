@@ -1,10 +1,14 @@
 using AgentForge.Execution;
+using AgentForge.Infrastructure.Persistence;
+using AgentForge.Orchestrator.Environments;
 using AgentForge.Orchestrator.Agents;
 using AgentForge.Orchestrator.Workflow;
 using AgentForge.Orchestrator.Workspaces;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace AgentForge.Orchestrator;
 
@@ -20,11 +24,15 @@ public static class ServiceCollectionExtensions
         var git = configuration?.GetSection(GitOptions.Section).Get<GitOptions>() ?? new GitOptions();
         services.TryAddSingleton(git);
         services.TryAddSingleton<IProcessLauncher>(_ => agents.CreateLauncher(git.SshDir));
+        services.TryAddSingleton<IEnvironmentLaunchers>(sp => new EnvironmentLaunchers(
+            sp.GetRequiredService<IProcessLauncher>(), sp.GetRequiredService<IServiceScopeFactory>(), sp.GetService<ISecretProtector>()));
         services.TryAddSingleton<GitCredentialService>();
         services.AddSingleton<ICliAgentAdapter, ClaudeCodeAdapter>();
         services.TryAddSingleton<AgentAdapterRegistry>();
         services.TryAddSingleton<IAgentEventPublisher, NullAgentEventPublisher>();
-        services.TryAddScoped<IAgentRunner, CliAgentRunner>();
+        services.TryAddScoped<IAgentRunner>(sp => new CliAgentRunner(sp.GetRequiredService<AgentAdapterRegistry>(),
+            sp.GetRequiredService<AppDbContext>(), sp.GetRequiredService<IAgentEventPublisher>(),
+            sp.GetRequiredService<IEnvironmentLaunchers>(), sp.GetRequiredService<ILogger<CliAgentRunner>>()));
         services.TryAddSingleton<AgentCliService>();
         return services;
     }
@@ -48,7 +56,8 @@ public static class ServiceCollectionExtensions
     public static IServiceCollection AddWorkspaces(this IServiceCollection services, IConfiguration configuration)
     {
         services.Configure<WorkspaceOptions>(configuration.GetSection(WorkspaceOptions.Section));
-        services.TryAddSingleton<IWorkspaceManager, WorkspaceManager>();
+        services.TryAddSingleton<IWorkspaceManager>(sp => new WorkspaceManager(
+            sp.GetRequiredService<IOptions<WorkspaceOptions>>(), sp.GetRequiredService<IEnvironmentLaunchers>()));
         return services;
     }
 }

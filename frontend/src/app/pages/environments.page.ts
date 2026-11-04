@@ -1,0 +1,239 @@
+import { NgTemplateOutlet } from '@angular/common';
+import { Component, inject, signal } from '@angular/core';
+import { FormsModule } from '@angular/forms';
+import { MatButtonModule } from '@angular/material/button';
+import { MatDialog } from '@angular/material/dialog';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatInputModule } from '@angular/material/input';
+import { MatSnackBar } from '@angular/material/snack-bar';
+import { ApiService } from '../core/api.service';
+import { EnvironmentInput, EnvironmentList, EnvironmentTest, ExecutionEnvironment } from '../core/models';
+import { ActionDialogComponent, BadgeComponent } from '../shared/shared';
+
+const EMPTY: EnvironmentInput = { name: '', url: '', token: '', workspaceRoot: '', tags: '' };
+
+@Component({
+  selector: 'app-environments-page',
+  standalone: true,
+  imports: [FormsModule, NgTemplateOutlet, MatButtonModule, MatFormFieldModule, MatInputModule, BadgeComponent],
+  template: `
+    <div class="page">
+      <div class="row">
+        <h1>Ambientes de execução</h1>
+        <span class="spacer"></span>
+        <button mat-flat-button type="button" (click)="toggleForm()">{{ formOpen() ? 'Fechar' : 'Novo ambiente' }}</button>
+      </div>
+      <p class="muted">
+        Cada ambiente é uma máquina com o <strong>host agent</strong> (<span class="mono">scripts/host-agent</span>) onde os agentes e o
+        git de um projeto rodam, com as ferramentas (Node, .NET, Python…) que a stack dele precisa. O projeto escolhe o ambiente;
+        sem escolha, vale o ambiente padrão do servidor.
+      </p>
+
+      @if (formOpen()) {
+        <section class="card">
+          <h2>{{ editingId() ? 'Editar ambiente' : 'Novo ambiente' }}</h2>
+          <form (ngSubmit)="save()" #f="ngForm" class="grid">
+            <mat-form-field appearance="outline">
+              <mat-label>Nome</mat-label>
+              <input matInput name="name" [(ngModel)]="draft.name" required placeholder="notebook-node22" />
+            </mat-form-field>
+            <mat-form-field appearance="outline">
+              <mat-label>Endereço do host agent</mat-label>
+              <input matInput name="url" [(ngModel)]="draft.url" required placeholder="http://192.168.0.20:8787" />
+            </mat-form-field>
+            <mat-form-field appearance="outline">
+              <mat-label>{{ editingId() ? 'Token (vazio mantém o atual)' : 'Token do host agent' }}</mat-label>
+              <input matInput type="password" name="token" [(ngModel)]="draft.token" [required]="!editingId()" autocomplete="off" />
+            </mat-form-field>
+            <mat-form-field appearance="outline">
+              <mat-label>Pasta dos clones nessa máquina</mat-label>
+              <input matInput name="workspaceRoot" [(ngModel)]="draft.workspaceRoot" required placeholder="C:/agentforge ou /home/eu/agentforge" />
+            </mat-form-field>
+            <mat-form-field appearance="outline">
+              <mat-label>Stack (rótulos, separados por vírgula)</mat-label>
+              <input matInput name="tags" [(ngModel)]="draft.tags" placeholder="node22, dotnet8" />
+            </mat-form-field>
+            <div class="row">
+              <button mat-flat-button type="submit" [disabled]="f.invalid || saving()">Salvar</button>
+              <button mat-button type="button" (click)="closeForm()">Cancelar</button>
+            </div>
+          </form>
+          <p class="muted small">
+            O token é guardado criptografado e nunca volta para esta tela. A pasta precisa estar entre as permitidas
+            (<span class="mono">HostAgent:Roots</span>) do host agent.
+          </p>
+        </section>
+      }
+
+      @if (list(); as l) {
+        <section class="card" data-testid="default-env">
+          <div class="row">
+            <h2>Padrão do servidor</h2>
+            <app-badge [label]="l.default.mode === 'host' ? 'host agent' : 'container da API'" tone="info" />
+            <span class="spacer"></span>
+            <button mat-button type="button" [disabled]="testing() === 'default'" (click)="test('default')">Testar</button>
+          </div>
+          <p class="muted small">{{ l.default.description }}. Usado pelos projetos sem ambiente próprio.</p>
+          @if (results()['default']; as r) {
+            <ng-container *ngTemplateOutlet="result; context: { $implicit: r, showRoot: false }" />
+          }
+        </section>
+
+        @for (e of l.items; track e.id) {
+          <section class="card" data-testid="env">
+            <div class="row">
+              <h2>{{ e.name }}</h2>
+              @for (t of tags(e); track t) { <app-badge [label]="t" /> }
+              <span class="spacer"></span>
+              <button mat-button type="button" [disabled]="testing() === e.id" (click)="test(e.id)">Testar</button>
+              <button mat-button type="button" (click)="edit(e)">Editar</button>
+              <button mat-button type="button" (click)="remove(e)">Excluir</button>
+            </div>
+            <p class="muted small">
+              <span class="mono">{{ e.url }}</span> · clones em <span class="mono">{{ e.workspaceRoot }}</span> ·
+              {{ e.projectCount }} projeto(s)
+            </p>
+            @if (results()[e.id]; as r) {
+              <ng-container *ngTemplateOutlet="result; context: { $implicit: r, showRoot: true }" />
+            }
+          </section>
+        } @empty {
+          <p class="muted">Nenhuma máquina cadastrada. Suba o host agent na máquina e cadastre-a aqui.</p>
+        }
+      } @else {
+        <p class="muted">Carregando…</p>
+      }
+    </div>
+
+    <ng-template #result let-r let-showRoot="showRoot">
+      <div class="result" [class.ok]="r.reachable" [class.bad]="!r.reachable" role="status" data-testid="test-result">
+        @if (!r.reachable) {
+          <app-badge label="sem conexão" tone="bad" /> {{ r.error }}
+        } @else {
+          <app-badge label="conectado" tone="ok" />
+          @if (showRoot && !r.workspaceRootExists) {
+            <span class="muted small">a pasta dos clones será criada no primeiro uso</span>
+          }
+          <ul class="tools">
+            @for (t of r.tools; track t.tool) {
+              <li><app-badge [label]="t.tool" [tone]="t.ok ? 'ok' : 'warn'" /> <span class="muted small">{{ t.detail }}</span></li>
+            }
+          </ul>
+        }
+      </div>
+    </ng-template>
+  `,
+  styles: `
+    .card { background: #1b1b1b; border-radius: 10px; padding: .75rem 1rem 1rem; margin-bottom: 1rem; }
+    .card h2 { margin: .25rem 0; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr)); gap: .75rem 1rem; padding-top: .5rem; }
+    .grid .row { grid-column: 1 / -1; }
+    .small { font-size: .85rem; }
+    .result { margin-top: .5rem; padding: .5rem .75rem; border-radius: 8px; background: #151515; }
+    .result.ok { border-left: 4px solid #3f9f58; } .result.bad { border-left: 4px solid #c25555; }
+    .tools { list-style: none; padding: 0; margin: .5rem 0 0; display: flex; flex-wrap: wrap; gap: .25rem 1rem; }
+  `,
+})
+export class EnvironmentsPage {
+  private readonly api = inject(ApiService);
+  private readonly dialog = inject(MatDialog);
+  private readonly snack = inject(MatSnackBar);
+
+  readonly list = signal<EnvironmentList | null>(null);
+  readonly results = signal<Record<string, EnvironmentTest>>({});
+  readonly testing = signal<string | null>(null);
+  readonly formOpen = signal(false);
+  readonly editingId = signal<string | null>(null);
+  readonly saving = signal(false);
+  draft: EnvironmentInput = { ...EMPTY };
+
+  constructor() {
+    this.load();
+  }
+
+  tags(e: ExecutionEnvironment): string[] {
+    return e.tags.split(',').map((t) => t.trim()).filter((t) => t.length > 0);
+  }
+
+  private load(): void {
+    this.api.environments().subscribe((l) => this.list.set(l));
+  }
+
+  toggleForm(): void {
+    if (this.formOpen()) this.closeForm();
+    else this.open(null, { ...EMPTY });
+  }
+
+  edit(e: ExecutionEnvironment): void {
+    this.open(e.id, { name: e.name, url: e.url, token: '', workspaceRoot: e.workspaceRoot, tags: e.tags });
+  }
+
+  private open(id: string | null, draft: EnvironmentInput): void {
+    this.editingId.set(id);
+    this.draft = draft;
+    this.formOpen.set(true);
+  }
+
+  closeForm(): void {
+    this.formOpen.set(false);
+    this.editingId.set(null);
+    this.draft = { ...EMPTY };
+  }
+
+  save(): void {
+    this.saving.set(true);
+    const id = this.editingId();
+    const request = id ? this.api.updateEnvironment(id, this.draft) : this.api.createEnvironment(this.draft);
+    request.subscribe({
+      next: (saved) => {
+        this.saving.set(false);
+        this.closeForm();
+        // o resultado de um teste antigo não vale mais depois de editar
+        this.results.update(({ [saved.id]: _old, ...rest }) => rest);
+        this.snack.open('Ambiente salvo.', 'OK', { duration: 3000 });
+        this.load();
+      },
+      error: (err) => {
+        this.saving.set(false);
+        this.snack.open(this.message(err, 'Não foi possível salvar o ambiente.'), 'OK', { duration: 6000 });
+      },
+    });
+  }
+
+  test(id: string): void {
+    this.testing.set(id);
+    this.api.testEnvironment(id).subscribe({
+      next: (r) => {
+        this.testing.set(null);
+        this.results.update((all) => ({ ...all, [id]: r }));
+      },
+      error: () => {
+        this.testing.set(null);
+        this.snack.open('Não foi possível testar o ambiente.', 'OK', { duration: 5000 });
+      },
+    });
+  }
+
+  remove(e: ExecutionEnvironment): void {
+    this.dialog
+      .open(ActionDialogComponent, {
+        data: {
+          title: 'Excluir ambiente',
+          message: `Excluir "${e.name}"? Os clones nessa máquina não são apagados.`,
+          confirmLabel: 'Excluir',
+        },
+      })
+      .afterClosed()
+      .subscribe((ok) => {
+        if (!ok) return;
+        this.api.deleteEnvironment(e.id).subscribe({
+          next: () => this.load(),
+          error: (err) => this.snack.open(this.message(err, 'Não foi possível excluir.'), 'OK', { duration: 6000 }),
+        });
+      });
+  }
+
+  private message(err: { error?: { error?: string; errors?: Record<string, string[]> } }, fallback: string): string {
+    return err?.error?.error ?? Object.values(err?.error?.errors ?? {})[0]?.[0] ?? fallback;
+  }
+}

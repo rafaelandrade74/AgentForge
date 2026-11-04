@@ -2,6 +2,7 @@ using System.Text.RegularExpressions;
 using AgentForge.Domain;
 using AgentForge.Execution;
 using AgentForge.Infrastructure.Persistence;
+using AgentForge.Orchestrator.Environments;
 using AgentForge.Orchestrator.Workspaces;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -19,7 +20,7 @@ public partial class WorkItemProcessor(
     AgentExecutor executor,
     IWorkQueue queue,
     IWorkflowEventPublisher events,
-    IProcessLauncher launcher,
+    IEnvironmentLaunchers environments,
     IOptions<OrchestratorOptions> options,
     ILogger<WorkItemProcessor> logger)
 {
@@ -85,7 +86,7 @@ public partial class WorkItemProcessor(
         var prompt = PromptBuilder.Dev(item, project, depTitles, open);
 
         var result = await executor.RunAsync(AgentRole.Dev, prompt, ws.Path, project.Id, demand.Id, item.Id,
-            json => ParseDevAsync(json, ws.Path, ws.BaseCommit, ct), ct);
+            json => ParseDevAsync(json, project, ws.Path, ws.BaseCommit, ct), ct);
         if (result.Outcome == ExecOutcome.Cancelled) return StepResult.Stop;
         if (result.Outcome == ExecOutcome.Failed) return Continue(await BlockAsync(item, project, "Dev", result.Error, ct));
 
@@ -97,7 +98,7 @@ public partial class WorkItemProcessor(
     private async Task<StepResult> ReviewStepAsync(WorkItem item, Demand demand, Project project, CancellationToken ct)
     {
         var ws = await OpenWorkspaceAsync(item, project, ct);
-        var diff = await DiffAsync(ws.Path, ws.BaseCommit, ct);
+        var diff = await DiffAsync(project, ws.Path, ws.BaseCommit, ct);
         var parallel = options.Value.MaxConcurrency > 1;
 
         var tlTask = executor.RunAsync(AgentRole.TechLead, PromptBuilder.TechLead(item, project, diff), ws.Path,
@@ -116,7 +117,7 @@ public partial class WorkItemProcessor(
     private async Task<StepResult> SecurityStepAsync(WorkItem item, Demand demand, Project project, CancellationToken ct)
     {
         var ws = await OpenWorkspaceAsync(item, project, ct);
-        var diff = await DiffAsync(ws.Path, ws.BaseCommit, ct);
+        var diff = await DiffAsync(project, ws.Path, ws.BaseCommit, ct);
         var result = await executor.RunAsync(AgentRole.Security, PromptBuilder.Security(item, project, diff), ws.Path,
             project.Id, demand.Id, item.Id, json => Task.FromResult(OutputParsers.ParseReview(json)), ct);
         return await ConcludeReviewsAsync(item, project, [(AgentRole.Security, result)], WorkflowEvent.SecurityApproved, ct);
@@ -177,8 +178,9 @@ public partial class WorkItemProcessor(
 
     // ------------------------------------------------------------------ validações com git
 
-    private async Task<Parsed<DevReport>> ParseDevAsync(string? json, string workspacePath, string baseCommit, CancellationToken ct)
+    private async Task<Parsed<DevReport>> ParseDevAsync(string? json, Project project, string workspacePath, string baseCommit, CancellationToken ct)
     {
+        var launcher = (await environments.ForProjectAsync(project, ct)).Launcher;
         var parsed = OutputParsers.ParseDev(json);
         if (!parsed.Ok) return parsed;
 
@@ -199,8 +201,9 @@ public partial class WorkItemProcessor(
     }
 
     /// <summary>O que a tarefa mudou: do ponto de partida (base + dependências) até o HEAD do worktree.</summary>
-    private async Task<string> DiffAsync(string workspacePath, string baseCommit, CancellationToken ct)
+    private async Task<string> DiffAsync(Project project, string workspacePath, string baseCommit, CancellationToken ct)
     {
+        var launcher = (await environments.ForProjectAsync(project, ct)).Launcher;
         try
         {
             var diff = await GitCli.RunAsync(launcher, workspacePath, ["diff", baseCommit, "HEAD"], ct);

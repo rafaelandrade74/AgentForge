@@ -13,6 +13,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<AgentRoleConfig> AgentRoleConfigs => Set<AgentRoleConfig>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public DbSet<ApiToken> ApiTokens => Set<ApiToken>();
+    public DbSet<ExecutionEnvironment> ExecutionEnvironments => Set<ExecutionEnvironment>();
 
     protected override void ConfigureConventions(ModelConfigurationBuilder b) =>
         b.Properties<Enum>().HaveConversion<string>().HaveMaxLength(32);
@@ -24,6 +25,18 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.Property(x => x.Name).HasMaxLength(200);
             e.Property(x => x.RepositoryUrl).HasMaxLength(500);
             e.Property(x => x.BaseBranch).HasMaxLength(200);
+            // um ambiente em uso não pode ser apagado (o clone do projeto mora nele)
+            e.HasOne<ExecutionEnvironment>().WithMany().HasForeignKey(x => x.EnvironmentId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        b.Entity<ExecutionEnvironment>(e =>
+        {
+            e.HasIndex(x => x.Name).IsUnique();
+            e.Property(x => x.Name).HasMaxLength(100);
+            e.Property(x => x.Url).HasMaxLength(300);
+            e.Property(x => x.ProtectedToken).HasMaxLength(2000);
+            e.Property(x => x.WorkspaceRoot).HasMaxLength(500);
+            e.Property(x => x.Tags).HasMaxLength(300);
         });
 
         b.Entity<Demand>(e =>

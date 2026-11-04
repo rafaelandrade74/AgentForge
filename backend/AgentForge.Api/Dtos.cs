@@ -3,9 +3,9 @@ using AgentForge.Domain;
 namespace AgentForge.Api;
 
 public record ProjectInput(string Name, string RepositoryUrl, string BaseBranch = "main",
-    string BuildCommand = "", string TestCommand = "", bool AutoMode = false);
+    string BuildCommand = "", string TestCommand = "", bool AutoMode = false, Guid? EnvironmentId = null);
 public record ProjectDto(Guid Id, string Name, string RepositoryUrl, string BaseBranch,
-    string BuildCommand, string TestCommand, bool AutoMode, DateTime CreatedAt);
+    string BuildCommand, string TestCommand, bool AutoMode, DateTime CreatedAt, Guid? EnvironmentId = null);
 
 public record DemandInput(Guid ProjectId, string Title, string Description = "", DemandStatus Status = DemandStatus.New);
 public record DemandDto(Guid Id, Guid ProjectId, string Title, string Description, DemandStatus Status, DateTime CreatedAt);

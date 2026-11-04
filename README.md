@@ -111,6 +111,32 @@ Requisitos: .NET SDK 8+, Node 20+, git, `claude` no PATH e um **PostgreSQL**.
 `NATIVE_DB_CONNECTION` no `.env`. A interface fica em **http://localhost:8080** (`-Urls` para mudar) e os clones em
 `.agentforge/repos`. O script compila a interface na primeira vez (`-Rebuild` para recompilar).
 
+## Vários ambientes (várias máquinas, uma stack por projeto)
+
+Além do ambiente padrão (o que `Agents:Launcher` define), você pode cadastrar **outras máquinas** na tela **Ambientes**. Cada
+uma roda o **host agent** (`scripts/host-agent`) e tem as ferramentas que a stack do projeto exige: Node 22 numa, .NET 8 e
+Python em outra. O projeto escolhe o ambiente (campo **Ambiente de execução**, também na importação do GitHub); sem escolha, vale
+o padrão. Tudo do projeto acontece nessa máquina: clone, worktrees, git e agentes.
+
+1. Na máquina, suba o host agent (`./scripts/host-agent.sh <token> http://0.0.0.0:8787`), libere a pasta dos clones em
+   `HostAgent:Roots` e as ferramentas em `HostAgent:Executables`, e restrinja a porta por firewall à rede do servidor.
+2. Em **Ambientes → Novo ambiente**: nome, endereço (`http://192.168.0.20:8787`), token, **pasta dos clones nessa máquina**
+   (`C:/agentforge`, `/home/eu/agentforge`) e rótulos da stack (informativos).
+3. **Testar** mostra se a máquina responde e quais ferramentas (`claude`, `git`, `node`, `dotnet`) ela oferece.
+
+Pontos importantes:
+
+- O **token** fica no banco **criptografado** (ASP.NET Data Protection) e nunca volta pela API. As chaves de proteção ficam no volume
+  `dp-keys`; sem ele (ou se `DataProtection:KeysDir` mudar), os tokens guardados não podem mais ser lidos e você os informa de novo.
+- Cada máquina tem o **seu próprio login do Claude** (faça `claude` login nela) e as **suas credenciais Git**; a chave SSH gerada
+  pelo servidor só vale no ambiente padrão.
+- Máquina fora do ar: a execução falha com a mensagem "Host agent inacessível…" e a tarefa vai para Blocked (ou a demanda para Failed).
+- Mudar o ambiente de um projeto faz o próximo uso clonar o repositório na nova máquina (o clone antigo permanece na anterior).
+- Um ambiente em uso por projetos não pode ser excluído.
+
+Decisão registrada na [ADR 0017](docs/adr/0017-ambientes-de-execucao.md); o plano completo (próximas fases: Git por ambiente,
+perfis de stack com container por tarefa, ambiente por papel e fila) está em [docs/plano-ambientes.md](docs/plano-ambientes.md).
+
 ## Controlar o AgentForge pelo Claude Code (MCP)
 
 O AgentForge é também um **servidor MCP** (HTTP, `POST /mcp`): o Claude Code, ou qualquer cliente MCP, pode criar projetos e
@@ -285,7 +311,8 @@ Use HTTPS no proxy: o login e o token trafegam por ele.
 
 ## Dados, backup e atualização
 
-Volumes nomeados: `pgdata` (banco), `repos` (clones e worktrees, modo 2) e `claude-config` (login do Claude Code, modo 2).
+Volumes nomeados: `pgdata` (banco), `repos` (clones e worktrees, modo 2), `claude-config` (login do Claude Code, modo 2),
+`git-ssh` (chave SSH do servidor) e `dp-keys` (chaves que protegem os tokens dos ambientes cadastrados — inclua no backup).
 
 ```bash
 # backup do banco
@@ -317,9 +344,11 @@ git pull && docker compose up -d --build     # migrations aplicam sozinhas no st
 
 ## Segurança do container
 
-`db`, `api` e `web` rodam sem root (a API como UID 1654, o front com `nginx-unprivileged`), com `no-new-privileges` e sem
-capabilities (`cap_drop: ALL`); o front tem sistema de arquivos somente leitura. Só o `web` é publicado na rede; o Postgres
-não é exposto. No modo 2, os agentes executam comandos (build, testes) **dentro do container da API**; nos modos 1 e 3,
+`db`, `api` e `web` rodam sem root (a API como UID 1654, o front com `nginx-unprivileged`) e com `cap_drop: ALL`; o front tem
+sistema de arquivos somente leitura e usa `no-new-privileges`. Na `api`, os agentes podem instalar
+dependências com `sudo` **dentro do container** (`AGENT_SUDO=true`, [ADR 0016](docs/adr/0016-agentes-instalam-dependencias.md)),
+o que exige `no-new-privileges` desligado e algumas capabilities do `apt`; para endurecer, `AGENT_SUDO=false` e
+`API_NO_NEW_PRIVILEGES=true` no `.env`. Só o `web` é publicado na rede; o Postgres não é exposto. No modo 2, os agentes executam comandos (build, testes) **dentro do container da API**; nos modos 1 e 3,
 **no seu computador**, dentro do worktree da tarefa — rode o AgentForge com repositórios em que você confia.
 
 ## Problemas comuns

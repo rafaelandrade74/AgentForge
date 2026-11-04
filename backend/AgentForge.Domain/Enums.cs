@@ -23,3 +23,5 @@ public enum WorkItemState
 public enum AgentRunStatus { Pending, Running, Succeeded, Failed, Cancelled }
 
 public enum FindingSeverity { Info, Low, Medium, High, Critical }
+
+public enum EnvironmentKind { HostAgent }

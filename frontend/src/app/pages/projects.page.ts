@@ -7,18 +7,19 @@ import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatDialog } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
+import { MatSelectModule } from '@angular/material/select';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { ApiService } from '../core/api.service';
-import { GitHubImportResult, Project, ProjectInput } from '../core/models';
+import { ExecutionEnvironment, GitHubImportResult, Project, ProjectInput } from '../core/models';
 import { ActionDialogComponent, BadgeComponent } from '../shared/shared';
 import { GithubImportComponent } from './github-import.component';
 
-const EMPTY: ProjectInput = { name: '', repositoryUrl: '', baseBranch: 'main', buildCommand: '', testCommand: '', autoMode: false };
+const EMPTY: ProjectInput = { name: '', repositoryUrl: '', baseBranch: 'main', buildCommand: '', testCommand: '', autoMode: false, environmentId: null };
 
 @Component({
   selector: 'app-projects-page',
   standalone: true,
-  imports: [FormsModule, RouterLink, MatButtonModule, MatCardModule, MatCheckboxModule, MatFormFieldModule, MatInputModule, BadgeComponent, GithubImportComponent],
+  imports: [FormsModule, RouterLink, MatButtonModule, MatCardModule, MatCheckboxModule, MatFormFieldModule, MatInputModule, MatSelectModule, BadgeComponent, GithubImportComponent],
   template: `
     <div class="page">
       <div class="row">
@@ -29,7 +30,7 @@ const EMPTY: ProjectInput = { name: '', repositoryUrl: '', baseBranch: 'main', b
       </div>
 
       @if (importOpen()) {
-        <app-github-import (imported)="onImported($event)" (closed)="importOpen.set(false)" />
+        <app-github-import [environments]="environments()" (imported)="onImported($event)" (closed)="importOpen.set(false)" />
       }
 
       @if (formOpen()) {
@@ -57,6 +58,13 @@ const EMPTY: ProjectInput = { name: '', repositoryUrl: '', baseBranch: 'main', b
                 <mat-label>Comando de teste</mat-label>
                 <input matInput name="testCommand" [(ngModel)]="draft.testCommand" placeholder="dotnet test" />
               </mat-form-field>
+              <mat-form-field appearance="outline">
+                <mat-label>Ambiente de execução</mat-label>
+                <mat-select name="environmentId" [(ngModel)]="draft.environmentId">
+                  <mat-option [value]="null">Padrão do servidor</mat-option>
+                  @for (e of environments(); track e.id) { <mat-option [value]="e.id">{{ e.name }}</mat-option> }
+                </mat-select>
+              </mat-form-field>
               <mat-checkbox name="autoMode" [(ngModel)]="draft.autoMode">
                 Modo automático (sem aprovações humanas)
               </mat-checkbox>
@@ -80,6 +88,7 @@ const EMPTY: ProjectInput = { name: '', repositoryUrl: '', baseBranch: 'main', b
               <div class="row">
                 <app-badge [label]="'base: ' + p.baseBranch" />
                 <app-badge [label]="p.autoMode ? 'automático' : 'com aprovações'" [tone]="p.autoMode ? 'warn' : 'ok'" />
+                @if (environmentName(p); as env) { <app-badge [label]="'ambiente: ' + env" tone="info" /> }
               </div>
             </mat-card-content>
             <mat-card-actions>
@@ -111,6 +120,7 @@ export class ProjectsPage {
   private readonly snack = inject(MatSnackBar);
 
   readonly projects = signal<Project[]>([]);
+  readonly environments = signal<ExecutionEnvironment[]>([]);
   readonly loaded = signal(false);
   readonly formOpen = signal(false);
   readonly editingId = signal<string | null>(null);
@@ -121,6 +131,7 @@ export class ProjectsPage {
 
   constructor() {
     this.load();
+    this.api.environments().subscribe((l) => this.environments.set(l.items));
   }
 
   private load(): void {
@@ -135,13 +146,17 @@ export class ProjectsPage {
     void this.router.navigate(['/projects', r.project.id]);
   }
 
+  environmentName(p: Project): string | null {
+    return p.environmentId ? (this.environments().find((e) => e.id === p.environmentId)?.name ?? "ambiente removido") : null;
+  }
+
   toggleForm(): void {
     if (this.formOpen()) this.closeForm();
     else this.openForm(null, { ...EMPTY });
   }
 
   edit(p: Project): void {
-    this.openForm(p.id, { name: p.name, repositoryUrl: p.repositoryUrl, baseBranch: p.baseBranch, buildCommand: p.buildCommand, testCommand: p.testCommand, autoMode: p.autoMode });
+    this.openForm(p.id, { name: p.name, repositoryUrl: p.repositoryUrl, baseBranch: p.baseBranch, buildCommand: p.buildCommand, testCommand: p.testCommand, autoMode: p.autoMode, environmentId: p.environmentId ?? null });
   }
 
   private openForm(id: string | null, draft: ProjectInput): void {

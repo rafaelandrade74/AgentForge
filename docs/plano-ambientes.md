@@ -1,0 +1,39 @@
+# Plano: ambientes de execução por stack
+
+Continuação das fases do projeto (0 a 9 concluídas). Cada fase tem ADR, testes e commit `fase-N: <resumo>`; paramos para
+validação antes da seguinte.
+
+**Decisões já tomadas:** o token de cada máquina fica no banco, **criptografado** (Data Protection, chaves em volume próprio);
+o tipo `docker-image` (container por tarefa) existe **só em máquinas com host agent que já tenham Docker** — nunca montamos o
+socket do Docker no container da API (acesso ao socket equivale a administrador na máquina).
+
+## Fase 10 — Ambientes e várias máquinas (feita; ADR 0017)
+Entidade `ExecutionEnvironment`, `Project.EnvironmentId`, resolução do launcher e da pasta de clones por projeto, API e tela
+**Ambientes** (cadastro, teste de conexão com as ferramentas da máquina), token criptografado, importação do GitHub com ambiente.
+Pronto quando: dois projetos rodam em máquinas diferentes na mesma instalação; máquina offline deixa a execução falhando com motivo;
+instalações existentes continuam funcionando sem mexer em nada.
+
+## Fase 11 — Git e workspaces por ambiente
+Clone, worktree e diff já ocorrem na máquina do projeto (fase 10); falta o resto: **chave SSH gerada e testada por ambiente**
+(a tela **Git** escolhe o ambiente), importação do GitHub autorizando a deploy key da máquina escolhida, aviso/migração ao trocar
+o ambiente de um projeto com clone existente, e **login do Claude por ambiente** (tela **Agentes** escolhe o ambiente).
+Pronto quando: o ciclo completo (clone de repositório privado, worktree, agente, diff) roda num host agent remoto e há testes de
+isolamento entre ambientes.
+
+## Fase 12 — Perfis de stack e container por tarefa
+- `StackProfile`: imagem ou Dockerfile, pacotes, versões (Node/.NET/Python), comandos de build e teste, rede permitida.
+  Perfis prontos (Node, .NET, Python) e perfis do usuário, vários por projeto.
+- Novo tipo de ambiente `docker-image` (**só host agent com Docker**): cada tarefa sobe um container do perfil com o worktree
+  montado e o remove ao final. Sem `--privileged`, sem socket do Docker, com limites de CPU e memória. O host agent ganha a
+  operação "subir container" e só aceita imagens dos perfis cadastrados, montando apenas o worktree.
+- Build do Dockerfile na máquina do ambiente, com o log visível.
+Pronto quando: um projeto Node 22 e um .NET 8 rodam lado a lado em containers diferentes, com `npm ci` e `dotnet test` dentro.
+
+## Fase 13 — Ambiente por papel, fila e carga
+Sobrescrita por papel no projeto (Dev e QA no ambiente da stack; Tech Lead e Security no leve), fila e concorrência máxima por
+ambiente, novas tentativas quando a máquina volta, painel de carga/estado, MCP e documentação atualizados.
+Pronto quando: uma demanda usa dois ambientes entre os papéis e a queda de uma máquina não perde tarefas.
+
+## Fase 14 — Documentação e validação ponta a ponta
+Cenário "F" (várias máquinas e stacks) no README, no getting-started e no site; validação real com um host agent em outra máquina
+e um container por tarefa; correção das lacunas.

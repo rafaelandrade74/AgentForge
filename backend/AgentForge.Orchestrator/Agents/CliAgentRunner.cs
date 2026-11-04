@@ -2,6 +2,8 @@ using System.Diagnostics;
 using AgentForge.Domain;
 using AgentForge.Execution;
 using AgentForge.Infrastructure.Persistence;
+using AgentForge.Orchestrator.Environments;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
 namespace AgentForge.Orchestrator.Agents;
@@ -15,9 +17,14 @@ public class CliAgentRunner(
     AgentAdapterRegistry adapters,
     AppDbContext db,
     IAgentEventPublisher publisher,
-    IProcessLauncher launcher,
+    IEnvironmentLaunchers environments,
     ILogger<CliAgentRunner> logger) : IAgentRunner
 {
+    /// <summary>Um ambiente só, com o launcher dado (testes e instalações sem ambientes cadastrados).</summary>
+    public CliAgentRunner(AgentAdapterRegistry adapters, AppDbContext db, IAgentEventPublisher publisher,
+        IProcessLauncher launcher, ILogger<CliAgentRunner> logger)
+        : this(adapters, db, publisher, new SingleEnvironment(launcher), logger) { }
+
     public static readonly TimeSpan DefaultTimeout = TimeSpan.FromMinutes(30);
     private const int StderrTailLines = 50;
 
@@ -56,8 +63,15 @@ public class CliAgentRunner(
 
         try
         {
-            // o prompt vai pelo stdin (e o stdin fecha); o processo roda onde o launcher manda (aqui ou no computador)
-            await using var process = await launcher.StartAsync(
+            // o processo roda no ambiente do projeto (aqui, ou numa máquina com host agent); sem projeto, no padrão
+            var target = request.ProjectId is { } projectId
+                ? await environments.ResolveAsync(
+                    await db.Projects.AsNoTracking().Where(p => p.Id == projectId).Select(p => p.EnvironmentId).FirstOrDefaultAsync(linked.Token),
+                    linked.Token)
+                : environments.Default;
+
+            // o prompt vai pelo stdin (e o stdin fecha)
+            await using var process = await target.Launcher.StartAsync(
                 new LaunchSpec(adapter.Executable, adapter.BuildArguments(request), request.WorkingDirectory, request.Prompt), linked.Token);
             using var killOnCancel = linked.Token.Register(process.Kill);
 
@@ -80,7 +94,7 @@ public class CliAgentRunner(
             timedOut = timeoutCts.IsCancellationRequested && !ct.IsCancellationRequested;
             failure = timedOut ? $"Tempo limite de {(request.Timeout ?? DefaultTimeout).TotalSeconds:0}s excedido." : "Execução cancelada.";
         }
-        catch (Exception ex) when (ex is ProcessStartException or InvalidOperationException or IOException)
+        catch (Exception ex) when (ex is ProcessStartException or EnvironmentUnavailableException or InvalidOperationException or IOException)
         {
             logger.LogError(ex, "Falha ao executar o CLI do agente {Adapter}", adapter.Name);
             failure = $"Falha ao executar '{adapter.Executable}': {ex.Message}";

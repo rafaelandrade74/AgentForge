@@ -12,6 +12,7 @@ using AgentForge.Orchestrator;
 using AgentForge.Orchestrator.Agents;
 using AgentForge.Orchestrator.Workflow;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
@@ -47,6 +48,14 @@ builder.Services.AddOptions<AuthOptions>()
     .Validate(o => o.JwtSecret.Length >= 32, "Auth:JwtSecret deve ter ao menos 32 caracteres.")
     .Validate(o => !string.IsNullOrWhiteSpace(o.AdminPassword), "Auth:AdminPassword é obrigatório.")
     .ValidateOnStart();
+// Tokens dos host agents cadastrados ficam protegidos no banco; as chaves de proteção vão para uma pasta própria
+// (no Docker, um volume): sem elas os tokens guardados não podem mais ser lidos.
+builder.Services.AddDataProtection()
+    .SetApplicationName("AgentForge")
+    .PersistKeysToFileSystem(new DirectoryInfo(builder.Configuration["DataProtection:KeysDir"] is { Length: > 0 } keysDir
+        ? keysDir
+        : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".agentforge", "keys")));
+builder.Services.AddSingleton<AgentForge.Orchestrator.Environments.ISecretProtector, AgentForge.Api.Environments.DataProtectionSecretProtector>();
 builder.Services.AddAgentRunner(builder.Configuration);
 builder.Services.AddWorkspaces(builder.Configuration);
 builder.Services.AddOrchestrator(builder.Configuration);
@@ -148,6 +157,7 @@ app.MapWorkflowEndpoints();
 app.MapAgentEndpoints();
 app.MapTokenEndpoints();
 app.MapGitEndpoints();
+app.MapEnvironmentEndpoints();
 app.MapGitHubEndpoints();
 app.MapMcp();
 app.MapHub<RunsHub>("/hubs/runs");

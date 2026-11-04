@@ -1,0 +1,73 @@
+name: agentforge
+
+# AgentForge SEM o Postgres: usa um banco que você já tem (outro container, servidor do homelab, serviço gerenciado).
+# Configure no .env:  DATABASE_URL=Host=meu-postgres;Port=5432;Database=agentforge;Username=agentforge;Password=...
+# O banco e o usuário precisam existir (o AgentForge cria as tabelas sozinho no start). Suba com:
+#   docker compose -f docker-compose.external-db.yml up -d --build
+# Para o modo 1 (host agent), junte também o docker-compose.host-agent.yml (veja o README).
+
+services:
+  api:
+    build:
+      context: ./backend
+      args:
+        CLAUDE_CODE_VERSION: ${CLAUDE_CODE_VERSION:-2.1.316}
+        API_BASE_IMAGE: ${API_BASE_IMAGE:-mcr.microsoft.com/dotnet/sdk:8.0}
+    restart: unless-stopped
+    environment:
+      ConnectionStrings__Default: ${DATABASE_URL:?defina DATABASE_URL no .env (string de conexão Npgsql do seu Postgres)}
+      Auth__AdminUsername: ${ADMIN_USERNAME:-admin}
+      Auth__AdminPassword: ${ADMIN_PASSWORD:?defina ADMIN_PASSWORD no .env (cp .env.example .env)}
+      Auth__JwtSecret: ${JWT_SECRET:?defina JWT_SECRET no .env (cp .env.example .env)}
+      Orchestrator__MaxConcurrency: ${ORCHESTRATOR_CONCURRENCY:-1}
+      Swagger__Enabled: ${SWAGGER_ENABLED:-true}
+      Git__SshDir: /home/app/.ssh
+      ASPNETCORE_FORWARDEDHEADERS_ENABLED: "true"
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    # permite apontar DATABASE_URL para um Postgres que roda no próprio computador (Host=host.docker.internal)
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - repos:/data/repos
+      - git-ssh:/home/app/.ssh
+      - ${CLAUDE_CONFIG_SOURCE:-claude-config}:/home/app/.claude
+      - ./prompts:/app/prompts:ro
+      - ./examples:/examples:ro
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 20s
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    ports:
+      - "127.0.0.1:${API_DEBUG_PORT:-8081}:8080"
+
+  web:
+    build: ./frontend
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    ports:
+      - "${WEB_PORT:-8080}:8080"
+
+volumes:
+  repos:
+  claude-config:
+  git-ssh:

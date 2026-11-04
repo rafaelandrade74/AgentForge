@@ -171,6 +171,19 @@ Há um projeto de exemplo (API de tarefas em .NET, com testes) em `examples/task
 > **Troque `ADMIN_PASSWORD`, `JWT_SECRET` e `POSTGRES_PASSWORD` antes de expor o sistema na rede.**
 > `./scripts/init-env.sh` (Linux/macOS) ou `./scripts/init-env.ps1` (Windows) criam o `.env` já com segredos aleatórios.
 
+### Usar um Postgres que você já tem (sem o banco no compose)
+
+Defina `DATABASE_URL` no `.env` (string Npgsql: `Host=...;Port=5432;Database=agentforge;Username=...;Password=...`), crie o
+banco e o usuário vazios e suba só a aplicação:
+
+```bash
+docker compose -f docker-compose.external-db.yml up -d --build
+```
+
+As tabelas são criadas pelas migrations no primeiro start. Para um Postgres no próprio computador, use
+`Host=host.docker.internal`. Com o modo 1, junte `-f docker-compose.host-agent.yml` depois do arquivo acima. `POSTGRES_*` do
+`.env` não são usados nesse arquivo.
+
 ### Como a aplicação sabe o modo de execução
 
 Ela **não detecta** o modo: ele vem da configuração `Agents:Launcher` (`local` ou `host`; padrão `local`).

@@ -2,11 +2,16 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
-import { GitSshStatus } from '../core/models';
+import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
+import { ExecutionEnvironment, GitSshStatus } from '../core/models';
 import { GitPage } from './git.page';
 
 const status = (over: Partial<GitSshStatus> = {}): GitSshStatus => ({
   supported: true, reason: null, hasKey: false, publicKey: null, fingerprint: null, createdAt: null, directory: '/home/app/.ssh', ...over,
+});
+
+const machine = (over: Partial<ExecutionEnvironment> = {}): ExecutionEnvironment => ({
+  id: 'e1', name: 'notebook-node22', url: 'http://192.168.0.20:8787', workspaceRoot: '/home/eu/af', tags: '', hasToken: true, projectCount: 0, createdAt: '', ...over,
 });
 
 describe('GitPage (credenciais SSH)', () => {
@@ -22,12 +27,13 @@ describe('GitPage (credenciais SSH)', () => {
     fixture.detectChanges();
   };
 
-  function open(initial: GitSshStatus): void {
+  function open(initial: GitSshStatus, environments: ExecutionEnvironment[] = []): void {
     TestBed.configureTestingModule({ providers: [provideHttpClient(), provideHttpClientTesting(), provideNoopAnimations()] });
     http = TestBed.inject(HttpTestingController);
     fixture = TestBed.createComponent(GitPage);
     fixture.detectChanges();
     http.expectOne('/api/git/ssh').flush(initial);
+    http.expectOne('/api/environments').flush({ default: { mode: 'local', description: 'container' }, items: environments });
     fixture.detectChanges();
   }
 
@@ -73,7 +79,7 @@ describe('GitPage (credenciais SSH)', () => {
   it('no modo host agent explica que o git é o do computador e não oferece gerar chave', () => {
     open(status({ supported: false, reason: 'O git roda no seu computador (host agent): ele usa as credenciais que você já configurou lá.' }));
 
-    expect(byTestId('unsupported')?.textContent).toContain('git do seu computador');
+    expect(byTestId('unsupported')?.textContent).toContain('credenciais da própria máquina');
     expect(text()).toContain('credenciais que você já configurou');
     expect(text()).not.toContain('Gerar chave SSH');
   });
@@ -86,5 +92,65 @@ describe('GitPage (credenciais SSH)', () => {
     http.expectOne('/api/git/ssh/generate').flush({ error: 'Já existe uma chave.' }, { status: 409, statusText: 'Conflict' });
 
     expect(snack).toHaveBeenCalledWith('Já existe uma chave.', 'OK', { duration: 6000 });
+  });
+
+  it('sem ambientes cadastrados não mostra o seletor; com ambientes, escolhe a máquina e usa a chave dela', () => {
+    open(status());
+    expect(byTestId('env-select')).toBeNull();
+    TestBed.resetTestingModule();
+
+    open(status(), [machine()]);
+    expect(byTestId('env-select')).not.toBeNull();
+
+    fixture.componentInstance.select('e1');
+    const reload = http.expectOne('/api/git/ssh?environmentId=e1');
+    reload.flush(status({ hasKey: true, publicKey: 'ssh-ed25519 BBBB agentforge@notebook', directory: '/home/eu/.agentforge/ssh' }));
+    fixture.detectChanges();
+
+    expect(byTestId('public-key')?.textContent).toContain('agentforge@notebook');
+    expect(text()).toContain('Chave SSH deste ambiente');
+
+    // gerar, testar e remover passam sempre pelo mesmo ambiente
+    fixture.componentInstance.generate(true);
+    expect(http.expectOne({ method: 'POST', url: '/api/git/ssh/generate?environmentId=e1' }).request.body).toEqual({ overwrite: true });
+    fixture.componentInstance.repoUrl = 'git@github.com:org/repo.git';
+    fixture.componentInstance.test();
+    http.expectOne({ method: 'POST', url: '/api/git/ssh/test?environmentId=e1' });
+  });
+
+  it('volta ao padrão do servidor sem enviar environmentId', () => {
+    open(status(), [machine()]);
+    fixture.componentInstance.select('e1');
+    http.expectOne('/api/git/ssh?environmentId=e1').flush(status());
+
+    fixture.componentInstance.select(null);
+
+    http.expectOne('/api/git/ssh').flush(status());
+    expect(fixture.componentInstance.environmentId()).toBeNull();
+  });
+
+  it('máquina fora do ar: mostra o motivo em vez de quebrar a tela', () => {
+    open(status(), [machine()]);
+
+    fixture.componentInstance.select('e1');
+    http.expectOne('/api/git/ssh?environmentId=e1')
+      .flush({ error: 'O ambiente deste projeto não existe mais.' }, { status: 409, statusText: 'Conflict' });
+    fixture.detectChanges();
+
+    expect(byTestId('unsupported')?.textContent).toContain('não existe mais');
+  });
+
+  it('abre já no ambiente do link ?environmentId= (tela Ambientes)', () => {
+    TestBed.configureTestingModule({
+      providers: [provideHttpClient(), provideHttpClientTesting(), provideNoopAnimations(), provideRouter([])],
+    });
+    TestBed.overrideProvider(ActivatedRoute, { useValue: { snapshot: { queryParamMap: convertToParamMap({ environmentId: 'e9' }) } } });
+    http = TestBed.inject(HttpTestingController);
+    fixture = TestBed.createComponent(GitPage);
+    fixture.detectChanges();
+
+    http.expectOne('/api/git/ssh?environmentId=e9').flush(status());
+    http.expectOne('/api/environments').flush({ default: { mode: 'local', description: '' }, items: [machine({ id: 'e9' })] });
+    expect(fixture.componentInstance.environmentId()).toBe('e9');
   });
 });

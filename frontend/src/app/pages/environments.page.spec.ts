@@ -2,6 +2,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
+import { provideRouter } from '@angular/router';
 import { EnvironmentList, EnvironmentTest, ExecutionEnvironment } from '../core/models';
 import { EnvironmentsPage } from './environments.page';
 
@@ -28,7 +29,7 @@ describe('EnvironmentsPage (ambientes de execução)', () => {
   const card = (testId: string) => root().querySelector(`[data-testid="${testId}"]`) as HTMLElement;
 
   function open(initial: EnvironmentList = list()): void {
-    TestBed.configureTestingModule({ providers: [provideHttpClient(), provideHttpClientTesting(), provideNoopAnimations()] });
+    TestBed.configureTestingModule({ providers: [provideHttpClient(), provideHttpClientTesting(), provideNoopAnimations(), provideRouter([])] });
     http = TestBed.inject(HttpTestingController);
     fixture = TestBed.createComponent(EnvironmentsPage);
     fixture.detectChanges();

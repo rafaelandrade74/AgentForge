@@ -1,5 +1,6 @@
 import { DatePipe } from '@angular/common';
 import { Component, inject, signal } from '@angular/core';
+import { ActivatedRoute } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDialog } from '@angular/material/dialog';
@@ -8,29 +9,33 @@ import { MatInputModule } from '@angular/material/input';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { ApiService } from '../core/api.service';
 import { GitAccessResult, GitSshStatus } from '../core/models';
+import { EnvironmentSelectComponent } from '../shared/environment-select.component';
 import { ActionDialogComponent, BadgeComponent } from '../shared/shared';
 
 @Component({
   selector: 'app-git-page',
   standalone: true,
-  imports: [FormsModule, DatePipe, MatButtonModule, MatFormFieldModule, MatInputModule, BadgeComponent],
+  imports: [FormsModule, DatePipe, MatButtonModule, MatFormFieldModule, MatInputModule, BadgeComponent, EnvironmentSelectComponent],
   template: `
     <div class="page">
       <h1>Credenciais Git</h1>
       <p class="muted">
-        Para o AgentForge clonar repositórios <strong>privados</strong> por SSH. A chave é gerada no servidor e a parte privada
-        <strong>nunca sai dele</strong>: você só copia a chave pública e a autoriza no GitHub (ou GitLab).
+        Para o AgentForge clonar repositórios <strong>privados</strong> por SSH. A chave é gerada na máquina do ambiente (o servidor
+        ou uma máquina com host agent) e a parte privada <strong>nunca sai dela</strong>: você só copia a chave pública e a
+        autoriza no GitHub (ou GitLab). Cada ambiente tem a sua chave.
       </p>
+
+      <app-environment-select [value]="environmentId()" (changed)="select($event)" />
 
       @if (status(); as s) {
         @if (!s.supported) {
           <section class="card" data-testid="unsupported">
-            <app-badge label="usando o git do seu computador" tone="info" />
+            <app-badge label="usando as credenciais da própria máquina" tone="info" />
             <p>{{ s.reason }}</p>
           </section>
         } @else {
           <section class="card">
-            <h2>Chave SSH do AgentForge</h2>
+            <h2>Chave SSH{{ environmentId() ? ' deste ambiente' : ' do AgentForge' }}</h2>
             @if (!s.hasKey) {
               <p class="muted">Ainda não há chave. Gere uma para poder usar URLs como <span class="mono">git&#64;github.com:organizacao/repositorio.git</span>.</p>
               <button mat-flat-button type="button" [disabled]="busy()" (click)="generate(false)">Gerar chave SSH</button>
@@ -111,15 +116,31 @@ export class GitPage {
   readonly result = signal<GitAccessResult | null>(null);
   readonly busy = signal(false);
   readonly testing = signal(false);
+  /** Máquina em que a tela trabalha; nulo = padrão do servidor. Pode vir de ?environmentId= (link da tela Ambientes). */
+  readonly environmentId = signal<string | null>(inject(ActivatedRoute, { optional: true })?.snapshot.queryParamMap.get('environmentId') ?? null);
   repoUrl = '';
 
   constructor() {
-    this.api.gitSsh().subscribe((s) => this.status.set(s));
+    this.load();
+  }
+
+  select(environmentId: string | null): void {
+    this.environmentId.set(environmentId);
+    this.result.set(null);
+    this.load();
+  }
+
+  private load(): void {
+    this.status.set(null);
+    this.api.gitSsh(this.environmentId()).subscribe({
+      next: (s) => this.status.set(s),
+      error: (err) => this.status.set({ supported: false, reason: err?.error?.error ?? 'Não foi possível ler o estado da chave.', hasKey: false, publicKey: null, fingerprint: null, createdAt: null, directory: '' }),
+    });
   }
 
   generate(overwrite: boolean): void {
     this.busy.set(true);
-    this.api.generateGitSsh(overwrite).subscribe({
+    this.api.generateGitSsh(overwrite, this.environmentId()).subscribe({
       next: (s) => {
         this.busy.set(false);
         this.status.set(s);
@@ -154,7 +175,7 @@ export class GitPage {
       .afterClosed()
       .subscribe((ok) => {
         if (!ok) return;
-        this.api.deleteGitSsh().subscribe((s) => {
+        this.api.deleteGitSsh(this.environmentId()).subscribe((s) => {
           this.status.set(s);
           this.result.set(null);
         });
@@ -165,7 +186,7 @@ export class GitPage {
     if (!this.repoUrl.trim()) return;
     this.testing.set(true);
     this.result.set(null);
-    this.api.testGitAccess(this.repoUrl.trim()).subscribe({
+    this.api.testGitAccess(this.repoUrl.trim(), this.environmentId()).subscribe({
       next: (r) => {
         this.testing.set(false);
         this.result.set(r);

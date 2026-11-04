@@ -68,7 +68,7 @@ public class CliAgentRunner(
                 ? await environments.ResolveAsync(
                     await db.Projects.AsNoTracking().Where(p => p.Id == projectId).Select(p => p.EnvironmentId).FirstOrDefaultAsync(linked.Token),
                     linked.Token)
-                : environments.Default;
+                : await environments.ResolveAsync(request.EnvironmentId, linked.Token);
 
             // o prompt vai pelo stdin (e o stdin fecha)
             await using var process = await target.Launcher.StartAsync(

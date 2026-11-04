@@ -65,6 +65,12 @@ const EMPTY: ProjectInput = { name: '', repositoryUrl: '', baseBranch: 'main', b
                   @for (e of environments(); track e.id) { <mat-option [value]="e.id">{{ e.name }}</mat-option> }
                 </mat-select>
               </mat-form-field>
+              @if (environmentChanged()) {
+                <p class="muted small env-hint" data-testid="env-change-hint">
+                  O clone atual continua na máquina anterior (não é movido): o próximo uso clona o repositório na nova máquina, que precisa
+                  ter acesso a ele — gere a chave dela na tela Git e autorize-a no GitHub.
+                </p>
+              }
               <mat-checkbox name="autoMode" [(ngModel)]="draft.autoMode">
                 Modo automático (sem aprovações humanas)
               </mat-checkbox>
@@ -128,6 +134,7 @@ export class ProjectsPage {
   readonly importOpen = signal(false);
   private readonly router = inject(Router);
   draft: ProjectInput = { ...EMPTY };
+  private originalEnvironmentId: string | null = null;
 
   constructor() {
     this.load();
@@ -159,9 +166,15 @@ export class ProjectsPage {
     this.openForm(p.id, { name: p.name, repositoryUrl: p.repositoryUrl, baseBranch: p.baseBranch, buildCommand: p.buildCommand, testCommand: p.testCommand, autoMode: p.autoMode, environmentId: p.environmentId ?? null });
   }
 
+  /** Editando um projeto e trocando a máquina dele: avisa o que acontece com o clone existente. */
+  environmentChanged(): boolean {
+    return this.editingId() !== null && (this.draft.environmentId ?? null) !== this.originalEnvironmentId;
+  }
+
   private openForm(id: string | null, draft: ProjectInput): void {
     this.editingId.set(id);
     this.draft = draft;
+    this.originalEnvironmentId = draft.environmentId ?? null;
     this.formOpen.set(true);
   }
 

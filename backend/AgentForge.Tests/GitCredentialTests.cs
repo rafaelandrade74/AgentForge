@@ -98,7 +98,7 @@ public sealed class GitCredentialServiceTests : IDisposable
         var status = await service.GetStatusAsync(default);
 
         Assert.False(status.Supported);
-        Assert.Contains("computador", status.Reason);
+        Assert.Contains("inacessível", status.Reason);
         await Assert.ThrowsAsync<GitCredentialException>(() => service.GenerateAsync(false, default));
         await Assert.ThrowsAsync<GitCredentialException>(() => service.DeleteAsync(default));
     }

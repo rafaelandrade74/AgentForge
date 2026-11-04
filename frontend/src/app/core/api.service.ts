@@ -5,6 +5,11 @@ import {
   AgentInfo, AgentTestResult, ApiTokenInfo, CreatedApiToken, Demand, EnvironmentInput, EnvironmentList, EnvironmentTest, ExecutionEnvironment, Finding, GitAccessResult, GitHubImportRequest, GitHubImportResult, GitHubRepo, GitSshStatus, LoginSession, McpToolInfo, Project, ProjectInput, RoleConfig, Run, RunSummary, WorkItem,
 } from './models';
 
+/** Parâmetros de query com o ambiente escolhido; sem ambiente (padrão do servidor) a URL fica exatamente como antes. */
+function envParams(environmentId?: string | null, extra: Record<string, string> = {}): Record<string, string> {
+  return environmentId ? { ...extra, environmentId } : extra;
+}
+
 /** Chamadas REST da API (o interceptor de auth anexa o token). */
 @Injectable({ providedIn: 'root' })
 export class ApiService {
@@ -42,15 +47,22 @@ export class ApiService {
   findings = (workItemId: string) => this.http.get<Finding[]>('/api/review-findings', { params: { workItemId } });
 
   // agentes (CLIs): status, teste e login por link
-  agents = () => this.http.get<AgentInfo[]>('/api/agents');
-  agentEnvironment = () => this.http.get<{ mode: 'local' | 'host'; description: string }>('/api/agents/environment');
-  agent = (name: string, refresh = false) => this.http.get<AgentInfo>(`/api/agents/${name}`, { params: { refresh } });
-  testAgent = (name: string) => this.http.post<AgentTestResult>(`/api/agents/${name}/test`, null);
-  startLogin = (name: string) => this.http.post<LoginSession>(`/api/agents/${name}/login`, null);
-  sendLoginCode = (name: string, sessionId: string, code: string) =>
-    this.http.post<LoginSession>(`/api/agents/${name}/login/${sessionId}/code`, { code });
-  cancelLogin = (name: string, sessionId: string) => this.http.delete<LoginSession>(`/api/agents/${name}/login/${sessionId}`);
-  logoutAgent = (name: string) => this.http.post<AgentInfo>(`/api/agents/${name}/logout`, null);
+  // environmentId (opcional) escolhe a máquina (cada uma tem o seu login); sem ele vale o ambiente padrão do servidor
+  agents = (environmentId?: string | null) => this.http.get<AgentInfo[]>('/api/agents', { params: envParams(environmentId) });
+  agentEnvironment = (environmentId?: string | null) =>
+    this.http.get<{ mode: 'local' | 'host'; description: string }>('/api/agents/environment', { params: envParams(environmentId) });
+  agent = (name: string, refresh = false, environmentId?: string | null) =>
+    this.http.get<AgentInfo>(`/api/agents/${name}`, { params: envParams(environmentId, { refresh: String(refresh) }) });
+  testAgent = (name: string, environmentId?: string | null) =>
+    this.http.post<AgentTestResult>(`/api/agents/${name}/test`, null, { params: envParams(environmentId) });
+  startLogin = (name: string, environmentId?: string | null) =>
+    this.http.post<LoginSession>(`/api/agents/${name}/login`, null, { params: envParams(environmentId) });
+  sendLoginCode = (name: string, sessionId: string, code: string, environmentId?: string | null) =>
+    this.http.post<LoginSession>(`/api/agents/${name}/login/${sessionId}/code`, { code }, { params: envParams(environmentId) });
+  cancelLogin = (name: string, sessionId: string, environmentId?: string | null) =>
+    this.http.delete<LoginSession>(`/api/agents/${name}/login/${sessionId}`, { params: envParams(environmentId) });
+  logoutAgent = (name: string, environmentId?: string | null) =>
+    this.http.post<AgentInfo>(`/api/agents/${name}/logout`, null, { params: envParams(environmentId) });
 
   // integração (MCP): tokens de acesso e catálogo de ferramentas
   apiTokens = () => this.http.get<ApiTokenInfo[]>('/api/tokens');
@@ -60,10 +72,12 @@ export class ApiService {
     this.http.post<{ result: { tools: McpToolInfo[] } }>('/mcp', { jsonrpc: '2.0', id: 1, method: 'tools/list' });
 
   // credenciais Git (chave SSH gerada no servidor)
-  gitSsh = () => this.http.get<GitSshStatus>('/api/git/ssh');
-  generateGitSsh = (overwrite = false) => this.http.post<GitSshStatus>('/api/git/ssh/generate', { overwrite });
-  deleteGitSsh = () => this.http.delete<GitSshStatus>('/api/git/ssh');
-  testGitAccess = (repositoryUrl: string) => this.http.post<GitAccessResult>('/api/git/ssh/test', { repositoryUrl });
+  gitSsh = (environmentId?: string | null) => this.http.get<GitSshStatus>('/api/git/ssh', { params: envParams(environmentId) });
+  generateGitSsh = (overwrite = false, environmentId?: string | null) =>
+    this.http.post<GitSshStatus>('/api/git/ssh/generate', { overwrite }, { params: envParams(environmentId) });
+  deleteGitSsh = (environmentId?: string | null) => this.http.delete<GitSshStatus>('/api/git/ssh', { params: envParams(environmentId) });
+  testGitAccess = (repositoryUrl: string, environmentId?: string | null) =>
+    this.http.post<GitAccessResult>('/api/git/ssh/test', { repositoryUrl }, { params: envParams(environmentId) });
 
   // ambientes de execução
   environments = () => this.http.get<EnvironmentList>('/api/environments');

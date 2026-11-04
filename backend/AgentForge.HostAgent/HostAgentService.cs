@@ -17,6 +17,16 @@ public class HostAgentOptions
 
     /// <summary>Nome lógico -> caminho do binário. Só estes nomes podem ser executados. Padrão: claude e git pelo PATH.</summary>
     public Dictionary<string, string> Executables { get; set; } = new() { ["claude"] = "claude", ["git"] = "git" };
+
+    /// <summary>
+    /// Pasta da chave SSH que ESTE host agent gera por pedido da API (a privada nunca sai daqui). O `git` iniciado por ele usa
+    /// a chave se ela existir; sem ela, vale o que já está configurado no computador. Padrão: ~/.agentforge/ssh.
+    /// </summary>
+    public string SshDir { get; set; } = "";
+
+    public string ResolvedSshDir() => string.IsNullOrWhiteSpace(SshDir)
+        ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile) is { Length: > 0 } home ? home : Path.GetTempPath(), ".agentforge", "ssh")
+        : SshDir;
 }
 
 public sealed class PathGuard

@@ -238,7 +238,7 @@ public sealed class HostAgentTests(PostgresFixture pg) : IAsyncLifetime
         await using var provider = services.BuildServiceProvider();
         var service = provider.GetRequiredService<AgentCliService>();
 
-        Assert.Equal("host", service.Environment.Mode);
+        Assert.Equal("host", (await service.EnvironmentAsync(null, default)).Mode);
         Assert.False((await service.GetAsync("fake-cli", force: true, default)).Authenticated);
 
         var started = await service.StartLoginAsync("fake-cli", default);

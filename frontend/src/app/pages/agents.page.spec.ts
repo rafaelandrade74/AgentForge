@@ -2,7 +2,8 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
-import { AgentInfo, RoleConfig } from '../core/models';
+import { AgentInfo, ExecutionEnvironment, RoleConfig } from '../core/models';
+import { AgentsService } from '../core/agents.service';
 import { AgentsPage } from './agents.page';
 
 const agent = (over: Partial<AgentInfo> = {}): AgentInfo => ({
@@ -27,7 +28,7 @@ describe('AgentsPage', () => {
     fixture.detectChanges();
   };
 
-  function open(agents: AgentInfo[]): void {
+  function open(agents: AgentInfo[], environments: ExecutionEnvironment[] = []): void {
     TestBed.configureTestingModule({ providers: [provideHttpClient(), provideHttpClientTesting(), provideNoopAnimations()] });
     http = TestBed.inject(HttpTestingController);
     fixture = TestBed.createComponent(AgentsPage);
@@ -35,6 +36,7 @@ describe('AgentsPage', () => {
     http.expectOne('/api/role-configs').flush([roleConfig('Dev'), roleConfig('Qa')]);
     http.expectOne('/api/agents/environment').flush({ mode: 'host', description: 'no computador, pelo host agent (host.docker.internal:8787, Windows)' });
     http.expectOne('/api/agents').flush(agents);
+    http.expectOne('/api/environments').flush({ default: { mode: 'host', description: '' }, items: environments });
     fixture.detectChanges();
   }
 
@@ -141,5 +143,58 @@ describe('AgentsPage', () => {
     put.flush({ error: 'x' }, { status: 400, statusText: 'Bad Request' });
 
     expect(page.configs().find((c) => c.role === 'Dev')!.adapterName).toBe('claude-code');
+  });
+
+  it('escolher uma máquina consulta, testa e conecta o agente DAQUELA máquina, sem mexer no aviso global do servidor', () => {
+    const machine: ExecutionEnvironment = {
+      id: 'e1', name: 'notebook-node22', url: 'http://192.168.0.20:8787', workspaceRoot: '/home/eu/af', tags: '', hasToken: true, projectCount: 0, createdAt: '',
+    };
+    open([agent({ authenticated: true, lastTest: { ok: true, message: 'OK', durationMs: 1, costUsd: 0, at: '' } })], [machine]);
+    const shared = TestBed.inject(AgentsService);
+    expect(shared.agents()?.[0].authenticated).toBeTrue();
+
+    fixture.componentInstance.select('e1');
+    http.expectOne('/api/agents/environment?environmentId=e1').flush({ mode: 'host', description: 'no computador, pelo host agent (192.168.0.20:8787)' });
+    http.expectOne('/api/agents?environmentId=e1').flush([agent({ authenticated: false })]);
+    fixture.detectChanges();
+
+    expect(text()).toContain('Não conectado');
+    expect(shared.agents()?.[0].authenticated).toBeTrue();   // o aviso da barra continua sendo o do servidor
+
+    click('Conectar');
+    http.expectOne({ method: 'POST', url: '/api/agents/claude-code/login?environmentId=e1' })
+      .flush({ sessionId: 's1', url: 'https://claude.ai/login', state: 'WaitingForCode', message: null });
+    fixture.detectChanges();
+
+    fixture.componentInstance.setCode('claude-code', 'abc123');
+    fixture.detectChanges();
+    click('Confirmar');
+    http.expectOne({ method: 'POST', url: '/api/agents/claude-code/login/s1/code?environmentId=e1' })
+      .flush({ sessionId: 's1', url: null, state: 'Succeeded', message: 'Conectado.' });
+    http.expectOne('/api/agents/claude-code?refresh=true&environmentId=e1')
+      .flush(agent({ authenticated: true }));
+    http.expectOne({ method: 'POST', url: '/api/agents/claude-code/test?environmentId=e1' })
+      .flush({ ok: true, message: 'OK', durationMs: 1, costUsd: 0, at: '' });
+    fixture.detectChanges();
+
+    expect(text()).toContain('Conectado');
+    expect(shared.agents()?.[0].authenticated).toBeTrue();
+  });
+
+  it('máquina offline: mostra o motivo real, não "reconstrua a imagem"', () => {
+    const machine: ExecutionEnvironment = {
+      id: 'e1', name: 'notebook', url: 'http://192.168.0.20:8787', workspaceRoot: '/x', tags: '', hasToken: true, projectCount: 0, createdAt: '',
+    };
+    open([agent({ authenticated: true, lastTest: { ok: true, message: 'OK', durationMs: 1, costUsd: 0, at: '' } })], [machine]);
+
+    fixture.componentInstance.select('e1');
+    http.expectOne('/api/agents/environment?environmentId=e1').flush({ mode: 'host', description: 'host agent' });
+    http.expectOne('/api/agents?environmentId=e1')
+      .flush([agent({ installed: false, version: null, authenticated: false, detail: 'Host agent inacessível em http://192.168.0.20:8787/' })]);
+    fixture.detectChanges();
+
+    expect(text()).toContain('Host agent inacessível');
+    expect(text()).toContain('tela Ambientes');
+    expect(text()).not.toContain('Reconstrua a imagem');
   });
 });

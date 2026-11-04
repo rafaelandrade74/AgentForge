@@ -54,9 +54,7 @@ public static class GitHubEndpoints
 
                 var notes = new List<string>();
                 var deployKeyAdded = false;
-                if (repo.Private && req.EnvironmentId is not null)
-                    notes.Add("O projeto roda em outro ambiente: a chave SSH do servidor não vale lá. A máquina precisa ter acesso ao repositório (chave ou credenciais do git dela).");
-                else if (repo.Private) deployKeyAdded = await PrepareAccessAsync(req, token, repo, github, git, notes, ct);
+                if (repo.Private) deployKeyAdded = await PrepareAccessAsync(req, token, repo, github, git, notes, ct);
 
                 var project = new Project
                 {
@@ -83,24 +81,33 @@ public static class GitHubEndpoints
             {
                 return Failure(ex);
             }
+            catch (GitCredentialException ex)
+            {
+                return Results.Json(new { error = $"O projeto não foi criado: {ex.Message}" }, statusCode: StatusCodes.Status502BadGateway);
+            }
         }).WithSummary("Cadastra um repositório do GitHub como projeto e já o clona (gera/autoriza a chave SSH, se for privado).");
     }
 
-    /// <summary>Repositório privado: garante a chave SSH e, se pedido, registra-a como deploy key somente leitura.</summary>
+    /// <summary>
+    /// Repositório privado: garante a chave SSH DA MÁQUINA do ambiente escolhido (a do servidor, se não houver) e, se pedido,
+    /// registra-a como deploy key somente leitura.
+    /// </summary>
     private static async Task<bool> PrepareAccessAsync(GitHubImportRequest req, string? token, GitHubRepo repo, GitHubClient github,
         GitCredentialService git, List<string> notes, CancellationToken ct)
     {
-        var status = await git.GetStatusAsync(ct);
+        var status = await git.GetStatusAsync(req.EnvironmentId, ct);
         if (!status.Supported)
         {
-            notes.Add("O git roda no seu computador: o clone usa as credenciais que você já configurou lá.");
+            notes.Add(req.EnvironmentId is null
+                ? "O git roda no seu computador: o clone usa as credenciais que você já configurou lá."
+                : $"Não foi possível preparar a chave SSH desse ambiente ({status.Reason}). O clone usa as credenciais que a máquina já tiver.");
             return false;
         }
 
         if (!status.HasKey)
         {
-            status = await git.GenerateAsync(overwrite: false, ct);
-            notes.Add("Chave SSH do AgentForge gerada.");
+            status = await git.GenerateAsync(req.EnvironmentId, overwrite: false, ct);
+            notes.Add(req.EnvironmentId is null ? "Chave SSH do AgentForge gerada." : "Chave SSH gerada na máquina do ambiente.");
         }
 
         if (!req.AddDeployKey || token is null)

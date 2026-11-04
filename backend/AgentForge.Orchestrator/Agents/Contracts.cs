@@ -17,7 +17,9 @@ public record AgentRequest(
     TimeSpan? Timeout = null,
     Guid? ProjectId = null,
     /// <summary>Execução avulsa (ex.: teste da conexão): não grava AgentRun nem publica eventos.</summary>
-    bool Ephemeral = false)
+    bool Ephemeral = false,
+    /// <summary>Ambiente onde rodar quando não há projeto (ex.: teste de conexão de uma máquina). Com projeto, vale o do projeto.</summary>
+    Guid? EnvironmentId = null)
 {
     public static AgentRequest FromConfig(AgentRoleConfig config, string prompt, string workingDirectory,
         Guid? demandId = null, Guid? workItemId = null, TimeSpan? timeout = null, Guid? projectId = null) =>

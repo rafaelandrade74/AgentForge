@@ -26,14 +26,15 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<IProcessLauncher>(_ => agents.CreateLauncher(git.SshDir));
         services.TryAddSingleton<IEnvironmentLaunchers>(sp => new EnvironmentLaunchers(
             sp.GetRequiredService<IProcessLauncher>(), sp.GetRequiredService<IServiceScopeFactory>(), sp.GetService<ISecretProtector>()));
-        services.TryAddSingleton<GitCredentialService>();
+        services.TryAddSingleton(sp => new GitCredentialService(sp.GetRequiredService<IEnvironmentLaunchers>(), sp.GetRequiredService<GitOptions>()));
         services.AddSingleton<ICliAgentAdapter, ClaudeCodeAdapter>();
         services.TryAddSingleton<AgentAdapterRegistry>();
         services.TryAddSingleton<IAgentEventPublisher, NullAgentEventPublisher>();
         services.TryAddScoped<IAgentRunner>(sp => new CliAgentRunner(sp.GetRequiredService<AgentAdapterRegistry>(),
             sp.GetRequiredService<AppDbContext>(), sp.GetRequiredService<IAgentEventPublisher>(),
             sp.GetRequiredService<IEnvironmentLaunchers>(), sp.GetRequiredService<ILogger<CliAgentRunner>>()));
-        services.TryAddSingleton<AgentCliService>();
+        services.TryAddSingleton(sp => new AgentCliService(sp.GetRequiredService<AgentAdapterRegistry>(),
+            sp.GetRequiredService<IServiceScopeFactory>(), sp.GetRequiredService<IEnvironmentLaunchers>(), sp.GetRequiredService<ILogger<AgentCliService>>()));
         return services;
     }
 

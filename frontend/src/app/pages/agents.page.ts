@@ -1,4 +1,5 @@
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, inject, signal } from '@angular/core';
+import { ActivatedRoute } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -9,6 +10,7 @@ import { ApiService } from '../core/api.service';
 import { AgentsService } from '../core/agents.service';
 import { ROLE_LABEL, formatDuration, formatUsd } from '../core/labels';
 import { AgentInfo, AgentRole, AgentTestResult, LoginSession, RoleConfig } from '../core/models';
+import { EnvironmentSelectComponent } from '../shared/environment-select.component';
 import { BadgeComponent } from '../shared/shared';
 
 interface LoginUi {
@@ -21,14 +23,16 @@ interface LoginUi {
 @Component({
   selector: 'app-agents-page',
   standalone: true,
-  imports: [FormsModule, MatButtonModule, MatFormFieldModule, MatInputModule, MatSelectModule, BadgeComponent],
+  imports: [FormsModule, MatButtonModule, MatFormFieldModule, MatInputModule, MatSelectModule, BadgeComponent, EnvironmentSelectComponent],
   template: `
     <div class="page">
       <h1>Agentes</h1>
       <p class="muted">
-        Os papéis rodam no CLI de um agente instalado no servidor. Aqui você vê se ele já está conectado, testa na hora e,
-        se precisar, entra pelo link — sem chave de API.
+        Os papéis rodam no CLI de um agente instalado no servidor ou em outra máquina (ambiente). Cada máquina tem o seu login:
+        aqui você vê se o agente já está conectado, testa na hora e, se precisar, entra pelo link — sem chave de API.
       </p>
+
+      <app-environment-select [value]="environmentId()" (changed)="select($event)" />
 
       @if (environment(); as env) {
         <p class="env small" data-testid="environment">
@@ -57,7 +61,10 @@ interface LoginUi {
             <p class="muted">Conta: {{ a.detail }}@if (a.authMethod) { · {{ a.authMethod }} }</p>
           }
           @if (!a.installed) {
-            <p class="bad-text">{{ a.detail }} Reconstrua a imagem da API com o CLI instalado.</p>
+            <p class="bad-text">
+              {{ a.detail }}
+              {{ environmentId() ? 'Confira o host agent e o CLI dessa máquina (tela Ambientes → Testar).' : 'Reconstrua a imagem da API com o CLI instalado.' }}
+            </p>
           }
 
           @if (a.installed && a.authenticated) {
@@ -160,7 +167,12 @@ export class AgentsPage {
   private readonly shared = inject(AgentsService);
   private readonly snack = inject(MatSnackBar);
 
-  readonly agents = computed(() => this.shared.agents() ?? []);
+  /** Agentes do ambiente escolhido. Só o ambiente padrão alimenta o estado global (o aviso da barra lateral). */
+  private readonly list = signal<AgentInfo[] | null>(null);
+  readonly agents = () => this.list() ?? [];
+  /** Máquina em que a tela trabalha; nulo = padrão do servidor. Pode vir de ?environmentId= (link da tela Ambientes). */
+  readonly environmentId = signal<string | null>(
+    inject(ActivatedRoute, { optional: true })?.snapshot.queryParamMap.get('environmentId') ?? null);
   readonly configs = signal<RoleConfig[]>([]);
   readonly testing = signal<Record<string, boolean>>({});
   readonly environment = signal<{ mode: 'local' | 'host'; description: string } | null>(null);
@@ -175,14 +187,28 @@ export class AgentsPage {
       const order = Object.keys(ROLE_LABEL);
       this.configs.set(c.filter((x) => x.role !== 'Human').sort((a, b) => order.indexOf(a.role) - order.indexOf(b.role)));
     });
-    this.api.agentEnvironment().subscribe({ next: (e) => this.environment.set(e), error: () => undefined });
-    this.api.agents().subscribe({
+    this.load();
+  }
+
+  select(environmentId: string | null): void {
+    this.environmentId.set(environmentId);
+    this.logins.set({});
+    this.testing.set({});
+    this.load();
+  }
+
+  private load(): void {
+    const env = this.environmentId();
+    this.list.set(null);
+    this.environment.set(null);
+    this.api.agentEnvironment(env).subscribe({ next: (e) => this.environment.set(e), error: () => undefined });
+    this.api.agents(env).subscribe({
       next: (list) => {
-        this.shared.agents.set(list);
+        this.setList(list);
         // já conectado e ainda sem teste: testa agora (o servidor guarda o resultado, então não repete a cada visita)
         for (const a of list) if (a.installed && a.authenticated && !a.lastTest) this.test(a);
       },
-      error: () => this.snack.open('Não foi possível carregar os agentes.', 'OK', { duration: 5000 }),
+      error: (err) => this.snack.open(err?.error?.error ?? 'Não foi possível carregar os agentes.', 'OK', { duration: 5000 }),
     });
   }
 
@@ -194,7 +220,7 @@ export class AgentsPage {
 
   test(a: AgentInfo): void {
     this.testing.update((t) => ({ ...t, [a.name]: true }));
-    this.api.testAgent(a.name).subscribe({
+    this.api.testAgent(a.name, this.environmentId()).subscribe({
       next: (result) => this.finishTest(a.name, result),
       error: () => this.finishTest(a.name, { ok: false, message: 'Não foi possível executar o teste.', durationMs: 0, costUsd: 0, at: new Date().toISOString() }),
     });
@@ -202,14 +228,14 @@ export class AgentsPage {
 
   private finishTest(name: string, result: AgentTestResult): void {
     this.testing.update((t) => ({ ...t, [name]: false }));
-    this.shared.agents.update((list) => (list ?? []).map((x) => (x.name === name ? { ...x, lastTest: result } : x)));
+    this.setList((this.list() ?? []).map((x) => (x.name === name ? { ...x, lastTest: result } : x)));
   }
 
   // ---- login por link
 
   startLogin(a: AgentInfo): void {
     this.setLogin(a.name, { session: null, code: '', busy: false, error: null });
-    this.api.startLogin(a.name).subscribe({
+    this.api.startLogin(a.name, this.environmentId()).subscribe({
       next: (session) => {
         const waiting = session.state === 'WaitingForCode';
         this.setLogin(a.name, { session, code: '', busy: false, error: waiting ? null : session.message ?? 'Não foi possível iniciar o login.' });
@@ -227,7 +253,7 @@ export class AgentsPage {
     const ui = this.logins()[a.name];
     if (!ui?.session || !ui.code.trim() || ui.busy) return;
     this.setLogin(a.name, { ...ui, busy: true, error: null });
-    this.api.sendLoginCode(a.name, ui.session.sessionId, ui.code.trim()).subscribe({
+    this.api.sendLoginCode(a.name, ui.session.sessionId, ui.code.trim(), this.environmentId()).subscribe({
       next: (session) => {
         if (session.state === 'Succeeded') {
           this.clearLogin(a.name);
@@ -245,22 +271,31 @@ export class AgentsPage {
 
   cancelLogin(a: AgentInfo): void {
     const ui = this.logins()[a.name];
-    if (ui?.session) this.api.cancelLogin(a.name, ui.session.sessionId).subscribe({ error: () => undefined });
+    if (ui?.session) this.api.cancelLogin(a.name, ui.session.sessionId, this.environmentId()).subscribe({ error: () => undefined });
     this.clearLogin(a.name);
   }
 
   private reloadAndTest(name: string): void {
-    this.api.agent(name, true).subscribe((info) => {
-      this.shared.replace(info);
+    this.api.agent(name, true, this.environmentId()).subscribe((info) => {
+      this.replace(info);
       if (info.installed && info.authenticated) this.test(info);
     });
   }
 
   logout(a: AgentInfo): void {
-    this.api.logoutAgent(a.name).subscribe({
-      next: (info) => this.shared.replace(info),
+    this.api.logoutAgent(a.name, this.environmentId()).subscribe({
+      next: (info) => this.replace(info),
       error: () => this.snack.open('Não foi possível desconectar.', 'OK', { duration: 5000 }),
     });
+  }
+
+  private setList(list: AgentInfo[]): void {
+    this.list.set(list);
+    if (this.environmentId() === null) this.shared.agents.set(list);
+  }
+
+  private replace(info: AgentInfo): void {
+    this.setList((this.list() ?? []).map((a) => (a.name === info.name ? { ...info, usedByRoles: a.usedByRoles } : a)));
   }
 
   private setLogin(name: string, ui: LoginUi): void {

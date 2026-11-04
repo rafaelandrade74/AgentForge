@@ -1,6 +1,6 @@
 # Plano: ambientes de execução por stack
 
-Continuação das fases do projeto (0 a 9 concluídas). Cada fase tem ADR, testes e commit `fase-N: <resumo>`; paramos para
+Continuação das fases do projeto (0 a 9 concluídas; 10 e 11 feitas). Cada fase tem ADR, testes e commit `fase-N: <resumo>`; paramos para
 validação antes da seguinte.
 
 **Decisões já tomadas:** o token de cada máquina fica no banco, **criptografado** (Data Protection, chaves em volume próprio);
@@ -13,10 +13,11 @@ Entidade `ExecutionEnvironment`, `Project.EnvironmentId`, resolução do launche
 Pronto quando: dois projetos rodam em máquinas diferentes na mesma instalação; máquina offline deixa a execução falhando com motivo;
 instalações existentes continuam funcionando sem mexer em nada.
 
-## Fase 11 — Git e workspaces por ambiente
-Clone, worktree e diff já ocorrem na máquina do projeto (fase 10); falta o resto: **chave SSH gerada e testada por ambiente**
-(a tela **Git** escolhe o ambiente), importação do GitHub autorizando a deploy key da máquina escolhida, aviso/migração ao trocar
-o ambiente de um projeto com clone existente, e **login do Claude por ambiente** (tela **Agentes** escolhe o ambiente).
+## Fase 11 — Git e login por ambiente (feita; ADR 0018)
+Clone, worktree e diff já ocorrem na máquina do projeto (fase 10). Agora: **chave SSH gerada e testada por ambiente** (o host agent
+gera e guarda a dele; a tela **Git** escolhe o ambiente), importação do GitHub registrando a deploy key da máquina escolhida, aviso
+ao trocar o ambiente de um projeto com clone existente (o clone não é movido) e **login do Claude por ambiente** (tela **Agentes**
+escolhe o ambiente; status, teste e sessões de login isolados).
 Pronto quando: o ciclo completo (clone de repositório privado, worktree, agente, diff) roda num host agent remoto e há testes de
 isolamento entre ambientes.
 

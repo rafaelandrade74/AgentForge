@@ -6,6 +6,7 @@ import { MatDialog } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSnackBar } from '@angular/material/snack-bar';
+import { RouterLink } from '@angular/router';
 import { ApiService } from '../core/api.service';
 import { EnvironmentInput, EnvironmentList, EnvironmentTest, ExecutionEnvironment } from '../core/models';
 import { ActionDialogComponent, BadgeComponent } from '../shared/shared';
@@ -15,7 +16,7 @@ const EMPTY: EnvironmentInput = { name: '', url: '', token: '', workspaceRoot: '
 @Component({
   selector: 'app-environments-page',
   standalone: true,
-  imports: [FormsModule, NgTemplateOutlet, MatButtonModule, MatFormFieldModule, MatInputModule, BadgeComponent],
+  imports: [FormsModule, NgTemplateOutlet, RouterLink, MatButtonModule, MatFormFieldModule, MatInputModule, BadgeComponent],
   template: `
     <div class="page">
       <div class="row">
@@ -86,6 +87,8 @@ const EMPTY: EnvironmentInput = { name: '', url: '', token: '', workspaceRoot: '
               @for (t of tags(e); track t) { <app-badge [label]="t" /> }
               <span class="spacer"></span>
               <button mat-button type="button" [disabled]="testing() === e.id" (click)="test(e.id)">Testar</button>
+              <a mat-button routerLink="/git" [queryParams]="{ environmentId: e.id }">Chave Git</a>
+              <a mat-button routerLink="/agents" [queryParams]="{ environmentId: e.id }">Login do agente</a>
               <button mat-button type="button" (click)="edit(e)">Editar</button>
               <button mat-button type="button" (click)="remove(e)">Excluir</button>
             </div>

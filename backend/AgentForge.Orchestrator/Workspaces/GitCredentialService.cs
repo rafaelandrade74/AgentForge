@@ -1,5 +1,5 @@
-using System.Runtime.InteropServices;
 using AgentForge.Execution;
+using AgentForge.Orchestrator.Environments;
 
 namespace AgentForge.Orchestrator.Workspaces;
 
@@ -28,82 +28,143 @@ public record GitAccessResult(bool Ok, string Message);
 public class GitCredentialException(string message) : Exception(message);
 
 /// <summary>
-/// Credenciais Git do AgentForge para repositórios privados por SSH: gera uma chave ed25519 (a privada nunca sai do
-/// servidor; só a pública é mostrada, para colar no GitHub/GitLab) e testa o acesso a um repositório. Só vale quando o
-/// git roda aqui ("local"); no modo host agent o git é o do computador, com as credenciais dele.
+/// Credenciais Git do AgentForge para repositórios privados por SSH, POR AMBIENTE: gera uma chave ed25519 na máquina onde
+/// o git roda (a privada nunca sai dela; só a pública é mostrada, para colar no GitHub/GitLab) e testa o acesso a um
+/// repositório. No ambiente padrão local a chave fica na pasta <see cref="GitOptions.SshDir"/>; numa máquina com host
+/// agent, o próprio host agent gera e guarda a chave dele. Cada ambiente tem a sua, então um não enxerga a do outro.
 /// </summary>
-public sealed class GitCredentialService(IProcessLauncher launcher, GitOptions options)
+public sealed class GitCredentialService(IEnvironmentLaunchers environments, GitOptions options)
 {
-    private const string KeyName = "id_ed25519";
     private static readonly TimeSpan CommandTimeout = TimeSpan.FromSeconds(30);
 
-    private string Dir => options.SshDir;
-    private string PrivateKeyPath => Path.Combine(Dir, KeyName);
-    private string PublicKeyPath => PrivateKeyPath + ".pub";
-    private bool Supported => launcher.Mode == "local";
+    /// <summary>Um ambiente só, com o launcher dado (testes e instalações sem ambientes cadastrados).</summary>
+    public GitCredentialService(IProcessLauncher launcher, GitOptions options) : this(new SingleEnvironment(launcher), options) { }
 
-    private const string HostReason =
-        "O git roda no seu computador (host agent): ele usa as credenciais que você já configurou lá (chave SSH, credential manager).";
+    private const string UnsupportedReason =
+        "O git deste ambiente roda fora do AgentForge: ele usa as credenciais que já estão configuradas lá (chave SSH, credential manager).";
 
-    public async Task<GitSshStatus> GetStatusAsync(CancellationToken ct)
+    // ------------------------------------------------------------------ escolha do ambiente
+
+    /// <summary>Gerenciador de chave do ambiente: o do servidor (pasta local) ou o do host agent. Null = não suportado.</summary>
+    private interface IKeys
     {
-        if (!Supported) return new GitSshStatus(false, HostReason, false, null, null, null, Dir);
-        if (!File.Exists(PrivateKeyPath) || !File.Exists(PublicKeyPath))
-            return new GitSshStatus(true, null, false, null, null, null, Dir);
-
-        var publicKey = (await File.ReadAllTextAsync(PublicKeyPath, ct)).Trim();
-        return new GitSshStatus(true, null, true, publicKey, await FingerprintAsync(ct), File.GetCreationTimeUtc(PrivateKeyPath), Dir);
+        Task<SshKeyStatus> StatusAsync(CancellationToken ct);
+        Task<SshKeyStatus> GenerateAsync(bool overwrite, CancellationToken ct);
+        Task<SshKeyStatus> DeleteAsync(CancellationToken ct);
     }
 
-    /// <summary>Gera a chave. Se já existe, só com overwrite = true (a antiga deixa de valer e precisa sair do GitHub).</summary>
-    public async Task<GitSshStatus> GenerateAsync(bool overwrite, CancellationToken ct)
+    private sealed class LocalKeys(SshKeyStore store) : IKeys
     {
-        if (!Supported) throw new GitCredentialException(HostReason);
-        var exists = File.Exists(PrivateKeyPath) || File.Exists(PublicKeyPath);
-        if (exists && !overwrite)
-            throw new GitCredentialException("Já existe uma chave. Gere outra só se quiser substituí-la (a atual deixará de funcionar).");
-
-        Directory.CreateDirectory(Dir);
-        TryRestrictDirectory(Dir);
-        if (exists)
+        public Task<SshKeyStatus> StatusAsync(CancellationToken ct) => store.GetStatusAsync(ct);
+        public Task<SshKeyStatus> GenerateAsync(bool overwrite, CancellationToken ct) => store.GenerateAsync(overwrite, ct);
+        public async Task<SshKeyStatus> DeleteAsync(CancellationToken ct)
         {
-            File.Delete(PrivateKeyPath);
-            File.Delete(PublicKeyPath);
+            store.Delete();
+            return await store.GetStatusAsync(ct);
+        }
+    }
+
+    private sealed class RemoteKeys(RemoteProcessLauncher remote) : IKeys
+    {
+        public Task<SshKeyStatus> StatusAsync(CancellationToken ct) => remote.SshStatusAsync(ct);
+        public Task<SshKeyStatus> GenerateAsync(bool overwrite, CancellationToken ct) => remote.SshGenerateAsync(overwrite, ct);
+        public Task<SshKeyStatus> DeleteAsync(CancellationToken ct) => remote.SshDeleteAsync(ct);
+    }
+
+    private async Task<(EnvironmentTarget Target, IKeys? Keys)> ResolveAsync(Guid? environmentId, CancellationToken ct)
+    {
+        EnvironmentTarget target;
+        try
+        {
+            target = await environments.ResolveAsync(environmentId, ct);
+        }
+        catch (EnvironmentUnavailableException ex)
+        {
+            throw new GitCredentialException(ex.Message);
         }
 
-        var comment = $"agentforge@{Environment.MachineName}";
-        var result = await launcher.RunAsync(
-            new LaunchSpec("ssh-keygen", ["-q", "-t", "ed25519", "-N", "", "-C", comment, "-f", PrivateKeyPath], Dir),
-            CommandTimeout, ct);
-        if (!result.Started)
-            throw new GitCredentialException("ssh-keygen não foi encontrado neste servidor (instale o cliente OpenSSH).");
-        if (result.ExitCode != 0 || !File.Exists(PublicKeyPath))
-            throw new GitCredentialException("Não foi possível gerar a chave: " + result.Stderr.Trim());
-
-        TryRestrictFile(PrivateKeyPath);
-        return await GetStatusAsync(ct);
+        IKeys? keys = target.Launcher switch
+        {
+            RemoteProcessLauncher remote => new RemoteKeys(remote),
+            { Mode: "local" } => new LocalKeys(new SshKeyStore(options.SshDir)),
+            _ => null,
+        };
+        return (target, keys);
     }
 
-    public Task DeleteAsync(CancellationToken ct)
+    private static async Task<T> TranslateAsync<T>(Func<Task<T>> action)
     {
-        if (!Supported) throw new GitCredentialException(HostReason);
-        foreach (var path in new[] { PrivateKeyPath, PublicKeyPath }) if (File.Exists(path)) File.Delete(path);
-        return Task.CompletedTask;
+        try
+        {
+            return await action();
+        }
+        catch (SshKeyException ex)
+        {
+            throw new GitCredentialException(ex.Message);
+        }
+        catch (ProcessStartException ex)
+        {
+            throw new GitCredentialException(ex.Message);
+        }
     }
 
-    /// <summary>Testa se a chave (ou as credenciais do git) alcançam o repositório: `git ls-remote --heads`.</summary>
-    public async Task<GitAccessResult> TestAccessAsync(string repositoryUrl, CancellationToken ct)
+    private static GitSshStatus ToStatus(SshKeyStatus s) =>
+        new(true, null, s.HasKey, s.PublicKey, s.Fingerprint, s.CreatedAt, s.Directory);
+
+    // ------------------------------------------------------------------ operações
+
+    public Task<GitSshStatus> GetStatusAsync(CancellationToken ct) => GetStatusAsync(null, ct);
+
+    /// <summary>Não lança por host agent fora do ar nem versão antiga: devolve "não suportado" com o motivo, para a tela mostrar.</summary>
+    public async Task<GitSshStatus> GetStatusAsync(Guid? environmentId, CancellationToken ct)
+    {
+        var (_, keys) = await ResolveAsync(environmentId, ct);
+        if (keys is null) return new GitSshStatus(false, UnsupportedReason, false, null, null, null, "");
+        try
+        {
+            return ToStatus(await keys.StatusAsync(ct));
+        }
+        catch (Exception ex) when (ex is SshKeyException or ProcessStartException)
+        {
+            return new GitSshStatus(false, ex.Message, false, null, null, null, "");
+        }
+    }
+
+    public Task<GitSshStatus> GenerateAsync(bool overwrite, CancellationToken ct) => GenerateAsync(null, overwrite, ct);
+
+    /// <summary>Gera a chave. Se já existe, só com overwrite = true (a antiga deixa de valer e precisa sair do GitHub).</summary>
+    public async Task<GitSshStatus> GenerateAsync(Guid? environmentId, bool overwrite, CancellationToken ct)
+    {
+        var (_, keys) = await ResolveAsync(environmentId, ct);
+        if (keys is null) throw new GitCredentialException(UnsupportedReason);
+        return ToStatus(await TranslateAsync(() => keys.GenerateAsync(overwrite, ct)));
+    }
+
+    public Task DeleteAsync(CancellationToken ct) => DeleteAsync(null, ct);
+
+    public async Task DeleteAsync(Guid? environmentId, CancellationToken ct)
+    {
+        var (_, keys) = await ResolveAsync(environmentId, ct);
+        if (keys is null) throw new GitCredentialException(UnsupportedReason);
+        await TranslateAsync(() => keys.DeleteAsync(ct));
+    }
+
+    public Task<GitAccessResult> TestAccessAsync(string repositoryUrl, CancellationToken ct) => TestAccessAsync(null, repositoryUrl, ct);
+
+    /// <summary>Testa se a chave (ou as credenciais do git) do ambiente alcançam o repositório: `git ls-remote --heads`.</summary>
+    public async Task<GitAccessResult> TestAccessAsync(Guid? environmentId, string repositoryUrl, CancellationToken ct)
     {
         var url = (repositoryUrl ?? "").Trim();
         if (url.Length == 0 || url.Length > 500 || url.StartsWith('-') || url.Any(char.IsWhiteSpace) || url.Any(char.IsControl))
             return new GitAccessResult(false, "Informe a URL do repositório (ex.: git@github.com:organizacao/repositorio.git).");
 
+        var (target, _) = await ResolveAsync(environmentId, ct);
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
         timeout.CancelAfter(CommandTimeout + TimeSpan.FromSeconds(10));
         try
         {
-            var scratch = await launcher.ScratchDirectoryAsync(timeout.Token);
-            var output = await GitCli.RunAsync(launcher, scratch, ["ls-remote", "--heads", "--", url], timeout.Token);
+            var scratch = await target.Launcher.ScratchDirectoryAsync(timeout.Token);
+            var output = await GitCli.RunAsync(target.Launcher, scratch, ["ls-remote", "--heads", "--", url], timeout.Token);
             var branches = output.Split('\n', StringSplitOptions.RemoveEmptyEntries).Length;
             return new GitAccessResult(true, branches == 0
                 ? "Acesso confirmado (o repositório ainda não tem branches)."
@@ -117,14 +178,10 @@ public sealed class GitCredentialService(IProcessLauncher launcher, GitOptions o
         {
             return new GitAccessResult(false, Explain(ex.Message));
         }
-    }
-
-    private async Task<string?> FingerprintAsync(CancellationToken ct)
-    {
-        var result = await launcher.RunAsync(new LaunchSpec("ssh-keygen", ["-lf", PublicKeyPath], Dir), CommandTimeout, ct);
-        // "256 SHA256:abc... agentforge@host (ED25519)"
-        var parts = result.Stdout.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        return result.ExitCode == 0 && parts.Length >= 2 ? parts[1] : null;
+        catch (ProcessStartException ex)
+        {
+            return new GitAccessResult(false, ex.Message);
+        }
     }
 
     private static string Explain(string gitMessage)
@@ -139,20 +196,5 @@ public sealed class GitCredentialService(IProcessLauncher launcher, GitOptions o
         if (m.Contains("not found", StringComparison.OrdinalIgnoreCase) || m.Contains("does not appear to be a git repository", StringComparison.OrdinalIgnoreCase))
             return "Repositório não encontrado (ou sem acesso). Confira a URL e as permissões.";
         return m;
-    }
-
-    // permissões estritas onde existem (Linux/macOS): o ssh recusa chave privada legível por outros
-    private static void TryRestrictDirectory(string path)
-    {
-        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) return;
-        try { File.SetUnixFileMode(path, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute); }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or PlatformNotSupportedException) { }
-    }
-
-    private static void TryRestrictFile(string path)
-    {
-        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) return;
-        try { File.SetUnixFileMode(path, UnixFileMode.UserRead | UnixFileMode.UserWrite); }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or PlatformNotSupportedException) { }
     }
 }

@@ -30,7 +30,13 @@ var guard = new PathGuard(options.Roots, scratch);
 var allowedExecutables = new Dictionary<string, string>(options.Executables, StringComparer.Ordinal);
 
 builder.Services.AddSingleton(guard);
-builder.Services.AddSingleton<IProcessLauncher>(new LocalProcessLauncher { Executables = allowedExecutables });
+var sshKeys = new SshKeyStore(options.ResolvedSshDir());
+builder.Services.AddSingleton(sshKeys);
+builder.Services.AddSingleton<IProcessLauncher>(new LocalProcessLauncher
+{
+    Executables = allowedExecutables,
+    GitSshDirectory = sshKeys.Directory,   // o git desta máquina usa a chave gerada pela API, quando existir
+});
 builder.Services.AddSingleton<ProcessSessions>();
 builder.Services.ConfigureHttpJsonOptions(o => o.SerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase);
 
@@ -132,6 +138,27 @@ app.MapPost(HostAgentRoutes.FsDelete, (PathRequest req) =>
         Directory.Delete(req.Path, recursive: true);
     }
     return Results.NoContent();
+});
+
+// Chave SSH da máquina: a privada nasce e fica aqui; só a pública (e a impressão digital) sai pela API.
+app.MapGet(HostAgentRoutes.Ssh, (SshKeyStore keys, CancellationToken ct) => keys.GetStatusAsync(ct));
+
+app.MapPost(HostAgentRoutes.SshGenerate, async (GenerateKeyRequest? req, SshKeyStore keys, CancellationToken ct) =>
+{
+    try
+    {
+        return Results.Ok(await keys.GenerateAsync(req?.Overwrite ?? false, ct));
+    }
+    catch (SshKeyException ex)
+    {
+        return Results.Json(new HostError(ex.Message), statusCode: 409);
+    }
+});
+
+app.MapDelete(HostAgentRoutes.Ssh, async (SshKeyStore keys, CancellationToken ct) =>
+{
+    keys.Delete();
+    return Results.Ok(await keys.GetStatusAsync(ct));
 });
 
 app.Logger.LogInformation("Host agent; pastas permitidas: {Roots}; executáveis: {Exe}",

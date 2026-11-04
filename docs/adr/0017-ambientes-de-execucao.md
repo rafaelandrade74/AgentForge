@@ -32,4 +32,4 @@ cada projeto roda na máquina cuja configuração serve à sua stack.
 - Mudar o ambiente de um projeto não move o clone; o próximo uso clona na nova máquina.
 - **Fora do escopo desta fase**, previsto no [plano](../plano-ambientes.md): credenciais Git e login do Claude por ambiente na
   interface (fase 11), perfis de stack e container por tarefa (fase 12), ambiente por papel, fila e concorrência por ambiente (fase 13).
-  A tela **Agentes** e a tela **Git** continuam mostrando o ambiente padrão.
+  (Entregue na fase 11: [ADR 0018](0018-git-e-login-por-ambiente.md).)

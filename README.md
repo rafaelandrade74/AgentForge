@@ -128,13 +128,17 @@ Pontos importantes:
 
 - O **token** fica no banco **criptografado** (ASP.NET Data Protection) e nunca volta pela API. As chaves de proteção ficam no volume
   `dp-keys`; sem ele (ou se `DataProtection:KeysDir` mudar), os tokens guardados não podem mais ser lidos e você os informa de novo.
-- Cada máquina tem o **seu próprio login do Claude** (faça `claude` login nela) e as **suas credenciais Git**; a chave SSH gerada
-  pelo servidor só vale no ambiente padrão.
+- Cada máquina tem o **seu próprio login do Claude** e a **sua chave Git**. As telas **Agentes** e **Git** têm um seletor de
+  **Ambiente** (também por link, nos botões *Login do agente* e *Chave Git* de cada ambiente): o login por link, o teste e a chave
+  SSH são feitos NAQUELA máquina. A chave é gerada pelo próprio host agent (em `HostAgent:SshDir`, padrão `~/.agentforge/ssh`) e a
+  privada nunca sai de lá; o `git` dessa máquina usa a chave se ela existir e, sem ela, as credenciais que a máquina já tem.
+  Na importação do GitHub com um ambiente, a chave **da máquina escolhida** é a registrada como deploy key somente leitura.
+  Host agent de versão antiga (sem as rotas de chave) pede atualização.
 - Máquina fora do ar: a execução falha com a mensagem "Host agent inacessível…" e a tarefa vai para Blocked (ou a demanda para Failed).
 - Mudar o ambiente de um projeto faz o próximo uso clonar o repositório na nova máquina (o clone antigo permanece na anterior).
 - Um ambiente em uso por projetos não pode ser excluído.
 
-Decisão registrada na [ADR 0017](docs/adr/0017-ambientes-de-execucao.md); o plano completo (próximas fases: Git por ambiente,
+Decisões nas [ADR 0017](docs/adr/0017-ambientes-de-execucao.md) e [ADR 0018](docs/adr/0018-git-e-login-por-ambiente.md); o plano completo (próximas fases:
 perfis de stack com container por tarefa, ambiente por papel e fila) está em [docs/plano-ambientes.md](docs/plano-ambientes.md).
 
 ## Controlar o AgentForge pelo Claude Code (MCP)
@@ -247,8 +251,9 @@ Ela **não detecta** o modo: ele vem da configuração `Agents:Launcher` (`local
 
 Com `host`, todo processo (`claude` e `git`) vai por HTTP para o host agent (`scripts/host-agent`), que roda no computador, só
 executa os nomes da lista `HostAgent:Executables` e só em pastas de `HostAgent:Roots`. Com `local`, a própria API executa.
-O modo também muda o comportamento da tela **Git** e do import do GitHub: só em `local` o AgentForge gera a chave SSH e a
-registra como deploy key; em `host` vale o git do computador, com as credenciais dele. Para trocar de modo, mude como sobe e
+A tela **Git** e o import do GitHub valem para o ambiente escolhido: em `local` o AgentForge gera a chave SSH no servidor e a
+registra como deploy key; em `host` quem gera e guarda a chave é o host agent do computador (ou vale o git dele, com as
+credenciais que você já tem). Para trocar de modo, mude como sobe e
 reinicie (não há seletor na interface).
 
 Sobre o Claude Code: a imagem da API **instala** o CLI no build (`npm install -g @anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}`);
@@ -281,7 +286,8 @@ vazios, anulariam o padrão do código (defina-os só se quiser mudar). Os segre
 
 O **host agent** (`backend/AgentForge.HostAgent/appsettings.json`) tem o seu próprio conjunto: `urls` (padrão
 `http://127.0.0.1:8787`), `HostAgent:Token` (o mesmo de `Agents:HostAgent:Token`), `HostAgent:Roots` (pastas permitidas; ao
-menos uma) e `HostAgent:Executables` (nome lógico → binário; só `claude` e `git` por padrão). `scripts/host-agent` preenche tudo.
+menos uma), `HostAgent:Executables` (nome lógico → binário; só `claude` e `git` por padrão) e `HostAgent:SshDir` (pasta da chave
+SSH gerada por pedido da API; padrão `~/.agentforge/ssh`). `scripts/host-agent` preenche tudo.
 
 Os prompts de sistema dos papéis ficam em `prompts/<papel>.md` (semeiam o primeiro start) e são editados depois pela tela
 **Prompts**; ficam no banco.

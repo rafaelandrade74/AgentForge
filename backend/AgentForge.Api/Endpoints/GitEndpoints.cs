@@ -9,22 +9,24 @@ public static class GitEndpoints
 {
     public static void MapGitEndpoints(this IEndpointRouteBuilder app)
     {
-        // só com o login (JWT): um token de acesso do MCP não gera nem apaga chaves
+        // só com o login (JWT): um token de acesso do MCP não gera nem apaga chaves.
+        // ?environmentId=<id> escolhe a máquina; sem ele vale o ambiente padrão do servidor.
         var g = app.MapGroup("/api/git/ssh").RequireAuthorization().WithTags("Git");
 
-        g.MapGet("/", (GitCredentialService s, CancellationToken ct) => s.GetStatusAsync(ct))
-            .WithSummary("Estado da chave SSH do AgentForge (só a chave pública é devolvida).");
+        g.MapGet("/", (Guid? environmentId, GitCredentialService s, CancellationToken ct) =>
+                Handle(() => s.GetStatusAsync(environmentId, ct)))
+            .WithSummary("Estado da chave SSH do ambiente (só a chave pública é devolvida).");
 
-        g.MapPost("/generate", async (GitGenerateRequest? body, GitCredentialService s, CancellationToken ct) =>
-            await Handle(() => s.GenerateAsync(body?.Overwrite ?? false, ct)))
-            .WithSummary("Gera uma chave ed25519 no servidor. A privada nunca sai dele.");
+        g.MapPost("/generate", (Guid? environmentId, GitGenerateRequest? body, GitCredentialService s, CancellationToken ct) =>
+                Handle(() => s.GenerateAsync(environmentId, body?.Overwrite ?? false, ct)))
+            .WithSummary("Gera uma chave ed25519 na máquina do ambiente. A privada nunca sai dela.");
 
-        g.MapDelete("/", async (GitCredentialService s, CancellationToken ct) =>
-            await Handle(async () => { await s.DeleteAsync(ct); return await s.GetStatusAsync(ct); }));
+        g.MapDelete("/", (Guid? environmentId, GitCredentialService s, CancellationToken ct) =>
+            Handle(async () => { await s.DeleteAsync(environmentId, ct); return await s.GetStatusAsync(environmentId, ct); }));
 
-        g.MapPost("/test", (GitAccessRequest req, GitCredentialService s, CancellationToken ct) =>
-                s.TestAccessAsync(req.RepositoryUrl ?? "", ct))
-            .WithSummary("Testa o acesso a um repositório (git ls-remote).");
+        g.MapPost("/test", (Guid? environmentId, GitAccessRequest req, GitCredentialService s, CancellationToken ct) =>
+                Handle(() => s.TestAccessAsync(environmentId, req.RepositoryUrl ?? "", ct)))
+            .WithSummary("Testa o acesso a um repositório a partir da máquina do ambiente (git ls-remote).");
     }
 
     private static async Task<IResult> Handle<T>(Func<Task<T>> action)

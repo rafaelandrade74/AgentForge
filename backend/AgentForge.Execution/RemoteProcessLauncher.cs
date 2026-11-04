@@ -82,6 +82,48 @@ public sealed class RemoteProcessLauncher : IProcessLauncher
         }
     }
 
+    // ------------------------------------------------------------------ chave SSH da máquina (gerada e guardada pelo host agent)
+
+    public Task<SshKeyStatus> SshStatusAsync(CancellationToken ct) => SshAsync(HttpMethod.Get, HostAgentRoutes.Ssh, null, ct);
+    public Task<SshKeyStatus> SshGenerateAsync(bool overwrite, CancellationToken ct) =>
+        SshAsync(HttpMethod.Post, HostAgentRoutes.SshGenerate, new GenerateKeyRequest(overwrite), ct);
+    public Task<SshKeyStatus> SshDeleteAsync(CancellationToken ct) => SshAsync(HttpMethod.Delete, HostAgentRoutes.Ssh, null, ct);
+
+    /// <exception cref="SshKeyException">o host agent recusou (ex.: já existe chave) ou é uma versão sem este recurso.</exception>
+    /// <exception cref="ProcessStartException">host agent fora do ar ou token recusado.</exception>
+    private async Task<SshKeyStatus> SshAsync(HttpMethod method, string route, object? body, CancellationToken ct)
+    {
+        try
+        {
+            using var request = new HttpRequestMessage(method, route.TrimStart('/'));
+            if (body is not null) request.Content = JsonContent.Create(body, options: Json);
+            using var response = await _http.SendAsync(request, ct);
+
+            if (response.StatusCode is HttpStatusCode.NotFound or HttpStatusCode.MethodNotAllowed)
+                throw new SshKeyException("Este host agent é de uma versão sem gerenciamento de chave SSH: atualize-o e reinicie.");
+            if (response.StatusCode == HttpStatusCode.Conflict)
+                throw new SshKeyException(await ErrorTextAsync(response, ct));
+            await EnsureOkAsync(response, ct);
+            return (await response.Content.ReadFromJsonAsync<SshKeyStatus>(Json, ct))!;
+        }
+        catch (HttpRequestException ex)
+        {
+            throw new ProcessStartException($"Host agent inacessível em {_baseUrl}: {ex.Message}");
+        }
+    }
+
+    private static async Task<string> ErrorTextAsync(HttpResponseMessage response, CancellationToken ct)
+    {
+        try
+        {
+            return (await response.Content.ReadFromJsonAsync<HostError>(Json, ct))?.Error ?? "Operação recusada pelo host agent.";
+        }
+        catch (Exception ex) when (ex is JsonException or NotSupportedException)
+        {
+            return "Operação recusada pelo host agent.";
+        }
+    }
+
     internal static async Task EnsureOkAsync(HttpResponseMessage response, CancellationToken ct)
     {
         if (response.IsSuccessStatusCode) return;

@@ -11,7 +11,12 @@ public static class HostAgentRoutes
     public const string FsExists = "/v1/fs/exists";
     public const string FsMkdir = "/v1/fs/mkdir";
     public const string FsDelete = "/v1/fs/delete";
+    /// <summary>Chave SSH da máquina: GET = estado, DELETE = apaga; <see cref="SshGenerate"/> cria (a privada nunca sai da máquina).</summary>
+    public const string Ssh = "/v1/ssh";
+    public const string SshGenerate = "/v1/ssh/generate";
 }
+
+public record GenerateKeyRequest(bool Overwrite);
 
 public record HostInfo(string Os, string Version, string ScratchDirectory, IReadOnlyList<string> Roots, IReadOnlyList<string> Executables);
 

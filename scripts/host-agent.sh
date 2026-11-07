@@ -38,5 +38,8 @@ claude_path="$(command -v claude 2>/dev/null || true)"
 export DOTNET_ROLL_FORWARD=Major
 
 echo "Host agent em $urls  |  pasta de trabalho: $root"
-echo "Agora, em outro terminal:  docker compose -f docker-compose.yml -f docker-compose.host-agent.yml up -d --build"
+echo "Cenário D (API no Docker deste computador): em outro terminal,  docker compose -f docker-compose.yml -f docker-compose.host-agent.yml up -d --build"
+echo "Cenário F (esta é OUTRA máquina): cadastre-a na tela Ambientes da aplicação com o endereço http://<ip-desta-máquina>:8787 e este token:"
+echo "  $token"
+echo "Containers por tarefa (só Linux/macOS com Docker): export HostAgent__Docker__Enabled=true antes de rodar este script."
 exec dotnet run --project "$repo/backend/AgentForge.HostAgent" -c Release --no-launch-profile -- --urls="$urls"

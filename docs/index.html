@@ -63,7 +63,7 @@
 </ul>
 
 <h2 id="escolher">Escolher o cenário</h2>
-<p>A aplicação e o CLI do agente podem ficar em lugares diferentes. São três <strong>modos de execução</strong>, que se desdobram em cinco cenários de instalação:</p>
+<p>A aplicação e o CLI do agente podem ficar em lugares diferentes. São três <strong>modos de execução</strong>, que se desdobram em cinco cenários de instalação (A a E), aos quais o cenário F acrescenta várias máquinas:</p>
 <table>
   <tr><th>Cenário</th><th>Modo</th><th>Quando escolher</th></tr>
   <tr><td><a href="#instalacao" data-scenario="cen-a">A. Docker completo</a></td><td>2</td><td>Caminho mais simples: tudo em containers, login do Claude pela interface</td></tr>
@@ -71,6 +71,7 @@
   <tr><td><a href="#instalacao" data-scenario="cen-c">C. Docker reaproveitando o login</a></td><td>2</td><td>O Claude já está logado no computador (Windows/Linux) e você não quer logar de novo</td></tr>
   <tr><td><a href="#instalacao" data-scenario="cen-d">D. Docker + host agent</a></td><td>1</td><td>Quer usar o <code>claude</code> e o <code>git</code> do computador, com as credenciais deles</td></tr>
   <tr><td><a href="#instalacao" data-scenario="cen-e">E. Tudo no computador</a></td><td>3</td><td>Não quer containers para a aplicação</td></tr>
+  <tr><td><a href="#instalacao" data-scenario="cen-f">F. Várias máquinas e stacks</a></td><td>qualquer</td><td>Mais de uma máquina, projetos de stacks diferentes ou um container por tarefa (soma-se a A–E)</td></tr>
 </table>
 <div class="note"><p><strong>Em dúvida?</strong> Comece pelo cenário A. Ele dá menos acoplamento com a sua máquina e não precisa de chave de API: só de uma conta Claude.</p></div>
 
@@ -83,6 +84,7 @@
   <button role="tab" data-target="cen-c" aria-selected="false">C. Login do computador</button>
   <button role="tab" data-target="cen-d" aria-selected="false">D. Host agent</button>
   <button role="tab" data-target="cen-e" aria-selected="false">E. Nativo</button>
+  <button role="tab" data-target="cen-f" aria-selected="false">F. Ambientes</button>
 </div>
 
 <!-- A -->
@@ -354,6 +356,51 @@ ORCHESTRATOR_CONCURRENCY=1</code></pre></li>
       <tr><td>"CLI não instalado"</td><td><code>claude</code> fora do PATH do terminal onde rodou o script</td></tr>
       <tr><td>Erro de conexão com o banco</td><td>Postgres parado ou connection string errada. Com <code>-StartPostgres</code> e senha trocada: <code>docker rm -f agentforge-native-db; docker volume rm agentforge-native-pgdata</code></td></tr>
       <tr><td>Porta 8080 ocupada</td><td><code>-Urls http://localhost:&lt;outra&gt;</code></td></tr>
+    </table>
+  </details>
+</div>
+
+<!-- F -->
+<div class="panel" id="cen-f">
+  <h3>F. Várias máquinas e stacks (ambientes)</h3>
+  <p>A aplicação como em qualquer cenário de A a E, mais <strong>outras máquinas</strong> — cada uma com o seu host agent, o seu login do Claude e a sua chave Git — onde projetos de stacks diferentes rodam. Em máquinas Linux/macOS com Docker, cada tarefa pode rodar num <strong>container</strong> de um perfil (Node 22, .NET 8, Python 3.12 ou o seu). Tech Lead e Security podem revisar numa máquina leve.</p>
+  <h3>Pré-requisitos</h3>
+  <ul>
+    <li>Um dos cenários A a E funcionando.</li>
+    <li>Em cada outra máquina: <strong>.NET SDK 8+</strong>, <strong>git</strong> e <strong><code>claude</code></strong> no PATH, já logado, e a porta <code>8787</code> alcançável a partir do servidor.</li>
+    <li>Para containers: <strong>Linux ou macOS com Docker</strong> (no Windows o recurso é recusado: o worktree é montado no mesmo caminho dentro do container).</li>
+  </ul>
+  <h3>Passos</h3>
+  <ol class="steps">
+    <li><strong>Na outra máquina</strong>, clone o repositório e suba o host agent escutando na rede:
+<pre><code>./scripts/host-agent.sh "" http://0.0.0.0:8787          # Linux/macOS
+./scripts/host-agent.ps1 -Urls http://0.0.0.0:8787      # Windows</code></pre>
+      O script cria e <strong>mostra o token</strong> (também em <code>HOST_AGENT_TOKEN</code> no <code>.env</code> dessa máquina) e a pasta dos clones: anote os dois. Libere a porta no firewall <strong>só</strong> para o IP do servidor. Antes de rodar, se quiser (Linux/macOS):
+<pre><code>export HostAgent__Executables__node=node HostAgent__Executables__dotnet=dotnet   # o teste lista node e dotnet
+export HostAgent__Docker__Enabled=true                                           # containers por tarefa (desligado por padrão)
+export 'HostAgent__Docker__AllowedImages__0=minha/*'                             # só para imagem pronta sua; agentforge/* sempre vale</code></pre></li>
+    <li><strong>Na aplicação</strong>: <em>Ambientes → Novo ambiente</em> com nome, endereço (<code>http://192.168.0.20:8787</code>), token, a <strong>pasta dos clones nessa máquina</strong> (dentro da pasta do passo 1) e <em>Tarefas ao mesmo tempo</em>. Clique em <strong>Testar</strong>: <em>conectado</em>, as ferramentas e, com Docker habilitado, <em>containers habilitados</em>.</li>
+    <li>Em <strong>Agentes</strong> escolha o ambiente e confira o login do Claude <strong>dessa máquina</strong>. Em <strong>Git</strong> escolha o ambiente, gere a chave e autorize a pública no GitHub (repositório privado).</li>
+    <li>No <strong>projeto</strong>: <em>Ambiente de execução</em> = a máquina. Opcional: <em>Perfil de stack</em> (container) e <em>Tech Lead / Security rodam em</em> (outra máquina, só com o diff).</li>
+    <li>Opcional: <em>Perfis → Construir imagem</em> mostra o log; sem isso a primeira tarefa constrói sozinha (alguns minutos).</li>
+    <li>Crie a demanda e siga como nos outros cenários. A tela <strong>Ambientes</strong> mostra a <strong>carga</strong> ao vivo.</li>
+  </ol>
+  <h3>Conferir que funcionou</h3>
+  <ul>
+    <li>O clone aparece em <code>&lt;pasta dos clones&gt;/&lt;id-do-projeto&gt;/repo</code> <em>na outra máquina</em>.</li>
+    <li>Com perfil, <code>docker ps</code> lá mostra um container <code>af-…</code> durante a tarefa.</li>
+    <li>Pare o host agent (<code>Ctrl+C</code>) com uma tarefa em andamento: ela <strong>não vira Bloqueada</strong>, mostra <em>Aguardando o ambiente voltar…</em> e retoma sozinha quando ele sobe.</li>
+  </ul>
+  <details><summary>Se algo der errado</summary>
+    <table>
+      <tr><th>Sintoma</th><th>Solução</th></tr>
+      <tr><td>"Host agent inacessível"</td><td>Endereço errado, host agent parado ou firewall. No servidor: <code>curl http://&lt;ip&gt;:8787/health</code></td></tr>
+      <tr><td>"recusou o token"</td><td>Token diferente do <code>HOST_AGENT_TOKEN</code> da outra máquina: edite o ambiente</td></tr>
+      <tr><td>"informe o token de novo"</td><td>A chave de proteção mudou (volume <code>dp-keys</code> perdido): edite o ambiente e informe o token</td></tr>
+      <tr><td>"fora das pastas permitidas"</td><td>A pasta dos clones precisa estar dentro da pasta que o host agent aceita (passo 1)</td></tr>
+      <tr><td>"Containers não estão habilitados"</td><td>Falta <code>HostAgent__Docker__Enabled=true</code> (ou a máquina é Windows)</td></tr>
+      <tr><td>"Imagem … não permitida"</td><td>Imagem pronta fora de <code>HostAgent__Docker__AllowedImages__*</code>; Dockerfile (<code>agentforge/*</code>) não precisa</td></tr>
+      <tr><td>Falha ao clonar repositório privado</td><td>Gere a chave na tela <strong>Git</strong> com o ambiente escolhido e autorize-a no GitHub</td></tr>
     </table>
   </details>
 </div>

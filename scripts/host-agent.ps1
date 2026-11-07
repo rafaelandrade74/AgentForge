@@ -43,5 +43,8 @@ if ($claude) { $env:HostAgent__Executables__claude = $claude }
 $env:DOTNET_ROLL_FORWARD = 'Major'
 
 Write-Host "Host agent em $Urls  |  pasta de trabalho: $Root"
-Write-Host 'Agora, em outro terminal:  docker compose -f docker-compose.yml -f docker-compose.host-agent.yml up -d --build'
+Write-Host 'Cenário D (API no Docker deste computador): em outro terminal,  docker compose -f docker-compose.yml -f docker-compose.host-agent.yml up -d --build'
+Write-Host 'Cenário F (esta é OUTRA máquina): cadastre-a na tela Ambientes da aplicação com o endereço http://<ip-desta-máquina>:8787 e este token:'
+Write-Host "  $token"
+Write-Host 'Containers por tarefa exigem Linux/macOS (no Windows o recurso é recusado).'
 dotnet run --project (Join-Path $repo 'backend\AgentForge.HostAgent') -c Release --no-launch-profile -- --urls=$Urls

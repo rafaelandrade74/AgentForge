@@ -118,8 +118,8 @@ uma roda o **host agent** (`scripts/host-agent`) e tem as ferramentas que a stac
 Python em outra. O projeto escolhe o ambiente (campo **Ambiente de execução**, também na importação do GitHub); sem escolha, vale
 o padrão. Tudo do projeto acontece nessa máquina: clone, worktrees, git e agentes.
 
-1. Na máquina, suba o host agent (`./scripts/host-agent.sh <token> http://0.0.0.0:8787`), libere a pasta dos clones em
-   `HostAgent:Roots` e as ferramentas em `HostAgent:Executables`, e restrinja a porta por firewall à rede do servidor.
+1. Na máquina, clone o repositório e suba o host agent: `./scripts/host-agent.sh "" http://0.0.0.0:8787` (Windows: `./scripts/host-agent.ps1 -Urls http://0.0.0.0:8787`). O script cria e mostra o token (e a pasta dos clones). Libere
+   outras ferramentas com `HostAgent__Executables__<nome>=<binário>` e restrinja a porta por firewall ao IP do servidor.
 2. Em **Ambientes → Novo ambiente**: nome, endereço (`http://192.168.0.20:8787`), token, **pasta dos clones nessa máquina**
    (`C:/agentforge`, `/home/eu/agentforge`) e rótulos da stack (informativos).
 3. **Testar** mostra se a máquina responde e quais ferramentas (`claude`, `git`, `node`, `dotnet`) ela oferece.
@@ -168,6 +168,8 @@ Para usar uma imagem sua, ela precisa ter o `claude`, o `git` e `CLAUDE_CONFIG_D
 - **Revisão em outra máquina:** no projeto, *Tech Lead roda em* e *Security roda em* mandam esses papéis para uma máquina leve. Eles
   recebem **só o diff e a descrição** (sem o repositório e sem perfil de stack) — menos contexto, menos custo na máquina pesada. Dev
   e QA ficam sempre no ambiente do projeto, onde está o worktree.
+
+Tutorial passo a passo (cenário F) em [docs/getting-started.md](docs/getting-started.md#f-várias-máquinas-e-stacks-ambientes) e roteiro de validação com máquinas reais em [docs/validacao-cenario-f.md](docs/validacao-cenario-f.md).
 
 Decisões nas [ADR 0017](docs/adr/0017-ambientes-de-execucao.md), [ADR 0018](docs/adr/0018-git-e-login-por-ambiente.md), [ADR 0019](docs/adr/0019-perfis-de-stack-e-container-por-tarefa.md) e [ADR 0020](docs/adr/0020-ambiente-por-papel-fila-e-carga.md); o plano completo (próxima fase: validação ponta a ponta) está em [docs/plano-ambientes.md](docs/plano-ambientes.md).
 

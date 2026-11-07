@@ -20,7 +20,8 @@ public record WorkItemInput(Guid DemandId, string Title, string Description = ""
     int Estimate = 0, WorkItemState State = WorkItemState.Backlog, List<Guid>? DependsOnIds = null);
 public record WorkItemDto(Guid Id, Guid DemandId, string Title, string Description, string AcceptanceCriteria,
     int Estimate, WorkItemState State, int ReworkCount, string? BranchName, string? BlockedReason,
-    List<Guid> DependsOnIds, DateTime CreatedAt, string? WaitingReason = null, string? PullRequestUrl = null, int? PullRequestNumber = null);
+    List<Guid> DependsOnIds, DateTime CreatedAt, string? WaitingReason = null, string? PullRequestUrl = null, int? PullRequestNumber = null,
+    DateTime? PushedAt = null, string? PushError = null);
 
 /// <summary>Tarefa que espera a aprovação humana da entrega, com o projeto e a demanda (lista de todos os projetos).</summary>
 /// <param name="WaitingSince">Quando o último agente terminou (a entrega ficou pronta para revisão); nulo se não houve execução.</param>

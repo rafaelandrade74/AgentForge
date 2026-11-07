@@ -35,6 +35,18 @@ public static class WorkflowEndpoints
             .WithSummary("Aprova a tarefa (Backlog → A fazer, ou Aguardando aprovação → Done).");
         items.MapPost("/{id:guid}/reject", async (Guid id, RejectRequest? body, WorkflowActions a) => Reply(await a.RejectAsync(id, body?.Comment)))
             .WithSummary("Rejeita a entrega e devolve ao Dev, com comentário.");
+        items.MapPost("/{id:guid}/push", async (Guid id, PullRequestService prs, CancellationToken ct) =>
+            {
+                try
+                {
+                    return Results.Ok(await prs.PushAsync(id, ct));
+                }
+                catch (PullRequestException ex)
+                {
+                    return Results.Json(new { error = ex.Message }, statusCode: ex.Status);
+                }
+            })
+            .WithSummary("Faz o git push do branch da tarefa concluída (Done) para o GitHub, com o token do projeto. Só o branch da tarefa; não abre PR.");
         items.MapPost("/{id:guid}/pull-request", async (Guid id, PullRequestRequest? body, PullRequestService prs, CancellationToken ct) =>
             {
                 try

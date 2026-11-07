@@ -75,6 +75,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.Property(x => x.BranchName).HasMaxLength(200);
             e.Property(x => x.WaitingReason).HasMaxLength(500);
             e.Property(x => x.PullRequestUrl).HasMaxLength(500);
+            e.Property(x => x.PushError).HasMaxLength(500);
             e.HasMany(x => x.Dependencies).WithMany()
                 .UsingEntity("WorkItemDependencies",
                     l => l.HasOne(typeof(WorkItem)).WithMany().HasForeignKey("DependsOnId").OnDelete(DeleteBehavior.Cascade),

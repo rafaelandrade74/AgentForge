@@ -55,6 +55,9 @@ export interface WorkItem {
   /** Pull request aberto no GitHub com o branch desta tarefa. */
   pullRequestUrl?: string | null;
   pullRequestNumber?: number | null;
+  /** Quando o branch da tarefa foi publicado no GitHub; pushError = por que a publicação automática não rolou. */
+  pushedAt?: string | null;
+  pushError?: string | null;
   dependsOnIds: string[];
   createdAt: string;
 }
@@ -339,6 +342,11 @@ export interface Approval {
   branchName: string | null;
   createdAt: string;
   waitingSince: string | null;
+}
+
+export interface PushResult {
+  branch: string;
+  pushedAt: string;
 }
 
 export interface PullRequestResult {

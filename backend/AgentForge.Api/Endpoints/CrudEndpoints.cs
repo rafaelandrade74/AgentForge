@@ -208,7 +208,8 @@ public static class CrudEndpoints
     // ---------- WorkItems ----------
     internal static WorkItemDto ToDto(WorkItem w) =>
         new(w.Id, w.DemandId, w.Title, w.Description, w.AcceptanceCriteria, w.Estimate, w.State, w.ReworkCount,
-            w.BranchName, w.BlockedReason, w.Dependencies.Select(d => d.Id).ToList(), w.CreatedAt, w.WaitingReason, w.PullRequestUrl, w.PullRequestNumber);
+            w.BranchName, w.BlockedReason, w.Dependencies.Select(d => d.Id).ToList(), w.CreatedAt, w.WaitingReason, w.PullRequestUrl, w.PullRequestNumber,
+            w.PushedAt, w.PushError);
 
     private static async Task<(IResult? Error, List<WorkItem> Deps)> ResolveAsync(WorkItemInput i, Guid? selfId, AppDbContext db)
     {

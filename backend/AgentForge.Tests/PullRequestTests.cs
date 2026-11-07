@@ -6,6 +6,7 @@ using System.Text.Json;
 using AgentForge.Api.GitHub;
 using AgentForge.Domain;
 using AgentForge.Infrastructure.Persistence;
+using AgentForge.Orchestrator.Workflow;
 using AgentForge.Orchestrator.Workspaces;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -21,8 +22,8 @@ public sealed class PullRequestTests(PostgresFixture pg) : IAsyncLifetime
 {
     private readonly string _temp = Path.Combine(Path.GetTempPath(), "af-pr-" + Guid.NewGuid().ToString("N"));
     private string Remote => Path.Combine(_temp, "gitserver", "octo", "privado.git");
-    private readonly string?[] _savedEnv = new string?[5];
-    private static readonly string[] EnvNames = ["GIT_CONFIG_COUNT", "GIT_CONFIG_KEY_0", "GIT_CONFIG_VALUE_0", "GIT_CONFIG_KEY_1", "GIT_CONFIG_VALUE_1"];
+    private readonly string?[] _savedEnv = new string?[7];
+    private static readonly string[] EnvNames = ["GIT_CONFIG_COUNT", "GIT_CONFIG_KEY_0", "GIT_CONFIG_VALUE_0", "GIT_CONFIG_KEY_1", "GIT_CONFIG_VALUE_1", "GIT_CONFIG_KEY_2", "GIT_CONFIG_VALUE_2"];
     private FakeGitHub _github = null!;
     private Factory _factory = null!;
     private HttpClient _http = null!;
@@ -48,11 +49,14 @@ public sealed class PullRequestTests(PostgresFixture pg) : IAsyncLifetime
 
         for (var i = 0; i < EnvNames.Length; i++) _savedEnv[i] = Environment.GetEnvironmentVariable(EnvNames[i]);
         var server = "file://" + Path.Combine(_temp, "gitserver").Replace('\\', '/') + "/";
-        Environment.SetEnvironmentVariable("GIT_CONFIG_COUNT", "2");
+        Environment.SetEnvironmentVariable("GIT_CONFIG_COUNT", "3");
         Environment.SetEnvironmentVariable("GIT_CONFIG_KEY_0", $"url.{server}.insteadOf");
         Environment.SetEnvironmentVariable("GIT_CONFIG_VALUE_0", "https://github.com/");
         Environment.SetEnvironmentVariable("GIT_CONFIG_KEY_1", $"url.{server}.insteadOf");
         Environment.SetEnvironmentVariable("GIT_CONFIG_VALUE_1", $"https://x-access-token:{FakeGitHub.Token}@github.com/");
+        // repositório por SSH (git@github.com:...) também cai no "GitHub" local
+        Environment.SetEnvironmentVariable("GIT_CONFIG_KEY_2", $"url.{server}.insteadOf");
+        Environment.SetEnvironmentVariable("GIT_CONFIG_VALUE_2", "git@github.com:");
 
         _github = new FakeGitHub(origin);
         _factory = new Factory(pg.NewConnectionString(), _temp, _github);
@@ -124,6 +128,158 @@ public sealed class PullRequestTests(PostgresFixture pg) : IAsyncLifetime
     private static Guid Id(JsonElement project) => project.GetProperty("id").GetGuid();
 
     private int Pulls => _github.Requests.Count(r => r.Method == "POST" && r.Path.EndsWith("/pulls"));
+
+    // ------------------------------------------------------------------ publicação automática ao concluir
+
+    private async Task PublishAsync(Guid task)
+    {
+        await using var scope = _factory.Services.CreateAsyncScope();
+        await scope.ServiceProvider.GetRequiredService<IBranchPublisher>().PublishAsync(task, default);
+    }
+
+    private async Task<JsonElement> Item(Guid task) => await _http.GetFromJsonAsync<JsonElement>($"/api/work-items/{task}");
+
+    [Fact]
+    public async Task A_finished_task_has_its_branch_published_automatically_without_opening_a_pr_or_touching_the_base()
+    {
+        var project = await CreateProject(new { githubToken = FakeGitHub.Token });
+        var task = await DoneTask(Id(project));
+        var mainBefore = await GitOrigin.HeadAsync(Remote);
+
+        await PublishAsync(task);
+
+        var branch = $"agentforge/task-{task}";
+        Assert.True(await GitOrigin.HasBranchAsync(Remote, branch));
+        Assert.Contains("feature", await GitCli.RunAsync(Remote, ["log", "-1", "--format=%s", branch], default));
+        Assert.Equal(mainBefore, await GitOrigin.HeadAsync(Remote));       // a base não muda
+        Assert.Equal(0, Pulls);                                              // o PR continua sendo ação humana
+        var item = await Item(task);
+        Assert.NotEqual(JsonValueKind.Null, item.GetProperty("pushedAt").ValueKind);
+        Assert.Equal(JsonValueKind.Null, item.GetProperty("pushError").ValueKind);
+        Assert.Equal(JsonValueKind.Null, item.GetProperty("pullRequestUrl").ValueKind);
+
+        // publicar de novo não repete o push nem muda nada
+        var firstPush = item.GetProperty("pushedAt").GetDateTime();
+        await PublishAsync(task);
+        Assert.Equal(firstPush, (await Item(task)).GetProperty("pushedAt").GetDateTime());
+
+        // e abrir o PR depois funciona, sem erro (o branch já está lá)
+        var (status, _) = await OpenPr(task);
+        Assert.Equal(HttpStatusCode.OK, status);
+        Assert.Equal(1, Pulls);
+    }
+
+    [Fact]
+    public async Task An_ssh_project_pushes_to_its_ssh_url_with_the_same_key_as_the_pull_and_needs_no_token()
+    {
+        var project = await CreateProject(url: "git@github.com:octo/privado.git");        // sem token do GitHub
+        var task = await DoneTask(Id(project));
+        var mainBefore = await GitOrigin.HeadAsync(Remote);
+
+        await PublishAsync(task);                                            // automático ao concluir
+
+        var branch = $"agentforge/task-{task}";
+        Assert.True(await GitOrigin.HasBranchAsync(Remote, branch), "pushError: " + (await Item(task)).GetProperty("pushError"));
+        Assert.Equal(mainBefore, await GitOrigin.HeadAsync(Remote));
+        var item = await Item(task);
+        Assert.NotEqual(JsonValueKind.Null, item.GetProperty("pushedAt").ValueKind);
+        Assert.Equal(JsonValueKind.Null, item.GetProperty("pushError").ValueKind);
+
+        // o botão também funciona sem token, mas abrir o PR (API do GitHub) continua exigindo o token
+        Assert.Equal(HttpStatusCode.OK, (await _http.PostAsync($"/api/work-items/{task}/push", null)).StatusCode);
+        var (status, body) = await OpenPr(task);
+        Assert.Equal(HttpStatusCode.Conflict, status);
+        Assert.Contains("token", body.GetProperty("error").GetString());
+        Assert.Equal(0, Pulls);
+    }
+
+    [Fact]
+    public async Task The_push_button_endpoint_publishes_a_done_task_and_recovers_from_an_earlier_failure()
+    {
+        var project = await CreateProject();                                 // sem token: a publicação automática registrou o erro
+        var task = await DoneTask(Id(project));
+        await PublishAsync(task);
+        Assert.Contains("token do GitHub", (await Item(task)).GetProperty("pushError").GetString());
+
+        // sem token a ação manual também recusa, com o motivo
+        var refused = await _http.PostAsync($"/api/work-items/{task}/push", null);
+        Assert.Equal(HttpStatusCode.Conflict, refused.StatusCode);
+
+        // cadastra o token e usa o botão
+        var edit = await _http.PutAsJsonAsync($"/api/projects/{Id(project)}", new
+        {
+            name = project.GetProperty("name").GetString(), repositoryUrl = "https://github.com/octo/privado.git", baseBranch = "main",
+            githubToken = FakeGitHub.Token,
+        });
+        Assert.Equal(HttpStatusCode.OK, edit.StatusCode);
+        var mainBefore = await GitOrigin.HeadAsync(Remote);
+
+        var pushed = await _http.PostAsync($"/api/work-items/{task}/push", null);
+
+        Assert.Equal(HttpStatusCode.OK, pushed.StatusCode);
+        var body = await pushed.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal($"agentforge/task-{task}", body.GetProperty("branch").GetString());
+        Assert.True(await GitOrigin.HasBranchAsync(Remote, $"agentforge/task-{task}"));
+        Assert.Equal(mainBefore, await GitOrigin.HeadAsync(Remote));
+        Assert.Equal(0, Pulls);
+        var item = await Item(task);
+        Assert.NotEqual(JsonValueKind.Null, item.GetProperty("pushedAt").ValueKind);
+        Assert.Equal(JsonValueKind.Null, item.GetProperty("pushError").ValueKind);
+        Assert.DoesNotContain(FakeGitHub.Token, body.GetRawText());
+    }
+
+    [Fact]
+    public async Task The_push_button_endpoint_only_accepts_done_tasks_and_known_ids()
+    {
+        var project = await CreateProject(new { githubToken = FakeGitHub.Token });
+        var waiting = await DoneTask(Id(project), WorkItemState.AwaitingApproval);
+
+        Assert.Equal(HttpStatusCode.Conflict, (await _http.PostAsync($"/api/work-items/{waiting}/push", null)).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await _http.PostAsync($"/api/work-items/{Guid.NewGuid()}/push", null)).StatusCode);
+        Assert.False(await GitOrigin.HasBranchAsync(Remote, $"agentforge/task-{waiting}"));
+    }
+
+    [Fact]
+    public async Task Without_a_github_token_the_branch_is_not_pushed_and_the_task_says_why()
+    {
+        var project = await CreateProject();                                 // sem token
+        var task = await DoneTask(Id(project));
+
+        await PublishAsync(task);
+
+        Assert.False(await GitOrigin.HasBranchAsync(Remote, $"agentforge/task-{task}"));
+        var item = await Item(task);
+        Assert.Equal(JsonValueKind.Null, item.GetProperty("pushedAt").ValueKind);
+        Assert.Contains("token do GitHub", item.GetProperty("pushError").GetString());
+        Assert.Equal("Done", item.GetProperty("state").GetString());          // continua concluída
+    }
+
+    [Fact]
+    public async Task A_failed_automatic_push_is_recorded_without_the_token_and_never_throws()
+    {
+        var project = await CreateProject(new { githubToken = FakeGitHub.Token });
+        var task = await BareDoneTask(Id(project));                          // Done, mas sem clone/branch na máquina: o push falha
+
+        await PublishAsync(task);                                            // não lança
+
+        var item = await Item(task);
+        Assert.Equal(JsonValueKind.Null, item.GetProperty("pushedAt").ValueKind);
+        var error = item.GetProperty("pushError").GetString();
+        Assert.False(string.IsNullOrWhiteSpace(error));
+        Assert.DoesNotContain(FakeGitHub.Token, error);
+    }
+
+    [Fact]
+    public async Task Only_a_done_task_is_ever_published()
+    {
+        var project = await CreateProject(new { githubToken = FakeGitHub.Token });
+        var task = await DoneTask(Id(project), WorkItemState.AwaitingApproval);
+
+        await PublishAsync(task);
+
+        Assert.False(await GitOrigin.HasBranchAsync(Remote, $"agentforge/task-{task}"));
+        Assert.Equal(JsonValueKind.Null, (await Item(task)).GetProperty("pushedAt").ValueKind);
+    }
 
     // ------------------------------------------------------------------ fluxo feliz
 
@@ -372,7 +528,7 @@ public sealed class PullRequestTests(PostgresFixture pg) : IAsyncLifetime
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var p = await db.Projects.FirstAsync(x => x.Id == Id(project));
 
-        foreach (var bad in new[] { "http://x/y.git", "git@github.com:o/r.git", "https://a b/c.git", "--receive-pack=x", "/tmp/x" })
+        foreach (var bad in new[] { "http://x/y.git", "git@github.com:o/r .git", "-oProxyCommand=x@h:y", "ext::sh -c x", "https://a b/c.git", "--receive-pack=x", "/tmp/x" })
             await Assert.ThrowsAsync<WorkspaceException>(() => workspaces.PushTaskBranchAsync(p, task, bad, default));
 
         var ex = await Assert.ThrowsAsync<GitException>(() =>

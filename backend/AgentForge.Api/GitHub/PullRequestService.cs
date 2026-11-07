@@ -10,6 +10,8 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AgentForge.Api.GitHub;
 
+public record PushResult(string Branch, DateTime PushedAt);
+
 public record PullRequestResult(string Url, int Number, string Branch, string BaseBranch, bool AlreadyExisted);
 
 /// <summary>Motivo pelo qual o PR não pôde ser aberto, já em texto para a pessoa (nunca contém o token).</summary>
@@ -28,6 +30,10 @@ public sealed partial class PullRequestService(
 {
     [GeneratedRegex(@"^[A-Za-z0-9][A-Za-z0-9._/-]{0,199}$")]
     private static partial Regex BranchPattern();
+
+    /// <summary>Repositório acessado por SSH (git@... ou ssh://): o push usa a mesma chave do clone, sem token.</summary>
+    public static bool UsesSsh(Project project) =>
+        project.RepositoryUrl.StartsWith("git@", StringComparison.Ordinal) || project.RepositoryUrl.StartsWith("ssh://", StringComparison.Ordinal);
 
     public static bool IsValidBranchName(string? name) =>
         name is not null && BranchPattern().IsMatch(name) && !name.Contains("..") && !name.EndsWith('/') && !name.EndsWith(".lock") && !name.Contains("//");
@@ -60,7 +66,61 @@ public sealed partial class PullRequestService(
         var token = ReadToken(project);
 
         // 1) publica SÓ o branch da tarefa, a partir do clone da máquina do projeto
-        var pushUrl = $"https://x-access-token:{token}@github.com/{fullName}.git";
+        await PushBranchAsync(item, project, ct);
+
+        // 2) abre o PR
+        PullRequestInfo pr;
+        try
+        {
+            pr = await github.CreatePullRequestAsync(token, fullName, item.Title, branch, target, Body(item, project), ct);
+        }
+        catch (GitHubException ex)
+        {
+            throw new PullRequestException(
+                $"O branch foi publicado, mas o GitHub recusou o PR: {ex.Message} (ajuste e tente de novo: o push não se repete à toa).",
+                StatusCodes.Status502BadGateway);
+        }
+
+        item.PullRequestUrl = pr.Url;
+        item.PushedAt ??= DateTime.UtcNow;
+        item.PushError = null;
+        item.PullRequestNumber = pr.Number;
+        await db.SaveChangesAsync(CancellationToken.None);
+        logger.LogInformation("PR #{Number} da tarefa {Task} aberto para {Base}", pr.Number, item.Id, target);
+        return new PullRequestResult(pr.Url, pr.Number, branch, target, pr.AlreadyExisted);
+    }
+
+    /// <summary>Botão "Publicar branch": faz o git push do branch de uma tarefa Done (as que concluíram antes da publicação automática, ou que falharam).</summary>
+    public async Task<PushResult> PushAsync(Guid workItemId, CancellationToken ct)
+    {
+        var item = await db.WorkItems.FirstOrDefaultAsync(w => w.Id == workItemId, ct)
+                   ?? throw new PullRequestException("Tarefa não encontrada.", StatusCodes.Status404NotFound);
+        if (item.State != WorkItemState.Done)
+            throw new PullRequestException("O branch só é publicado depois que a tarefa passou por todas as etapas e foi aprovada (Done).");
+        var project = await db.Projects.FirstAsync(p => p.Id == db.Demands.First(d => d.Id == item.DemandId).ProjectId, ct);
+
+        await PushBranchAsync(item, project, ct);
+        return new PushResult(WorkspaceManager.BranchName(item.Id), item.PushedAt!.Value);
+    }
+
+    /// <summary>
+    /// Empurra SÓ o branch da tarefa (refspec fixo) para o GitHub, pela máquina do ambiente do projeto, e registra em
+    /// <c>PushedAt</c>. Vale tanto para o botão "Abrir PR" quanto para a publicação automática ao concluir a tarefa.
+    /// </summary>
+    public async Task PushBranchAsync(WorkItem item, Project project, CancellationToken ct)
+    {
+        // SSH: empurra para a URL SSH do projeto, com a mesma chave do clone/pull (sem token). HTTPS: precisa do token do projeto na URL de push.
+        string pushUrl;
+        if (UsesSsh(project))
+        {
+            pushUrl = project.RepositoryUrl.Trim();
+        }
+        else
+        {
+            var fullName = GitHubClient.ParseFullName(project.RepositoryUrl)
+                           ?? throw new PullRequestException("Só é possível publicar projetos hospedados no GitHub (github.com).");
+            pushUrl = $"https://x-access-token:{ReadToken(project)}@github.com/{fullName}.git";
+        }
         try
         {
             await workspaces.PushTaskBranchAsync(project, item.Id, pushUrl, ct);
@@ -79,24 +139,10 @@ public sealed partial class PullRequestService(
             throw new PullRequestException(ex.Message, StatusCodes.Status502BadGateway);
         }
 
-        // 2) abre o PR
-        PullRequestInfo pr;
-        try
-        {
-            pr = await github.CreatePullRequestAsync(token, fullName, item.Title, branch, target, Body(item, project), ct);
-        }
-        catch (GitHubException ex)
-        {
-            throw new PullRequestException(
-                $"O branch foi publicado, mas o GitHub recusou o PR: {ex.Message} (ajuste e tente de novo: o push não se repete à toa).",
-                StatusCodes.Status502BadGateway);
-        }
-
-        item.PullRequestUrl = pr.Url;
-        item.PullRequestNumber = pr.Number;
+        item.PushedAt = DateTime.UtcNow;
+        item.PushError = null;
         await db.SaveChangesAsync(CancellationToken.None);
-        logger.LogInformation("PR #{Number} da tarefa {Task} aberto para {Base}", pr.Number, item.Id, target);
-        return new PullRequestResult(pr.Url, pr.Number, branch, target, pr.AlreadyExisted);
+        logger.LogInformation("Branch da tarefa {Task} publicado no GitHub", item.Id);
     }
 
     private string ReadToken(Project project)
@@ -114,7 +160,11 @@ public sealed partial class PullRequestService(
     }
 
     private static string ExplainPushFailure(string gitMessage) =>
-        gitMessage.Contains("Authentication failed", StringComparison.OrdinalIgnoreCase)
+        gitMessage.Contains("read only", StringComparison.OrdinalIgnoreCase) || gitMessage.Contains("read-only", StringComparison.OrdinalIgnoreCase)
+            ? "A chave SSH só tem permissão de leitura neste repositório. No GitHub (Settings → Deploy keys), apague a chave e adicione de novo marcando \"Allow write access\", ou use uma chave da sua conta."
+        : gitMessage.Contains("Permission denied (publickey)", StringComparison.OrdinalIgnoreCase) || gitMessage.Contains("Host key verification failed", StringComparison.OrdinalIgnoreCase)
+            ? "O GitHub não aceitou a chave SSH deste servidor (não autorizada neste repositório). Autorize a chave pública da tela Git."
+        : gitMessage.Contains("Authentication failed", StringComparison.OrdinalIgnoreCase)
         || gitMessage.Contains("Invalid username or token", StringComparison.OrdinalIgnoreCase)
         || gitMessage.Contains("could not read Username", StringComparison.OrdinalIgnoreCase)
             ? "O GitHub recusou o token no push (inválido, expirado ou sem permissão de escrita em Contents neste repositório)."

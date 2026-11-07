@@ -5,8 +5,9 @@ projeto (repositório Git), escreve uma demanda em linguagem natural e acompanha
 demanda em tarefas, o Dev implementando, o Tech Lead e o Security revisando e o QA testando, até a tarefa chegar a **Done**
 com um branch pronto para merge. Cada papel é uma execução do **Claude Code** em modo headless.
 
-Nenhum agente faz push: o trabalho fica no branch `agentforge/task-<id>` do clone local. Depois de aprovado, **você** pode abrir o pull request
-(botão *Abrir PR* ou MCP) para `develop` ou a branch principal do projeto; o merge continua sendo seu.
+Nenhum agente faz push: o trabalho fica no branch `agentforge/task-<id>` do clone local. Quando a tarefa chega a **Done**, o próprio
+AgentForge publica só esse branch no GitHub, pela **mesma chave SSH** do clone (ADR 0025); o botão *Publicar branch (git push)* cobre as que
+faltam. **Você** abre o pull request (botão *Abrir PR* ou MCP) para `develop` ou a branch principal do projeto; o merge continua sendo seu.
 
 > **Documentação online:** https://rafaelandrade74.github.io/AgentForge/ (fonte em `docs/index.html`, publicada pelo GitHub Pages a partir da pasta `/docs` da `main`).
 >
@@ -240,8 +241,8 @@ Há um projeto de exemplo (API de tarefas em .NET, com testes) em `examples/task
 
 - **Modo 2 (Docker, git no container) — chave SSH pela interface:** abra **Git** na barra, clique em **Gerar chave SSH** e copie
   a **chave pública**. A chave é gerada no servidor (`ed25519`, no volume `git-ssh`) e a **parte privada nunca sai dele**. No GitHub:
-  no repositório, *Settings → Deploy keys → Add deploy key*, cole a chave e **deixe "Allow write access" desmarcado** (o AgentForge
-  nunca faz push; leitura basta); ou, para vários repositórios, *Settings → SSH and GPG keys* da sua conta. Depois use
+  no repositório, *Settings → Deploy keys → Add deploy key*, cole a chave e **marque "Allow write access"** (o AgentForge
+  publica o branch das tarefas concluídas com esta mesma chave; sem escrita o push é recusado e a tarefa avisa); ou, para vários repositórios, *Settings → SSH and GPG keys* da sua conta. Depois use
   **Testar acesso** com a URL SSH (`git@github.com:org/repo.git`) e cadastre o projeto com essa URL. A chave serve a todos os
   projetos e o servidor Git novo é registrado no `known_hosts` na primeira conexão. "Gerar outra" substitui a chave (e a antiga
   deixa de valer); "Remover" apaga.

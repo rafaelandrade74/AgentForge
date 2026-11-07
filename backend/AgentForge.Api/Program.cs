@@ -68,6 +68,7 @@ builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<AdminCredentials>();
 builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<AgentForge.Api.GitHub.PullRequestService>();
+builder.Services.AddScoped<AgentForge.Orchestrator.Workflow.IBranchPublisher, AgentForge.Api.GitHub.AutoBranchPublisher>();
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer()
     .AddScheme<Microsoft.AspNetCore.Authentication.AuthenticationSchemeOptions, ApiTokenHandler>(ApiTokens.Scheme, null);

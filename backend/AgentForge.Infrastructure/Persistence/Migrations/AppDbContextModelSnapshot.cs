@@ -482,6 +482,13 @@ namespace AgentForge.Infrastructure.Persistence.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
 
+                    b.Property<string>("PushError")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateTime?>("PushedAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<int>("ReworkCount")
                         .HasColumnType("integer");
 

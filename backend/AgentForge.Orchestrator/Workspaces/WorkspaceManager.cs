@@ -47,8 +47,9 @@ public interface IWorkspaceManager
     Task<string> GetDiffAsync(Project project, Guid workItemId, CancellationToken ct, string? baseCommit = null);
 
     /// <summary>
-    /// Publica o branch agentforge/task-&lt;id&gt; da tarefa em <paramref name="pushUrl"/> (https, com a credencial embutida; some
-    /// de qualquer mensagem de erro). O refspec é fixo — branch da tarefa para o mesmo nome — então nunca atualiza a base.
+    /// Publica o branch agentforge/task-&lt;id&gt; da tarefa em <paramref name="pushUrl"/>: https com a credencial embutida (some de
+    /// qualquer mensagem de erro) ou a URL SSH do projeto (git@host:dono/repo.git), que usa a MESMA chave do clone/pull. O refspec é
+    /// fixo — branch da tarefa para o mesmo nome — então nunca atualiza a base. O `origin` do clone continua sem push (NoPushUrl).
     /// </summary>
     Task PushTaskBranchAsync(Project project, Guid workItemId, string pushUrl, CancellationToken ct);
 }
@@ -201,15 +202,22 @@ public class WorkspaceManager(IOptions<WorkspaceOptions> options, IEnvironmentLa
             return true;
         });
 
+    /// <summary>https/file, ssh://... ou o formato scp do git (usuario@host:dono/repo.git); começa por letra/dígito (nunca vira opção do git).</summary>
+    private static bool IsSafePushUrl(string url) =>
+        url.Length > 0 && char.IsAsciiLetterOrDigit(url[0]) && !url.Any(c => char.IsWhiteSpace(c) || char.IsControl(c))
+        && (url.StartsWith("https://", StringComparison.Ordinal) || url.StartsWith("file://", StringComparison.Ordinal)
+            || url.StartsWith("ssh://", StringComparison.Ordinal)
+            || System.Text.RegularExpressions.Regex.IsMatch(url, @"^[A-Za-z0-9._-]+@[A-Za-z0-9.-]+:[A-Za-z0-9._/~-]+$"));
+
     public Task PushTaskBranchAsync(Project project, Guid workItemId, string pushUrl, CancellationToken ct)
     {
-        if (!(pushUrl.StartsWith("https://", StringComparison.Ordinal) || pushUrl.StartsWith("file://", StringComparison.Ordinal))
-            || pushUrl.Any(c => char.IsWhiteSpace(c) || char.IsControl(c)))
-            throw new WorkspaceException("URL de push inválida (só https, sem espaços).");
+        if (!IsSafePushUrl(pushUrl))
+            throw new WorkspaceException("URL de push inválida (use https ou a URL SSH do repositório, sem espaços).");
         return LockedAsync(project, ct, async t =>
         {
             var branch = BranchName(workItemId);
-            // o repositório pode ter sido clonado por SSH (deploy key somente leitura): empurra para a URL explícita, e só este branch
+            // o origin do clone não aceita push (NoPushUrl): empurra para a URL explícita, e só este branch. Em URL SSH, o git usa a
+            // mesma chave do clone/pull (GIT_SSH_COMMAND do launcher; nos modos 1 e 3, as credenciais do git do computador).
             await Git(t, RepoPath(t, project), ["push", pushUrl, $"refs/heads/{branch}:refs/heads/{branch}"], ct);
             return 0;
         });

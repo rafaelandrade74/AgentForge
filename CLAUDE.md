@@ -5,7 +5,7 @@ Aplicação web auto-hospedada (homelab) que orquestra o ciclo de desenvolviment
 ## Princípios
 - Backend C# (.NET 8), frontend Angular 18+ (standalone, signals). Tudo sobe com `docker compose up`.
 - Todo agente roda pelo próprio binário CLI, nunca por API. Um único `CliAgentRunner` cuida de processo, streaming, timeout e persistência; cada agente implementa um `ICliAgentAdapter`. Só existe o `ClaudeCodeAdapter` no MVP. O backend não lê nem guarda credenciais de agentes.
-- Cada tarefa roda em um git worktree isolado, branch `agentforge/task-<id>`; nenhum agente faz push, e o AgentForge nunca escreve na branch base: só publica o `agentforge/task-<id>` de uma tarefa concluída, por ação humana, para abrir o PR (ADR 0023).
+- Cada tarefa roda em um git worktree isolado, branch `agentforge/task-<id>`; nenhum agente faz push, e o AgentForge nunca escreve na branch base: o servidor publica só o `agentforge/task-<id>` de uma tarefa concluída (automático ao chegar em Done, ou pelo botão; ADR 0025) e o PR é aberto por ação humana (ADR 0023).
 - Toda execução é persistida (prompt, saída, custo, duração, status) e transmitida ao vivo.
 - Humano no controle: aprovações configuráveis.
 - A saída de todo agente termina com um bloco JSON validado; inválida conta como falha e é reexecutada uma vez.
@@ -71,6 +71,9 @@ Página **Aprovações** (`/approvals`) + `GET /api/approvals` (`CrudEndpoints.A
 
 ## Limite de uso do agente (ADR 0024)
 Créditos/janela de horas esgotados não falham a tarefa: `ClaudeCodeAdapter` devolve `AgentResult.Limit` (`UsageLimitParser`: `rate_limit_event` rejeitado, `usage limit reached|epoch`, `resets 3pm (tz)`); `IUsageLimitTracker` (por ambiente e agente) faz o runner nem iniciar o CLI enquanto vale; `ExecOutcome.Unavailable` + `EnvironmentDeferredException.Limit` reaproveitam a espera da ADR 0020, mas até o `RetryAt` do limite (sem horário = sonda a cada 5 min). `GET /api/environments/usage-limits`, `usageLimits` no `/load` e faixa roxa na barra.
+
+## Publicação do branch (ADR 0025)
+Tarefa `Done` → `IBranchPublisher` (`AutoBranchPublisher`, Api) faz o push do branch da tarefa; `WorkItem.PushedAt`/`PushError`. Projeto SSH: push para a URL SSH do projeto (o `origin` do clone continua sem push), **mesma chave do pull** (sem token; a chave precisa de escrita no GitHub — a deploy key do importador é só leitura); projeto HTTPS: token do projeto. Botão *Publicar branch* = `POST /api/work-items/{id}/push`. Falha nunca desfaz o Done.
 
 ## Pull request da tarefa concluída (ADR 0023)
 Tarefa `Done` → botão *Abrir PR* / MCP `open_pull_request` (ação humana). `PullRequestService` (`AgentForge.Api/GitHub`): push do branch da tarefa pela máquina do ambiente (`IWorkspaceManager.PushTaskBranchAsync`, refspec fixo, URL https com o token, erros mascarados) e PR via `GitHubClient.CreatePullRequestAsync`; idempotente (`WorkItem.PullRequestUrl/Number`). `Project.PullRequestBaseBranch` (vazio = base) e `Project.ProtectedGitHubToken` (Data Protection; escrita só pela tela, nunca pelo MCP). MCP `update_project` altera o destino.

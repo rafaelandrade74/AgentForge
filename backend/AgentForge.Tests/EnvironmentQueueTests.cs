@@ -147,9 +147,14 @@ public sealed class EnvironmentQueueTests(PostgresFixture pg) : IAsyncLifetime
         return Task.CompletedTask;
     }
 
-    private async Task<OrchestratorHarness> Start(TestEnvironments envs, ScriptedAdapter adapter, int concurrency, double retrySeconds = 0.2) =>
+    private async Task<OrchestratorHarness> Start(TestEnvironments envs, ScriptedAdapter adapter, int concurrency, double retrySeconds = 0.2,
+        Action<IServiceCollection>? more = null) =>
         await OrchestratorHarness.StartAsync(pg.NewConnectionString(), Path.Combine(_temp, "root-default"), adapter, concurrency,
-            services => services.AddSingleton<IEnvironmentLaunchers>(envs),
+            services =>
+            {
+                services.AddSingleton<IEnvironmentLaunchers>(envs);
+                more?.Invoke(services);
+            },
             new Dictionary<string, string?>
             {
                 ["Orchestrator:EnvironmentRetryInitialSeconds"] = retrySeconds.ToString(System.Globalization.CultureInfo.InvariantCulture),
@@ -294,6 +299,49 @@ public sealed class EnvironmentQueueTests(PostgresFixture pg) : IAsyncLifetime
         var done = await h.WithDb(db => db.WorkItems.AsNoTracking().FirstAsync(w => w.Id == taskId));
         Assert.Null(done.WaitingReason);
         Assert.Empty(load.Waiting());
+    }
+
+    private sealed class RecordingPublisher(bool fail = false) : IBranchPublisher
+    {
+        public System.Collections.Concurrent.ConcurrentQueue<Guid> Published { get; } = new();
+
+        public Task PublishAsync(Guid workItemId, CancellationToken ct)
+        {
+            Published.Enqueue(workItemId);
+            return fail ? throw new InvalidOperationException("rede caiu") : Task.CompletedTask;
+        }
+    }
+
+    [PosixFact]
+    public Task Reaching_done_publishes_the_branch_once() => PublishOnDone(publisherFails: false);
+
+    [PosixFact]
+    public Task A_failing_publisher_never_undoes_done() => PublishOnDone(publisherFails: true);
+
+    private async Task PublishOnDone(bool publisherFails)
+    {
+        var envs = new TestEnvironments(_temp);
+        var publisher = new RecordingPublisher(publisherFails);
+        await using var h = await Start(envs, new ScriptedAdapter(), concurrency: 2, more: s => s.AddSingleton<IBranchPublisher>(publisher));
+        var a = await AddEnvironment(h, "A", max: 1);
+        envs.Add(a, "A");
+        var (_, demand) = await Project(h, a);
+
+        Guid taskId = default;
+        await h.WithDb(async db =>
+        {
+            demand = await db.Demands.FirstAsync(d => d.Id == demand.Id);
+            demand.Status = DemandStatus.InProgress;
+            var item = new WorkItem { DemandId = demand.Id, Title = "Tarefa A", AcceptanceCriteria = "x", State = WorkItemState.InDevelopment };
+            db.WorkItems.Add(item);
+            await db.SaveChangesAsync();
+            taskId = item.Id;
+            return 0;
+        });
+        h.Services.GetRequiredService<IWorkQueue>().EnqueueWorkItem(taskId);
+
+        Assert.True(await h.UntilItems(demand.Id, items => items.All(i => i.State == WorkItemState.Done), 90), "conclui");
+        Assert.Equal([taskId], publisher.Published.ToArray());               // publicou uma vez, só depois de concluída
     }
 
     [PosixFact]

@@ -77,6 +77,10 @@ public class WorkItem
     /// <summary>Pull request aberto no GitHub com o branch desta tarefa (depois de concluída e aprovada).</summary>
     public string? PullRequestUrl { get; set; }
     public int? PullRequestNumber { get; set; }
+    /// <summary>Quando o branch da tarefa foi publicado no GitHub (automático ao chegar em Done, ou ao abrir o PR). Nulo = ainda não.</summary>
+    public DateTime? PushedAt { get; set; }
+    /// <summary>Por que a publicação automática não aconteceu (ex.: projeto sem token do GitHub). Nunca contém o token.</summary>
+    public string? PushError { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public List<WorkItem> Dependencies { get; set; } = [];
 }

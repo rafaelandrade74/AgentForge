@@ -48,7 +48,7 @@
   <div class="cards">
     <div class="card"><h3>Papéis como agentes</h3><p>Scrum Master, Dev, Tech Lead, Security e QA — cada um é uma execução do Claude Code em modo headless.</p></div>
     <div class="card"><h3>Isolado por tarefa</h3><p>Cada tarefa roda num git worktree próprio, no branch <code>agentforge/task-&lt;id&gt;</code>.</p></div>
-    <div class="card"><h3>Você no controle</h3><p>Aprovações configuráveis. Nenhum agente faz push; depois de aprovada, você abre o PR com um clique e o merge é seu.</p></div>
+    <div class="card"><h3>Você no controle</h3><p>Aprovações configuráveis. Nenhum agente faz push; o servidor publica o branch da tarefa concluída pela chave SSH do clone, você abre o PR com um clique e o merge é seu.</p></div>
     <div class="card"><h3>Ao vivo e auditável</h3><p>Prompt, saída, custo, duração e status de toda execução são guardados e transmitidos em tempo real.</p></div>
   </div>
 </section>
@@ -425,7 +425,7 @@ export 'HostAgent__Docker__AllowedImages__0=minha/*'                            
   <li><strong>Nova demanda → Criar e iniciar refinamento.</strong> Descreva em linguagem natural o que quer. O Scrum Master lê o repositório e propõe as tarefas.</li>
   <li><strong>Aprovar plano</strong> na tela da demanda. O quadro do projeto mostra as tarefas andando; clique numa tarefa para ver o log ao vivo, o diff e as execuções.</li>
   <li>Em <strong>Aguardando aprovação</strong> (a página <strong>Aprovações</strong>, no menu de cima, lista as entregas pendentes de <strong>todos os projetos</strong>, com o número no selo), revise o diff e <strong>aprove</strong> ou <strong>rejeite com comentário</strong> (a tarefa volta ao Dev). Tarefas que voltam três vezes ficam <strong>Bloqueadas</strong>.</li>
-  <li>Depois de <strong>Done</strong>, o trabalho está no branch <code>agentforge/task-&lt;id&gt;</code> do clone local. <strong>Nenhum agente faz push.</strong> Para abrir o pull request (para <code>develop</code> ou a branch principal), cadastre o token do GitHub e a branch de destino em <em>Projetos → Editar</em> e use <strong>Abrir PR</strong> na tarefa. O merge é seu.</li>
+  <li>Depois de <strong>Done</strong>, o trabalho está no branch <code>agentforge/task-&lt;id&gt;</code> do clone local. <strong>Nenhum agente faz push:</strong> o próprio AgentForge publica o branch no GitHub ao concluir (pela mesma chave SSH do clone, que precisa de <em>Allow write access</em>); a tarefa tem o botão <strong>Publicar branch (git push)</strong> para as que faltam. Para abrir o pull request (para <code>develop</code> ou a branch principal), cadastre o token do GitHub e a branch de destino em <em>Projetos → Editar</em> e use <strong>Abrir PR</strong> na tarefa. O merge é seu.</li>
 </ol>
 <p>Onde ficam os arquivos: clones em <code>&lt;raiz&gt;/&lt;id-do-projeto&gt;/repo</code> e worktrees em <code>&lt;raiz&gt;/&lt;id-do-projeto&gt;/worktrees/&lt;id-da-tarefa&gt;</code>, com a raiz em <code>/data/repos</code> (volume <code>repos</code>; A, B, C), <code>HOST_WORKSPACES_ROOT</code> (D) ou <code>.agentforge/repos</code> (E).</p>
 <div class="note"><p><strong>Modo automático:</strong> marque o projeto como automático para dispensar as duas aprovações humanas. Use só em projetos de teste. O agente de cada papel é escolhido em <strong>Agentes</strong> e os prompts, em <strong>Prompts</strong>.</p></div>
@@ -451,7 +451,7 @@ export 'HostAgent__Docker__AllowedImages__0=minha/*'                            
 <h3>Chave SSH pela interface</h3>
 <ol class="steps">
   <li>Abra <strong>Git</strong> e clique em <strong>Gerar chave SSH</strong>. Copie a <strong>chave pública</strong>: a privada (<code>ed25519</code>, volume <code>git-ssh</code>) nunca sai do servidor.</li>
-  <li>No GitHub, no repositório: <em>Settings → Deploy keys → Add deploy key</em>. Cole a chave e <strong>deixe "Allow write access" desmarcado</strong>. Para vários repositórios, use <em>Settings → SSH and GPG keys</em> da conta.</li>
+  <li>No GitHub, no repositório: <em>Settings → Deploy keys → Add deploy key</em>. Cole a chave e <strong>marque "Allow write access"</strong> (o AgentForge usa esta mesma chave para publicar o branch das tarefas concluídas). Para vários repositórios, use <em>Settings → SSH and GPG keys</em> da conta.</li>
   <li>De volta em <strong>Git</strong>, use <strong>Testar acesso</strong> com a URL SSH (<code>git@github.com:org/repo.git</code>).</li>
   <li>Cadastre o projeto com essa URL SSH.</li>
 </ol>
@@ -643,7 +643,7 @@ git pull && docker compose up -d --build</code></pre>
 <ul>
   <li><code>db</code>, <code>api</code> e <code>web</code> rodam sem root (API com UID 1654, front com <code>nginx-unprivileged</code>), com <code>no-new-privileges</code> e <code>cap_drop: ALL</code>; o front tem sistema de arquivos somente leitura.</li>
   <li>Só o <code>web</code> é publicado na rede; o Postgres não é exposto.</li>
-  <li>Nenhum agente faz push, e o backend não guarda credenciais de agentes. O único push é o do <strong>Abrir PR</strong>, feito pelo servidor, por ação sua, só do branch da tarefa concluída.</li>
+  <li>Nenhum agente faz push, e o backend não guarda credenciais de agentes. O único push é o do branch da tarefa concluída (automático ao chegar em Done ou pelo botão), feito pelo servidor e nunca da base.</li>
   <li>Tokens que o AgentForge guarda (host agents e GitHub dos projetos) ficam <strong>criptografados</strong> no banco, com a chave no volume <code>dp-keys</code> (entra no backup), e nunca voltam pela API nem entram em log. O token do GitHub tem de ser fine-grained, só do repositório.</li>
   <li>Containers por tarefa: sem <code>--privileged</code>, sem o socket do Docker, <code>--cap-drop ALL</code>, <code>no-new-privileges</code> e só a pasta do projeto montada; só imagens <code>agentforge/*</code> ou da lista <code>AllowedImages</code> do host agent.</li>
 </ul>

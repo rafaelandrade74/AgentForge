@@ -62,7 +62,25 @@ const MAX_DIFF_LINES = 4000;
               <div class="alert ok" role="status">
                 Pull request <a [href]="w.pullRequestUrl" target="_blank" rel="noopener noreferrer" data-testid="pr-link">#{{ w.pullRequestNumber }}</a> aberto no GitHub.
               </div>
-            } @else if (project()?.hasGitHubToken) {
+            } @else if (canPush()) {
+              <div class="row" data-testid="push">
+                <strong>Branch no GitHub</strong>
+                @if (w.pushedAt) {
+                  <span class="muted" data-testid="pushed">publicado em {{ pushedLabel(w.pushedAt) }}</span>
+                } @else {
+                  <span class="muted">ainda não publicado</span>
+                }
+                <button mat-stroked-button type="button" [disabled]="pushing()" (click)="pushBranch()" data-testid="push-button">
+                  {{ w.pushedAt ? 'Publicar de novo (git push)' : 'Publicar branch (git push)' }}
+                </button>
+                @if (pushing()) { <span class="muted">Enviando o branch…</span> }
+              </div>
+              @if (w.pushError && !w.pushedAt) {
+                <div class="alert warn" role="status" data-testid="push-error">{{ w.pushError }}</div>
+              }
+              @if (!project()?.hasGitHubToken) {
+                <p class="muted small" data-testid="pr-hint">O push usa a chave SSH do projeto (a mesma do clone). Para abrir o PR daqui, cadastre também o token do GitHub (Projetos → Editar).</p>
+              } @else {
               <div class="row">
                 <strong>Pull request</strong>
                 <label class="muted small" for="pr-base">para a branch</label>
@@ -71,7 +89,8 @@ const MAX_DIFF_LINES = 4000;
                 <button mat-flat-button type="button" [disabled]="openingPr()" (click)="openPullRequest()">Abrir PR</button>
                 @if (openingPr()) { <span class="muted">Publicando o branch e abrindo o PR…</span> }
               </div>
-              <p class="muted small">Publica só o branch <span class="mono">{{ w.branchName }}</span> no GitHub e abre o PR; a branch de destino nunca é alterada.</p>
+              <p class="muted small">Abre o PR do branch <span class="mono">{{ w.branchName }}</span> (publicando-o antes, se preciso); a branch de destino nunca é alterada.</p>
+              }
             } @else {
               <p class="muted small" data-testid="pr-hint">Para abrir o PR daqui, cadastre o token do GitHub no projeto (Projetos → Editar → Token do GitHub para PRs).</p>
             }
@@ -238,6 +257,33 @@ export class TaskPage {
       confirmLabel: 'Rejeitar',
     }).subscribe((comment) => {
       if (typeof comment === 'string') this.act(this.api.reject(this.id(), comment), 'Devolvida ao Dev.');
+    });
+  }
+
+  readonly pushing = signal(false);
+
+  /** Dá para publicar o branch: repositório por SSH (mesma chave do clone) ou projeto com o token do GitHub. */
+  readonly canPush = computed(() => {
+    const p = this.project();
+    return !!p && (p.hasGitHubToken || /^(git@|ssh:\/\/)/.test(p.repositoryUrl));
+  });
+
+  pushedLabel(iso: string): string {
+    return new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+  }
+
+  pushBranch(): void {
+    this.pushing.set(true);
+    this.api.pushBranch(this.id()).subscribe({
+      next: (r) => {
+        this.pushing.set(false);
+        this.snack.open(`Branch ${r.branch} publicado no GitHub.`, 'OK', { duration: 5000 });
+        this.loadItem();
+      },
+      error: (err) => {
+        this.pushing.set(false);
+        this.snack.open(err?.error?.error ?? 'Não foi possível publicar o branch.', 'OK', { duration: 9000 });
+      },
     });
   }
 

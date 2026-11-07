@@ -22,7 +22,8 @@ public partial class WorkItemProcessor(
     IWorkflowEventPublisher events,
     IEnvironmentLaunchers environments,
     IOptions<OrchestratorOptions> options,
-    ILogger<WorkItemProcessor> logger)
+    ILogger<WorkItemProcessor> logger,
+    IBranchPublisher? publisher = null)
 {
     private const int MaxDiffChars = 100_000;
 
@@ -259,6 +260,7 @@ public partial class WorkItemProcessor(
         {
             case WorkItemState.Done:
                 await workspaces.RemoveWorktreeAsync(project, item.Id, deleteBranch: false, CancellationToken.None);
+                await PublishBranchAsync(item, project);
                 var dependents = await db.WorkItems
                     .Where(w => w.State == WorkItemState.Todo && w.Dependencies.Any(d => d.Id == item.Id))
                     .Select(w => w.Id).ToListAsync();
@@ -271,6 +273,22 @@ public partial class WorkItemProcessor(
                 await ReassessDependentsAsync(item, project);
                 await CompleteDemandIfFinishedAsync(item.DemandId);
                 break;
+        }
+    }
+
+    /// <summary>Tarefa concluída: publica o branch dela no GitHub (se o projeto tem token). Falha nunca desfaz o Done.</summary>
+    private async Task PublishBranchAsync(WorkItem item, Project project)
+    {
+        if (publisher is null) return;
+        try
+        {
+            await publisher.PublishAsync(item.Id, CancellationToken.None);
+            await db.Entry(item).ReloadAsync(CancellationToken.None);
+            await events.PublishChangeAsync(project.Id, item);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Não foi possível publicar o branch da tarefa {Id}; ela continua Done.", item.Id);
         }
     }
 

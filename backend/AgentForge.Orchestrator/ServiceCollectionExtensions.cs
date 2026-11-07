@@ -49,6 +49,7 @@ public static class ServiceCollectionExtensions
         services.AddHostedService(sp => sp.GetRequiredService<OrchestratorService>());
         services.AddSingleton<IEnvironmentLoad>(sp => sp.GetRequiredService<OrchestratorService>());
         services.TryAddSingleton<IWorkflowEventPublisher, NullWorkflowEventPublisher>();
+        services.TryAddScoped<IBranchPublisher, NullBranchPublisher>();
         services.AddSingleton<AgentExecutor>();
         services.AddScoped<WorkItemProcessor>();
         services.AddScoped<DemandProcessor>();

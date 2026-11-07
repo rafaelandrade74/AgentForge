@@ -26,7 +26,9 @@
   <a href="#instalacao">Instalação passo a passo</a>
   <h4>Usar</h4>
   <a href="#primeiro-uso">Do projeto ao merge</a>
+  <a href="#pr">Pull request da tarefa</a>
   <a href="#privados">Repositórios privados</a>
+  <a href="#ambientes">Várias máquinas e perfis</a>
   <a href="#mcp">Controlar pelo Claude (MCP)</a>
   <h4>Operar</h4>
   <a href="#config">Configuração</a>
@@ -355,7 +357,11 @@ ORCHESTRATOR_CONCURRENCY=1</code></pre></li>
       <tr><td>"'dotnet' não está no PATH" (ou node/git)</td><td>Instale e abra um terminal novo</td></tr>
       <tr><td>"CLI não instalado"</td><td><code>claude</code> fora do PATH do terminal onde rodou o script</td></tr>
       <tr><td>Erro de conexão com o banco</td><td>Postgres parado ou connection string errada. Com <code>-StartPostgres</code> e senha trocada: <code>docker rm -f agentforge-native-db; docker volume rm agentforge-native-pgdata</code></td></tr>
-      <tr><td>Porta 8080 ocupada</td><td><code>-Urls http://localhost:&lt;outra&gt;</code></td></tr>
+      <tr><td>Abrir PR: "Cadastre o token do GitHub no projeto"</td><td><em>Projetos → Editar → Token do GitHub para PRs</em> (Contents e Pull requests de escrita, só neste repositório)</td></tr>
+  <tr><td>Abrir PR: "o GitHub recusou o token" / "sem permissão"</td><td>Token expirado ou sem escrita em <em>Contents</em> / <em>Pull requests</em> naquele repositório</td></tr>
+  <tr><td>Abrir PR: "o branch foi publicado, mas o GitHub recusou o PR"</td><td>Em geral a branch de destino não existe: corrija o destino e clique de novo (não repete o push)</td></tr>
+  <tr><td>Tarefa "Aguardando o ambiente voltar…"</td><td>A máquina do ambiente está fora do ar; suba o host agent (ela retoma sozinha) ou cancele a tarefa</td></tr>
+  <tr><td>Porta 8080 ocupada</td><td><code>-Urls http://localhost:&lt;outra&gt;</code></td></tr>
     </table>
   </details>
 </div>
@@ -423,6 +429,17 @@ export 'HostAgent__Docker__AllowedImages__0=minha/*'                            
 <p>Onde ficam os arquivos: clones em <code>&lt;raiz&gt;/&lt;id-do-projeto&gt;/repo</code> e worktrees em <code>&lt;raiz&gt;/&lt;id-do-projeto&gt;/worktrees/&lt;id-da-tarefa&gt;</code>, com a raiz em <code>/data/repos</code> (volume <code>repos</code>; A, B, C), <code>HOST_WORKSPACES_ROOT</code> (D) ou <code>.agentforge/repos</code> (E).</p>
 <div class="note"><p><strong>Modo automático:</strong> marque o projeto como automático para dispensar as duas aprovações humanas. Use só em projetos de teste. O agente de cada papel é escolhido em <strong>Agentes</strong> e os prompts, em <strong>Prompts</strong>.</p></div>
 
+<h2 id="pr">Pull request da tarefa concluída</h2>
+<p>Depois que a tarefa passou por Dev, Tech Lead, Security e QA <strong>e você aprovou a entrega</strong> (estado <em>Done</em>), a tela da tarefa mostra <strong>Abrir PR</strong>. O AgentForge publica <strong>só</strong> o branch <code>agentforge/task-&lt;id&gt;</code> no GitHub e abre o pull request para <code>develop</code> ou para a branch principal do projeto. Os agentes não ganham nenhuma credencial de escrita: quem faz o push é o servidor, por ação sua.</p>
+<ol class="steps">
+  <li>No GitHub, crie um token <strong>fine-grained</strong> limitado ao repositório, com <strong>Contents: Read and write</strong> e <strong>Pull requests: Read and write</strong>.</li>
+  <li><em>Projetos → Editar → Token do GitHub para PRs</em>: cole o token. Ele fica no banco <strong>criptografado</strong> e nunca volta para a tela; <em>Apagar token</em> o remove. Se a chave de proteção mudar (volume <code>dp-keys</code>), informe-o de novo.</li>
+  <li><em>Branch de destino dos PRs</em> (mesma tela): <code>develop</code>, por exemplo. Vazio = a branch base do projeto. Também dá para trocar pelo MCP (<code>update_project</code> com <code>pullRequestBaseBranch</code>) e, na hora, no campo ao lado do botão (ou <code>baseBranch</code> em <code>open_pull_request</code>).</li>
+  <li>Na tarefa <em>Done</em>: <strong>Abrir PR</strong>. Pelo MCP: <code>open_pull_request</code> com o <code>taskId</code>; <code>list_pending_actions</code> lista em <code>readyForPullRequest</code> o que está pronto.</li>
+</ol>
+<div class="note"><p><strong>O token não passa pelo MCP</strong> de propósito (iria parar na conversa do modelo): cadastre-o só na tela. Funciona para projetos em github.com. O push usa um refspec fixo (o branch da tarefa para o mesmo nome, sem <code>--force</code>), roda na máquina do ambiente do projeto e nunca altera a base. Abrir de novo devolve o mesmo PR; se o GitHub recusar o PR (ex.: branch de destino inexistente), o branch já está publicado e basta corrigir e tentar de novo.</p></div>
+<div class="warn"><p>Uma tarefa que depende de outras leva o trabalho delas no branch (o PR avisa): <strong>mescle primeiro o PR das dependências</strong>, senão o mesmo diff aparece nos dois.</p></div>
+
 <h2 id="privados">Repositórios privados</h2>
 <table>
   <tr><th>Cenário</th><th>Como acessar</th></tr>
@@ -439,6 +456,18 @@ export 'HostAgent__Docker__AllowedImages__0=minha/*'                            
 </ol>
 <p>"Gerar outra" substitui a chave (a antiga deixa de valer); "Remover" apaga. Ao importar do GitHub, o token é usado só naquela chamada: não é guardado nem registrado em log, e a chave é registrada como <em>deploy key</em> somente leitura.</p>
 
+<h2 id="ambientes">Várias máquinas, perfis de stack e fila</h2>
+<p>O passo a passo está no <a href="#instalacao" data-scenario="cen-f">cenário F</a>. Aqui, o que cada peça faz:</p>
+<table>
+  <tr><th>Peça</th><th>O que faz</th></tr>
+  <tr><td><strong>Ambientes</strong> (tela)</td><td>Cadastra máquinas com host agent (endereço, token, pasta dos clones, <em>Tarefas ao mesmo tempo</em>). O projeto escolhe a máquina; clone, worktrees, git e agentes rodam lá. O token fica criptografado no banco. A mesma tela mostra a <strong>carga</strong> ao vivo (rodando, na fila, agentes agora, o que espera uma máquina voltar).</td></tr>
+  <tr><td><strong>Git</strong> e <strong>Agentes</strong></td><td>Têm um seletor de ambiente: a chave SSH é gerada <em>na própria máquina</em> (a privada nunca sai de lá) e cada máquina tem o seu login do Claude.</td></tr>
+  <tr><td><strong>Perfis</strong> (tela)</td><td>Imagem Docker em que os agentes de um projeto rodam (Node 22, .NET 8, Python 3.12 prontos, ou a sua, por imagem ou Dockerfile), com limites de CPU e memória. Um container por tarefa, só em host agent <strong>Linux/macOS</strong> com <code>HostAgent__Docker__Enabled=true</code> (desligado por padrão): sem <code>--privileged</code>, sem o socket do Docker, <code>--cap-drop ALL</code> e só a pasta do projeto montada.</td></tr>
+  <tr><td><strong>Fila por ambiente</strong></td><td>Cada ambiente tem o seu limite; o que não cabe espera na fila <em>daquele</em> ambiente sem travar os outros. <code>ORCHESTRATOR_CONCURRENCY</code> é o teto global.</td></tr>
+  <tr><td><strong>Máquina fora do ar</strong></td><td>A tarefa <strong>não vira Bloqueada</strong>: mostra <em>Aguardando o ambiente voltar…</em> e é tentada de novo (15 s, 30 s… até 5 min) até a máquina responder, inclusive depois de reiniciar a API.</td></tr>
+  <tr><td><strong>Revisão em outra máquina</strong></td><td>No projeto, <em>Tech Lead roda em</em> e <em>Security roda em</em> mandam esses papéis para uma máquina leve. Eles recebem só o diff e a descrição (sem o repositório). Dev e QA ficam no ambiente do projeto.</td></tr>
+</table>
+
 <h2 id="mcp">Controlar pelo Claude Code (MCP)</h2>
 <p>O AgentForge é também um <strong>servidor MCP</strong> (HTTP, <code>POST /mcp</code>). O Claude Code, ou qualquer cliente MCP, pode criar projetos e demandas, acompanhar tarefas, ler o diff e aprovar ou rejeitar entregas por conversa. Funciona em todos os cenários.</p>
 <ol class="steps">
@@ -449,8 +478,8 @@ export 'HostAgent__Docker__AllowedImages__0=minha/*'                            
 <pre><code>{"mcpServers":{"agentforge":{"type":"http","url":"http://localhost:8080/mcp","headers":{"Authorization":"Bearer afk_..."}}}}</code></pre></li>
   <li>Converse: <em>"crie uma demanda no projeto X para adicionar o filtro por status e inicie"</em>, <em>"o que depende de mim?"</em>, <em>"mostre o diff da tarefa e aprove"</em>.</li>
 </ol>
-<details><summary>As 18 ferramentas</summary>
-  <p><code>list_projects</code>, <code>get_project</code>, <code>create_project</code>, <code>create_demand</code>, <code>start_demand</code>, <code>approve_plan</code>, <code>get_demand</code>, <code>list_tasks</code>, <code>get_task</code>, <code>get_task_diff</code>, <code>get_run_output</code>, <code>approve_task</code>, <code>reject_task</code>, <code>retry_task</code>, <code>cancel_task</code>, <code>list_pending_actions</code>, <code>list_agents</code>, <code>test_agent</code>.</p>
+<details><summary>As 21 ferramentas</summary>
+  <p><code>list_projects</code>, <code>get_project</code>, <code>create_project</code>, <code>create_demand</code>, <code>start_demand</code>, <code>approve_plan</code>, <code>get_demand</code>, <code>list_tasks</code>, <code>get_task</code>, <code>get_task_diff</code>, <code>get_run_output</code>, <code>approve_task</code>, <code>reject_task</code>, <code>retry_task</code>, <code>cancel_task</code>, <code>list_pending_actions</code>, <code>list_agents</code>, <code>test_agent</code>, <code>get_environment_load</code>, <code>update_project</code>, <code>open_pull_request</code>.</p>
   <p>As de leitura são marcadas como somente leitura e <code>cancel_task</code> como destrutiva. <strong>Não existe ferramenta que faça merge ou apague projeto</strong>; o único push é o de <code>open_pull_request</code> (só o branch da tarefa concluída). O token do GitHub não passa pelo MCP. <code>start_demand</code>, <code>create_demand</code> com <code>start</code> e <code>test_agent</code> gastam créditos.</p>
 </details>
 <div class="warn"><p>Atrás de um proxy reverso, repasse <code>/mcp</code> à API e use HTTPS: o token trafega no cabeçalho.</p></div>
@@ -469,7 +498,7 @@ export 'HostAgent__Docker__AllowedImages__0=minha/*'                            
   <tr><td><code>HOST_AGENT_TOKEN</code>, <code>HOST_WORKSPACES_ROOT</code>, <code>HOST_AGENT_URL</code></td><td>—</td><td>Cenário D (preenchidos por <code>scripts/host-agent</code>)</td></tr>
   <tr><td><code>NATIVE_DB_CONNECTION</code></td><td>Postgres local</td><td>Cenário E: connection string do banco</td></tr>
   <tr><td><code>CLAUDE_CODE_VERSION</code></td><td><code>2.1.316</code></td><td>Versão do CLI instalada na imagem</td></tr>
-  <tr><td><code>ORCHESTRATOR_CONCURRENCY</code></td><td><code>1</code></td><td>Tarefas simultâneas; com mais de 1, Tech Lead e Security revisam em paralelo</td></tr>
+  <tr><td><code>ORCHESTRATOR_CONCURRENCY</code></td><td><code>1</code></td><td>Teto global de tarefas simultâneas; com mais de 1, Tech Lead e Security revisam em paralelo. Cada ambiente tem ainda o seu limite (tela Ambientes)</td></tr>
   <tr><td><code>WEB_PORT</code>, <code>API_DEBUG_PORT</code></td><td><code>8080</code>, <code>8081</code></td><td>Portas (a API só em <code>127.0.0.1</code>)</td></tr>
   <tr><td><code>SWAGGER_ENABLED</code></td><td><code>true</code></td><td>Documentação da API em <code>/swagger</code></td></tr>
 </table>
@@ -495,7 +524,10 @@ export 'HostAgent__Docker__AllowedImages__0=minha/*'                            
   <tr><td><code>Agents:HostAgent:Url</code>, <code>:Token</code></td><td>vazio</td><td>Obrigatórios com <code>host</code> (token com 24+ caracteres)</td></tr>
   <tr><td><code>Workspaces:Root</code></td><td><code>/data/repos</code></td><td>Clones e worktrees, do lado onde o git roda</td></tr>
   <tr><td><code>Git:SshDir</code></td><td><code>~/.agentforge/ssh</code></td><td>Pasta da chave SSH gerada</td></tr>
-  <tr><td><code>Orchestrator:MaxConcurrency</code></td><td><code>1</code></td><td>Tarefas simultâneas</td></tr>
+  <tr><td><code>Orchestrator:MaxConcurrency</code></td><td><code>1</code></td><td>Teto global de tarefas simultâneas (cada ambiente tem o seu limite)</td></tr>
+  <tr><td><code>Orchestrator:EnvironmentRetryInitialSeconds</code>, <code>:EnvironmentRetryMaxSeconds</code></td><td><code>15</code>, <code>300</code></td><td>Espera antes de tentar de novo quando a máquina de um ambiente não responde (dobra até o máximo)</td></tr>
+  <tr><td><code>DataProtection:KeysDir</code></td><td><code>.agentforge/keys</code> (na home)</td><td>Chaves que criptografam os tokens guardados (ambientes e GitHub dos projetos); no Docker, o volume <code>dp-keys</code></td></tr>
+  <tr><td><code>HostAgent:SshDir</code>, <code>HostAgent:Docker:*</code></td><td>—</td><td>No host agent (outra máquina): pasta da chave SSH gerada e containers por tarefa (<code>Enabled</code>, <code>Executable</code>, <code>AllowedImages</code>, <code>ClaudeConfigDir</code>; desligados por padrão)</td></tr>
   <tr><td><code>GitHub:ApiUrl</code></td><td><code>https://api.github.com</code></td><td>Muda para GitHub Enterprise ou testes</td></tr>
   <tr><td><code>Prompts:Directory</code></td><td><code>&lt;app&gt;/prompts</code></td><td>Semente dos prompts no primeiro start</td></tr>
   <tr><td><code>Swagger:Enabled</code></td><td><code>true</code></td><td>Swagger em <code>/swagger</code></td></tr>
@@ -540,7 +572,9 @@ git pull && docker compose up -d --build</code></pre>
 <ul>
   <li><code>db</code>, <code>api</code> e <code>web</code> rodam sem root (API com UID 1654, front com <code>nginx-unprivileged</code>), com <code>no-new-privileges</code> e <code>cap_drop: ALL</code>; o front tem sistema de arquivos somente leitura.</li>
   <li>Só o <code>web</code> é publicado na rede; o Postgres não é exposto.</li>
-  <li>Nenhum agente faz push, e o backend não guarda credenciais de agentes.</li>
+  <li>Nenhum agente faz push, e o backend não guarda credenciais de agentes. O único push é o do <strong>Abrir PR</strong>, feito pelo servidor, por ação sua, só do branch da tarefa concluída.</li>
+  <li>Tokens que o AgentForge guarda (host agents e GitHub dos projetos) ficam <strong>criptografados</strong> no banco, com a chave no volume <code>dp-keys</code> (entra no backup), e nunca voltam pela API nem entram em log. O token do GitHub tem de ser fine-grained, só do repositório.</li>
+  <li>Containers por tarefa: sem <code>--privileged</code>, sem o socket do Docker, <code>--cap-drop ALL</code>, <code>no-new-privileges</code> e só a pasta do projeto montada; só imagens <code>agentforge/*</code> ou da lista <code>AllowedImages</code> do host agent.</li>
 </ul>
 <div class="warn"><p>No cenário de container, os agentes executam comandos (build, testes) <strong>dentro do container da API</strong>; nos cenários D e E, <strong>no seu computador</strong>, dentro do worktree da tarefa. Rode o AgentForge com repositórios em que você confia.</p></div>
 

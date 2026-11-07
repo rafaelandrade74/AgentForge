@@ -33,7 +33,8 @@
   <h4>Operar</h4>
   <a href="#config">Configuração</a>
   <a href="#proxy">Proxy reverso</a>
-  <a href="#backup">Backup e atualização</a>
+  <a href="#atualizar">Atualizar (Docker e build)</a>
+  <a href="#backup">Backup</a>
   <a href="#seguranca">Segurança</a>
   <a href="#problemas">Problemas comuns</a>
   <h4>Projeto</h4>
@@ -552,14 +553,84 @@ export 'HostAgent__Docker__AllowedImages__0=minha/*'                            
 }</code></pre>
 <p>Use HTTPS no proxy: o login e o token trafegam por ele.</p>
 
-<h2 id="backup">Backup e atualização</h2>
+<h2 id="atualizar">Atualizar a aplicação (Docker e build)</h2>
+<p>Atualizar é buscar o código novo e <strong>recompilar as imagens</strong>: o Docker não baixa uma versão pronta, ele constrói <code>api</code> e <code>web</code> a partir do repositório. As migrations do banco rodam sozinhas quando a API inicia.</p>
+<div class="warn"><p><strong>Antes de atualizar</strong>, faça o <a href="#backup">backup do banco</a> se os dados importam: uma migration nova não se desfaz sozinha.</p></div>
+
+<h3>Passo a passo (cenários A, B e C)</h3>
+<ol class="steps">
+  <li>Veja o que mudou e baixe o código:
+<pre><code>cd agentforge
+git fetch
+git log --oneline HEAD..origin/main     # o que vem de novo
+git pull</code></pre>
+    Se o <code>git pull</code> reclamar de alterações locais, guarde-as antes (<code>git stash</code>) ou descarte o que não importa.</li>
+  <li>Confira se o <code>.env.example</code> ganhou variáveis novas e copie as que fizerem sentido para o seu <code>.env</code>:
+<pre><code>git diff HEAD@{1} -- .env.example</code></pre></li>
+  <li>Recompile e suba (os containers antigos são trocados; os volumes, com banco, clones e login, ficam):
+<pre><code>docker compose up -d --build</code></pre></li>
+  <li>Acompanhe a subida e confirme:
+<pre><code>docker compose ps                  # api e web (e db) healthy
+docker compose logs -f api         # migrations aplicadas, sem erros</code></pre></li>
+  <li>Abra <a href="http://localhost:8080">http://localhost:8080</a> (atualize com <kbd>Ctrl</kbd>+<kbd>F5</kbd> para o navegador não usar a interface antiga) e entre em <strong>Agentes</strong> → <strong>Testar</strong>.</li>
+</ol>
+
+<h3>Cada cenário</h3>
+<table>
+  <tr><th>Cenário</th><th>Comando</th></tr>
+  <tr><td>A, B, C (Docker)</td><td><code>git pull &amp;&amp; docker compose up -d --build</code></td></tr>
+  <tr><td>D (host agent)</td><td>Pare o host agent (<kbd>Ctrl</kbd>+<kbd>C</kbd> no terminal 1), faça <code>git pull</code>, inicie-o de novo (<code>./scripts/host-agent.ps1</code> ou <code>.sh</code>) e rode <code>docker compose -f docker-compose.yml -f docker-compose.host-agent.yml up -d --build</code>. O host agent roda com <code>dotnet run</code> e recompila sozinho</td></tr>
+  <tr><td>E (nativo)</td><td>Pare com <kbd>Ctrl</kbd>+<kbd>C</kbd>, <code>git pull</code> e suba com <code>./scripts/run-native.ps1 -Rebuild</code> (<code>--rebuild</code> no <code>.sh</code>) para recompilar a interface. A API é recompilada pelo <code>dotnet</code> na subida</td></tr>
+</table>
+
+<h3>Recompilar só uma parte</h3>
+<pre><code>docker compose up -d --build api        # só a API (backend, CLI do Claude)
+docker compose up -d --build web        # só a interface
+docker compose build --no-cache api     # ignora o cache de camadas (dependências "travadas" em versão antiga)
+docker compose up -d                    # sobe com as imagens já construídas, sem recompilar</code></pre>
+
+<h3>Atualizar o Claude Code do container</h3>
+<p>A imagem da API instala o CLI no build, na versão de <code>CLAUDE_CODE_VERSION</code>. Para mudar de versão, edite o <code>.env</code> e recompile só a API (o login em <code>claude-config</code> é mantido):</p>
+<pre><code>CLAUDE_CODE_VERSION=2.1.316     # no .env: ponha a versão desejada
+docker compose up -d --build api</code></pre>
+<p>Nos cenários D e E o <code>claude</code> é o do computador: atualize-o por lá (<code>claude update</code> ou como você o instalou).</p>
+
+<h3>Voltar para uma versão anterior</h3>
+<ol class="steps">
+  <li>Se a versão nova já aplicou migrations, <strong>restaure o backup</strong> do banco (volume novo/vazio; veja <a href="#backup">Backup</a>). O banco novo não funciona de forma confiável com o código antigo.</li>
+  <li>Volte o código e recompile:
+<pre><code>git log --oneline -10               # ache o commit bom
+git checkout &lt;commit&gt;
+docker compose up -d --build</code></pre>
+    Para voltar a acompanhar a <code>main</code> depois: <code>git checkout main &amp;&amp; git pull</code>.</li>
+</ol>
+
+<h3>Liberar espaço em disco</h3>
+<p>Cada build deixa camadas antigas. Depois de confirmar que a nova versão está boa:</p>
+<pre><code>docker image prune -f              # imagens sem uso (dangling)
+docker builder prune -f            # cache de build antigo</code></pre>
+<p>Evite <code>docker system prune --volumes</code> e <code>docker compose down -v</code>: eles <strong>apagam</strong> banco, clones e login.</p>
+
+<details><summary>Se a atualização der errado</summary>
+  <table>
+    <tr><th>Sintoma</th><th>Solução</th></tr>
+    <tr><td><code>api</code> reinicia em loop depois do build</td><td><code>docker compose logs api</code>. Costuma ser variável nova faltando no <code>.env</code> ou migration falhando; compare com o <code>.env.example</code></td></tr>
+    <tr><td>A interface continua antiga</td><td>Cache do navegador (<kbd>Ctrl</kbd>+<kbd>F5</kbd>) ou o <code>web</code> não foi recompilado: <code>docker compose up -d --build web</code></td></tr>
+    <tr><td>O build não pega a mudança</td><td><code>docker compose build --no-cache api</code> e depois <code>docker compose up -d</code></td></tr>
+    <tr><td><code>git pull</code> recusa por alterações locais</td><td><code>git stash</code> (e <code>git stash pop</code> depois) ou descarte o que não importa</td></tr>
+    <tr><td>Sem espaço em disco no build</td><td>Faça o <code>prune</code> acima</td></tr>
+    <tr><td>Pull/build travado sem internet</td><td>O build baixa pacotes (apt, npm, NuGet): precisa de acesso à rede. <code>docker compose up -d</code> sem <code>--build</code> sobe o que já foi construído</td></tr>
+  </table>
+</details>
+
+<h2 id="backup">Backup</h2>
 <p>Volumes nomeados: <code>pgdata</code> (banco), <code>repos</code> (clones e worktrees) e <code>claude-config</code> (login).</p>
 <pre><code># backup do banco
 docker compose exec -T db pg_dump -U agentforge agentforge > backup.sql
 # restaurar (banco vazio)
 docker compose exec -T db psql -U agentforge agentforge < backup.sql
 
-# atualizar o AgentForge (cenário D: com os dois -f)
+# atualizar o AgentForge: veja a seção "Atualizar a aplicação"
 git pull && docker compose up -d --build</code></pre>
 <ul>
   <li>As migrations aplicam sozinhas no start. <strong>Faça backup antes</strong> de atualizar ambientes com dados que importam.</li>

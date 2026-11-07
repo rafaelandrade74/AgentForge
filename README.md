@@ -373,6 +373,8 @@ Use HTTPS no proxy: o login e o token trafegam por ele.
 
 ## Dados, backup e atualização
 
+> Passo a passo completo da atualização (cada cenário, recompilar só uma parte, voltar versão, liberar espaço): seção **Atualizar a aplicação** na [documentação online](https://rafaelandrade74.github.io/AgentForge/#atualizar).
+
 Volumes nomeados: `pgdata` (banco), `repos` (clones e worktrees, modo 2), `claude-config` (login do Claude Code, modo 2),
 `git-ssh` (chave SSH do servidor) e `dp-keys` (chaves que protegem os tokens dos ambientes cadastrados — inclua no backup).
 

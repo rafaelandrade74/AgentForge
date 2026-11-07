@@ -41,10 +41,7 @@ const MAX_DIFF_LINES = 4000;
           @if (w.state === 'Backlog') {
             <button mat-flat-button type="button" (click)="approve()">Aprovar tarefa</button>
           }
-          @if (w.waitingReason) {
-          <div class="alert warn" role="status" data-testid="waiting">{{ w.waitingReason }} A tarefa continua em andamento e retoma sozinha.</div>
-        }
-        @if (w.state === 'AwaitingApproval') {
+          @if (w.state === 'AwaitingApproval') {
             <button mat-flat-button type="button" (click)="approve()">Aprovar entrega</button>
             <button mat-stroked-button type="button" (click)="reject()">Rejeitar…</button>
           }
@@ -56,6 +53,30 @@ const MAX_DIFF_LINES = 4000;
           }
         </div>
 
+        @if (w.waitingReason) {
+          <div class="alert warn" role="status" data-testid="waiting">{{ w.waitingReason }} A tarefa continua em andamento e retoma sozinha.</div>
+        }
+        @if (w.state === 'Done') {
+          <section class="pr" data-testid="pr">
+            @if (w.pullRequestUrl) {
+              <div class="alert ok" role="status">
+                Pull request <a [href]="w.pullRequestUrl" target="_blank" rel="noopener noreferrer" data-testid="pr-link">#{{ w.pullRequestNumber }}</a> aberto no GitHub.
+              </div>
+            } @else if (project()?.hasGitHubToken) {
+              <div class="row">
+                <strong>Pull request</strong>
+                <label class="muted small" for="pr-base">para a branch</label>
+                <input id="pr-base" class="prbase mono" [value]="prBase()" (input)="prBase.set($any($event.target).value)"
+                  [placeholder]="prDefault()" data-testid="pr-base" />
+                <button mat-flat-button type="button" [disabled]="openingPr()" (click)="openPullRequest()">Abrir PR</button>
+                @if (openingPr()) { <span class="muted">Publicando o branch e abrindo o PR…</span> }
+              </div>
+              <p class="muted small">Publica só o branch <span class="mono">{{ w.branchName }}</span> no GitHub e abre o PR; a branch de destino nunca é alterada.</p>
+            } @else {
+              <p class="muted small" data-testid="pr-hint">Para abrir o PR daqui, cadastre o token do GitHub no projeto (Projetos → Editar → Token do GitHub para PRs).</p>
+            }
+          </section>
+        }
         @if (w.state === 'Blocked' && w.blockedReason) {
           <div class="alert bad" role="alert"><strong>Bloqueada:</strong> {{ w.blockedReason }}</div>
         }
@@ -129,6 +150,9 @@ const MAX_DIFF_LINES = 4000;
     .alert { padding: .6rem .9rem; border-radius: 8px; margin: .5rem 0; }
     .alert.bad { background: #3a1818; color: #ffb4b4; }
     .alert.warn { background: #3a3014; color: #ffe08a; }
+    .alert.ok { background: #12301b; color: #9be5ad; }
+    .pr { margin: .5rem 0 1rem; }
+    .prbase { background: #151515; color: inherit; border: 1px solid #333; border-radius: 6px; padding: .35rem .5rem; min-width: 12rem; }
     .cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(22rem, 1fr)); gap: 1.5rem; }
     .pre { white-space: pre-wrap; }
     .small { font-size: .8rem; }
@@ -158,6 +182,10 @@ export class TaskPage {
   readonly live = signal<LiveLine[]>([]);
   readonly diffLines = signal<DiffLine[]>([]);
   readonly diffLoaded = signal(false);
+  readonly prBase = signal('');
+  readonly openingPr = signal(false);
+  /** A branch de destino que vale quando o campo fica vazio: a do projeto para PRs, senão a base. */
+  readonly prDefault = computed(() => this.project()?.pullRequestBaseBranch || this.project()?.baseBranch || '');
 
   readonly stateLabel = STATE_LABEL;
   readonly stateTone = STATE_TONE;
@@ -210,6 +238,21 @@ export class TaskPage {
       confirmLabel: 'Rejeitar',
     }).subscribe((comment) => {
       if (typeof comment === 'string') this.act(this.api.reject(this.id(), comment), 'Devolvida ao Dev.');
+    });
+  }
+
+  openPullRequest(): void {
+    this.openingPr.set(true);
+    this.api.openPullRequest(this.id(), this.prBase().trim() || undefined).subscribe({
+      next: (pr) => {
+        this.openingPr.set(false);
+        this.snack.open(pr.alreadyExisted ? `Já havia o PR #${pr.number}.` : `PR #${pr.number} aberto para ${pr.baseBranch}.`, 'OK', { duration: 5000 });
+        this.loadItem();
+      },
+      error: (err) => {
+        this.openingPr.set(false);
+        this.snack.open(err?.error?.error ?? 'Não foi possível abrir o PR.', 'OK', { duration: 9000 });
+      },
     });
   }
 

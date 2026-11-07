@@ -45,7 +45,7 @@
   <div class="cards">
     <div class="card"><h3>Papéis como agentes</h3><p>Scrum Master, Dev, Tech Lead, Security e QA — cada um é uma execução do Claude Code em modo headless.</p></div>
     <div class="card"><h3>Isolado por tarefa</h3><p>Cada tarefa roda num git worktree próprio, no branch <code>agentforge/task-&lt;id&gt;</code>.</p></div>
-    <div class="card"><h3>Você no controle</h3><p>Aprovações configuráveis. Nenhum agente faz push; o merge é seu.</p></div>
+    <div class="card"><h3>Você no controle</h3><p>Aprovações configuráveis. Nenhum agente faz push; depois de aprovada, você abre o PR com um clique e o merge é seu.</p></div>
     <div class="card"><h3>Ao vivo e auditável</h3><p>Prompt, saída, custo, duração e status de toda execução são guardados e transmitidos em tempo real.</p></div>
   </div>
 </section>
@@ -418,7 +418,7 @@ export 'HostAgent__Docker__AllowedImages__0=minha/*'                            
   <li><strong>Nova demanda → Criar e iniciar refinamento.</strong> Descreva em linguagem natural o que quer. O Scrum Master lê o repositório e propõe as tarefas.</li>
   <li><strong>Aprovar plano</strong> na tela da demanda. O quadro do projeto mostra as tarefas andando; clique numa tarefa para ver o log ao vivo, o diff e as execuções.</li>
   <li>Em <strong>Aguardando aprovação</strong>, revise o diff e <strong>aprove</strong> ou <strong>rejeite com comentário</strong> (a tarefa volta ao Dev). Tarefas que voltam três vezes ficam <strong>Bloqueadas</strong>.</li>
-  <li>Depois de <strong>Done</strong>, o trabalho está no branch <code>agentforge/task-&lt;id&gt;</code> do clone local. <strong>Nenhum agente faz push:</strong> o merge é seu.</li>
+  <li>Depois de <strong>Done</strong>, o trabalho está no branch <code>agentforge/task-&lt;id&gt;</code> do clone local. <strong>Nenhum agente faz push.</strong> Para abrir o pull request (para <code>develop</code> ou a branch principal), cadastre o token do GitHub e a branch de destino em <em>Projetos → Editar</em> e use <strong>Abrir PR</strong> na tarefa. O merge é seu.</li>
 </ol>
 <p>Onde ficam os arquivos: clones em <code>&lt;raiz&gt;/&lt;id-do-projeto&gt;/repo</code> e worktrees em <code>&lt;raiz&gt;/&lt;id-do-projeto&gt;/worktrees/&lt;id-da-tarefa&gt;</code>, com a raiz em <code>/data/repos</code> (volume <code>repos</code>; A, B, C), <code>HOST_WORKSPACES_ROOT</code> (D) ou <code>.agentforge/repos</code> (E).</p>
 <div class="note"><p><strong>Modo automático:</strong> marque o projeto como automático para dispensar as duas aprovações humanas. Use só em projetos de teste. O agente de cada papel é escolhido em <strong>Agentes</strong> e os prompts, em <strong>Prompts</strong>.</p></div>
@@ -451,7 +451,7 @@ export 'HostAgent__Docker__AllowedImages__0=minha/*'                            
 </ol>
 <details><summary>As 18 ferramentas</summary>
   <p><code>list_projects</code>, <code>get_project</code>, <code>create_project</code>, <code>create_demand</code>, <code>start_demand</code>, <code>approve_plan</code>, <code>get_demand</code>, <code>list_tasks</code>, <code>get_task</code>, <code>get_task_diff</code>, <code>get_run_output</code>, <code>approve_task</code>, <code>reject_task</code>, <code>retry_task</code>, <code>cancel_task</code>, <code>list_pending_actions</code>, <code>list_agents</code>, <code>test_agent</code>.</p>
-  <p>As de leitura são marcadas como somente leitura e <code>cancel_task</code> como destrutiva. <strong>Não existe ferramenta que faça push, merge ou apague projeto.</strong> <code>start_demand</code>, <code>create_demand</code> com <code>start</code> e <code>test_agent</code> gastam créditos.</p>
+  <p>As de leitura são marcadas como somente leitura e <code>cancel_task</code> como destrutiva. <strong>Não existe ferramenta que faça merge ou apague projeto</strong>; o único push é o de <code>open_pull_request</code> (só o branch da tarefa concluída). O token do GitHub não passa pelo MCP. <code>start_demand</code>, <code>create_demand</code> com <code>start</code> e <code>test_agent</code> gastam créditos.</p>
 </details>
 <div class="warn"><p>Atrás de um proxy reverso, repasse <code>/mcp</code> à API e use HTTPS: o token trafega no cabeçalho.</p></div>
 

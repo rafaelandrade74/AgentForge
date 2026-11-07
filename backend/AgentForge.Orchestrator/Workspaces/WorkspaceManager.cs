@@ -45,6 +45,12 @@ public interface IWorkspaceManager
     /// Vazio se o branch ainda não existe.
     /// </summary>
     Task<string> GetDiffAsync(Project project, Guid workItemId, CancellationToken ct, string? baseCommit = null);
+
+    /// <summary>
+    /// Publica o branch agentforge/task-&lt;id&gt; da tarefa em <paramref name="pushUrl"/> (https, com a credencial embutida; some
+    /// de qualquer mensagem de erro). O refspec é fixo — branch da tarefa para o mesmo nome — então nunca atualiza a base.
+    /// </summary>
+    Task PushTaskBranchAsync(Project project, Guid workItemId, string pushUrl, CancellationToken ct);
 }
 
 /// <summary>
@@ -194,6 +200,20 @@ public class WorkspaceManager(IOptions<WorkspaceOptions> options, IEnvironmentLa
                 await Git(t, repo, ["branch", "-D", branch], ct);
             return true;
         });
+
+    public Task PushTaskBranchAsync(Project project, Guid workItemId, string pushUrl, CancellationToken ct)
+    {
+        if (!(pushUrl.StartsWith("https://", StringComparison.Ordinal) || pushUrl.StartsWith("file://", StringComparison.Ordinal))
+            || pushUrl.Any(c => char.IsWhiteSpace(c) || char.IsControl(c)))
+            throw new WorkspaceException("URL de push inválida (só https, sem espaços).");
+        return LockedAsync(project, ct, async t =>
+        {
+            var branch = BranchName(workItemId);
+            // o repositório pode ter sido clonado por SSH (deploy key somente leitura): empurra para a URL explícita, e só este branch
+            await Git(t, RepoPath(t, project), ["push", pushUrl, $"refs/heads/{branch}:refs/heads/{branch}"], ct);
+            return 0;
+        });
+    }
 
     public const int MaxDiffChars = 500_000;
 

@@ -101,6 +101,56 @@ describe('ProjectsPage (troca de ambiente)', () => {
     http.expectOne('/api/projects').flush([project()]);
   });
 
+  it('token do GitHub: só vai quando digitado, "" quando apagado, e fica de fora quando intocado; a branch de destino sempre vai', () => {
+    const existing = project({ hasGitHubToken: true, pullRequestBaseBranch: 'develop' });
+    open(existing);
+    const page = fixture.componentInstance;
+
+    page.edit(existing);
+    expect(page.draft.pullRequestBaseBranch).toBe('develop');
+    expect(page.tokenInput).toBe('');                                  // o token guardado nunca é mostrado
+    page.save();
+    let req = http.expectOne({ method: 'PUT', url: '/api/projects/p1' });
+    expect('githubToken' in req.request.body).toBeFalse();             // intocado: o servidor mantém o guardado
+    expect('hasGitHubToken' in req.request.body).toBeFalse();
+    expect(req.request.body.pullRequestBaseBranch).toBe('develop');
+    req.flush(existing);
+    http.expectOne('/api/projects').flush([existing]);
+
+    page.edit(existing);
+    page.setToken('  github_pat_novo_1234567890abcdef  ');
+    page.draft.pullRequestBaseBranch = 'release';
+    page.save();
+    req = http.expectOne({ method: 'PUT', url: '/api/projects/p1' });
+    expect(req.request.body.githubToken).toBe('github_pat_novo_1234567890abcdef');
+    expect(req.request.body.pullRequestBaseBranch).toBe('release');
+    req.flush(existing);
+    http.expectOne('/api/projects').flush([existing]);
+
+    page.edit(existing);
+    page.clearToken();
+    page.save();
+    req = http.expectOne({ method: 'PUT', url: '/api/projects/p1' });
+    expect(req.request.body.githubToken).toBe('');
+    req.flush(existing);
+    http.expectOne('/api/projects').flush([existing]);
+  });
+
+  it('digitar um token depois de pedir para apagar cancela o apagar; reabrir o formulário zera o campo', () => {
+    open(project({ hasGitHubToken: true }));
+    const page = fixture.componentInstance;
+
+    page.edit(project({ hasGitHubToken: true }));
+    page.clearToken();
+    expect(page.tokenCleared).toBeTrue();
+    page.setToken('github_pat_x_1234567890abcdef');
+    expect(page.tokenCleared).toBeFalse();
+
+    page.edit(project({ hasGitHubToken: true }));
+    expect(page.tokenInput).toBe('');
+    expect(page.tokenCleared).toBeFalse();
+  });
+
   it('mostra o perfil do projeto no cartão', () => {
     open(project({ environmentId: 'e1', stackProfileId: 's1' }));
 

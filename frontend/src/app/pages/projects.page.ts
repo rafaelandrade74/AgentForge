@@ -14,7 +14,7 @@ import { ExecutionEnvironment, GitHubImportResult, Project, ProjectInput, StackP
 import { ActionDialogComponent, BadgeComponent } from '../shared/shared';
 import { GithubImportComponent } from './github-import.component';
 
-const EMPTY: ProjectInput = { name: '', repositoryUrl: '', baseBranch: 'main', buildCommand: '', testCommand: '', autoMode: false, environmentId: null, stackProfileId: null, roleEnvironments: {} };
+const EMPTY: ProjectInput = { name: '', repositoryUrl: '', baseBranch: 'main', buildCommand: '', testCommand: '', autoMode: false, environmentId: null, stackProfileId: null, roleEnvironments: {}, pullRequestBaseBranch: '', hasGitHubToken: false };
 
 @Component({
   selector: 'app-projects-page',
@@ -74,6 +74,23 @@ const EMPTY: ProjectInput = { name: '', repositoryUrl: '', baseBranch: 'main', b
                   </mat-select>
                 </mat-form-field>
               }
+              <mat-form-field appearance="outline">
+                <mat-label>Branch de destino dos PRs</mat-label>
+                <input matInput name="pullRequestBaseBranch" [(ngModel)]="draft.pullRequestBaseBranch" placeholder="develop (vazio = a branch base)" data-testid="pr-branch" />
+              </mat-form-field>
+              <div class="gh-token" data-testid="gh-token">
+                <mat-form-field appearance="outline">
+                  <mat-label>{{ draft.hasGitHubToken && !tokenCleared ? 'Token do GitHub para PRs (vazio mantém o guardado)' : 'Token do GitHub para PRs' }}</mat-label>
+                  <input matInput type="password" name="githubToken" autocomplete="off" [ngModel]="tokenInput" (ngModelChange)="setToken($event)"
+                    placeholder="github_pat_… (Contents e Pull requests de escrita, só neste repositório)" />
+                </mat-form-field>
+                @if (draft.hasGitHubToken && !tokenCleared) {
+                  <p class="muted small">Há um token guardado (criptografado; nunca volta para esta tela).
+                    <button mat-button type="button" (click)="clearToken()">Apagar token</button></p>
+                } @else if (tokenCleared) {
+                  <p class="muted small">O token guardado será apagado ao salvar.</p>
+                }
+              </div>
               @if (environments().length > 0) {
                 <div class="roles-env" data-testid="role-envs">
                   <p class="muted small">Revisão em outra máquina (opcional): Tech Lead e Security recebem só o diff, sem o repositório. Dev e QA ficam sempre no ambiente do projeto.</p>
@@ -203,7 +220,7 @@ export class ProjectsPage {
   }
 
   edit(p: Project): void {
-    this.openForm(p.id, { name: p.name, repositoryUrl: p.repositoryUrl, baseBranch: p.baseBranch, buildCommand: p.buildCommand, testCommand: p.testCommand, autoMode: p.autoMode, environmentId: p.environmentId ?? null, stackProfileId: p.stackProfileId ?? null, roleEnvironments: p.roleEnvironments ?? {} });
+    this.openForm(p.id, { name: p.name, repositoryUrl: p.repositoryUrl, baseBranch: p.baseBranch, buildCommand: p.buildCommand, testCommand: p.testCommand, autoMode: p.autoMode, environmentId: p.environmentId ?? null, stackProfileId: p.stackProfileId ?? null, roleEnvironments: p.roleEnvironments ?? {}, pullRequestBaseBranch: p.pullRequestBaseBranch ?? '', hasGitHubToken: p.hasGitHubToken ?? false });
   }
 
   /** Editando um projeto e trocando a máquina dele: avisa o que acontece com o clone existente. */
@@ -211,7 +228,23 @@ export class ProjectsPage {
     return this.editingId() !== null && (this.draft.environmentId ?? null) !== this.originalEnvironmentId;
   }
 
+  /** Token digitado agora (nunca preenchido a partir do servidor) e se o guardado deve ser apagado. */
+  tokenInput = '';
+  tokenCleared = false;
+
+  setToken(value: string): void {
+    this.tokenInput = value;
+    if (value) this.tokenCleared = false;
+  }
+
+  clearToken(): void {
+    this.tokenInput = '';
+    this.tokenCleared = true;
+  }
+
   private openForm(id: string | null, draft: ProjectInput): void {
+    this.tokenInput = '';
+    this.tokenCleared = false;
     this.editingId.set(id);
     this.draft = draft;
     this.originalEnvironmentId = draft.environmentId ?? null;
@@ -228,6 +261,10 @@ export class ProjectsPage {
     const id = this.editingId();
     // o perfil de stack roda em container num ambiente: sem ambiente não há perfil
     const body: ProjectInput = { ...this.draft, stackProfileId: this.draft.environmentId ? (this.draft.stackProfileId ?? null) : null };
+    delete body.hasGitHubToken;
+    // token: digitado = substitui; "apagar" = ""; senão fica de fora e o servidor mantém o guardado
+    if (this.tokenInput.trim()) body.githubToken = this.tokenInput.trim();
+    else if (this.tokenCleared) body.githubToken = '';
     const request = id ? this.api.updateProject(id, body) : this.api.createProject(body);
     request.subscribe({
       next: () => {

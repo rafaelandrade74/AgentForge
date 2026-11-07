@@ -18,6 +18,10 @@ public sealed class FakeGitHub(string cloneUrl) : HttpMessageHandler
     public ConcurrentQueue<Seen> Requests { get; } = new();
     public bool DeployKeyAlreadyInUse { get; set; }
     public bool RepoMissing { get; set; }
+    /// <summary>Criar o PR responde "já existe um PR aberto para este branch" (e a listagem devolve o existente).</summary>
+    public bool PullAlreadyExists { get; set; }
+    /// <summary>Criar o PR responde 422 (ex.: a branch de destino não existe).</summary>
+    public bool PullRejected { get; set; }
 
     private object Repo(string full, bool isPrivate) => new
     {
@@ -34,6 +38,15 @@ public sealed class FakeGitHub(string cloneUrl) : HttpMessageHandler
         if (request.Headers.Authorization is { Parameter: { } p } && p != Token && path.StartsWith("user/repos"))
             return Json(HttpStatusCode.Unauthorized, new { message = "Bad credentials" });
 
+        if (request.Method == HttpMethod.Post && path.EndsWith("/pulls"))
+        {
+            if (PullRejected) return Json(HttpStatusCode.UnprocessableEntity, new { message = "Validation Failed", errors = new[] { new { message = "base invalid" } } });
+            if (PullAlreadyExists)
+                return Json(HttpStatusCode.UnprocessableEntity, new { message = "Validation Failed", errors = new[] { new { message = "A pull request already exists for octo:agentforge/task." } } });
+            return Json(HttpStatusCode.Created, new { html_url = "https://github.com/octo/privado/pull/7", number = 7 });
+        }
+        if (request.Method == HttpMethod.Get && path.Contains("/pulls?"))
+            return Json(HttpStatusCode.OK, new[] { new { html_url = "https://github.com/octo/privado/pull/3", number = 3 } });
         if (request.Method == HttpMethod.Get && path.StartsWith("user/repos"))
             return Json(HttpStatusCode.OK, new[] { Repo("octo/publico", false), Repo("octo/privado", true) });
         if (request.Method == HttpMethod.Get && path.StartsWith("repos/"))

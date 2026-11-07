@@ -2,6 +2,7 @@ using AgentForge.Domain;
 using AgentForge.Execution;
 using AgentForge.Infrastructure.Persistence;
 using AgentForge.Orchestrator.Agents;
+using AgentForge.Orchestrator.Environments;
 using Microsoft.EntityFrameworkCore;
 
 namespace AgentForge.Api.Endpoints;
@@ -24,7 +25,8 @@ public static class CrudEndpoints
 
     // ---------- Projects ----------
     internal static ProjectDto ToDto(Project p) =>
-        new(p.Id, p.Name, Secrets.MaskUrls(p.RepositoryUrl), p.BaseBranch, p.BuildCommand, p.TestCommand, p.AutoMode, p.CreatedAt, p.EnvironmentId, p.StackProfileId);
+        new(p.Id, p.Name, Secrets.MaskUrls(p.RepositoryUrl), p.BaseBranch, p.BuildCommand, p.TestCommand, p.AutoMode, p.CreatedAt, p.EnvironmentId, p.StackProfileId,
+            PullRequestBaseBranch: p.PullRequestBaseBranch, HasGitHubToken: p.ProtectedGitHubToken.Length > 0);
 
     internal static ProjectDto ToDtoWithRoles(Project p, IReadOnlyDictionary<string, Guid>? roles) =>
         ToDto(p) with { RoleEnvironments = roles is { Count: > 0 } ? new Dictionary<string, Guid>(roles) : null };
@@ -63,8 +65,20 @@ public static class CrudEndpoints
         await db.SaveChangesAsync();
     }
 
-    private static void Apply(Project p, ProjectInput i)
+    /// <summary>O token vai na URL de push (https://x-access-token:TOKEN@…): só caracteres de token do GitHub, nada que quebre a URL.</summary>
+    private static readonly System.Text.RegularExpressions.Regex TokenPattern = new(@"^[A-Za-z0-9_\-]{20,400}$");
+
+    private static IResult? ValidatePullRequestSettings(ProjectInput i) =>
+        !string.IsNullOrWhiteSpace(i.PullRequestBaseBranch) && !AgentForge.Api.GitHub.PullRequestService.IsValidBranchName(i.PullRequestBaseBranch.Trim())
+            ? Invalid(nameof(i.PullRequestBaseBranch), "Nome de branch inválido (letras, números, . _ - e /).")
+        : !string.IsNullOrEmpty(i.GitHubToken) && !TokenPattern.IsMatch(i.GitHubToken.Trim())
+            ? Invalid(nameof(i.GitHubToken), "Token inválido (cole só o token, sem espaços).")
+        : null;
+
+    private static void Apply(Project p, ProjectInput i, ISecretProtector protector)
     {
+        if (i.PullRequestBaseBranch is not null) p.PullRequestBaseBranch = i.PullRequestBaseBranch.Trim();
+        if (i.GitHubToken is not null) p.ProtectedGitHubToken = i.GitHubToken.Length == 0 ? "" : protector.Protect(i.GitHubToken.Trim());
         p.Name = i.Name.Trim();
         // a API devolve https://***@host; reenviar a URL mascarada (ex.: editar só o nome) mantém a credencial guardada
         var url = i.RepositoryUrl.Trim();
@@ -106,27 +120,29 @@ public static class CrudEndpoints
             });
         g.MapGet("/{id:guid}", async (Guid id, AppDbContext db) =>
             await db.Projects.FindAsync(id) is { } p ? Results.Ok(ToDtoWithRoles(p, await RolesOfAsync(db, id))) : Results.NotFound());
-        g.MapPost("/", async (ProjectInput i, AppDbContext db) =>
+        g.MapPost("/", async (ProjectInput i, AppDbContext db, ISecretProtector protector) =>
         {
             if (Validate(i) is { } bad) return bad;
             if (ValidateMasked(i, null) is { } masked) return masked;
             if (await ValidateEnvironmentAsync(i, db) is { } badEnvironment) return badEnvironment;
             if (await ValidateRolesAsync(i, db) is { } badRoles) return badRoles;
+            if (ValidatePullRequestSettings(i) is { } badPr) return badPr;
             var p = new Project();
-            Apply(p, i);
+            Apply(p, i, protector);
             db.Projects.Add(p);
             await db.SaveChangesAsync();
             await SaveRolesAsync(db, p.Id, i.RoleEnvironments);
             return Results.Created($"/api/projects/{p.Id}", ToDtoWithRoles(p, await RolesOfAsync(db, p.Id)));
         });
-        g.MapPut("/{id:guid}", async (Guid id, ProjectInput i, AppDbContext db) =>
+        g.MapPut("/{id:guid}", async (Guid id, ProjectInput i, AppDbContext db, ISecretProtector protector) =>
         {
             if (Validate(i) is { } bad) return bad;
             if (await db.Projects.FindAsync(id) is not { } p) return Results.NotFound();
             if (ValidateMasked(i, p) is { } masked) return masked;
             if (await ValidateEnvironmentAsync(i, db) is { } badEnvironment) return badEnvironment;
             if (await ValidateRolesAsync(i, db) is { } badRoles) return badRoles;
-            Apply(p, i);
+            if (ValidatePullRequestSettings(i) is { } badPr) return badPr;
+            Apply(p, i, protector);
             await db.SaveChangesAsync();
             await SaveRolesAsync(db, p.Id, i.RoleEnvironments);
             return Results.Ok(ToDtoWithRoles(p, await RolesOfAsync(db, p.Id)));
@@ -176,7 +192,7 @@ public static class CrudEndpoints
     // ---------- WorkItems ----------
     internal static WorkItemDto ToDto(WorkItem w) =>
         new(w.Id, w.DemandId, w.Title, w.Description, w.AcceptanceCriteria, w.Estimate, w.State, w.ReworkCount,
-            w.BranchName, w.BlockedReason, w.Dependencies.Select(d => d.Id).ToList(), w.CreatedAt, w.WaitingReason);
+            w.BranchName, w.BlockedReason, w.Dependencies.Select(d => d.Id).ToList(), w.CreatedAt, w.WaitingReason, w.PullRequestUrl, w.PullRequestNumber);
 
     private static async Task<(IResult? Error, List<WorkItem> Deps)> ResolveAsync(WorkItemInput i, Guid? selfId, AppDbContext db)
     {

@@ -1,3 +1,4 @@
+using AgentForge.Api.GitHub;
 using AgentForge.Infrastructure.Persistence;
 using AgentForge.Orchestrator.Workflow;
 using AgentForge.Orchestrator.Workspaces;
@@ -6,6 +7,7 @@ using Microsoft.EntityFrameworkCore;
 namespace AgentForge.Api.Endpoints;
 
 public record RejectRequest(string? Comment);
+public record PullRequestRequest(string? BaseBranch);
 
 public static class WorkflowEndpoints
 {
@@ -33,6 +35,18 @@ public static class WorkflowEndpoints
             .WithSummary("Aprova a tarefa (Backlog → A fazer, ou Aguardando aprovação → Done).");
         items.MapPost("/{id:guid}/reject", async (Guid id, RejectRequest? body, WorkflowActions a) => Reply(await a.RejectAsync(id, body?.Comment)))
             .WithSummary("Rejeita a entrega e devolve ao Dev, com comentário.");
+        items.MapPost("/{id:guid}/pull-request", async (Guid id, PullRequestRequest? body, PullRequestService prs, CancellationToken ct) =>
+            {
+                try
+                {
+                    return Results.Ok(await prs.OpenAsync(id, body?.BaseBranch, ct));
+                }
+                catch (PullRequestException ex)
+                {
+                    return Results.Json(new { error = ex.Message }, statusCode: ex.Status);
+                }
+            })
+            .WithSummary("Publica o branch da tarefa concluída e abre o pull request no GitHub (token do projeto; destino: o informado, o do projeto ou a base).");
         items.MapPost("/{id:guid}/retry", async (Guid id, WorkflowActions a) => Reply(await a.RetryAsync(id)))
             .WithSummary("Tira a tarefa de Blocked e devolve ao Dev.");
         items.MapPost("/{id:guid}/cancel", async (Guid id, WorkflowActions a) => Reply(await a.CancelAsync(id)))

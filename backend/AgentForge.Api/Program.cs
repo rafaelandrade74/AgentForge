@@ -67,6 +67,7 @@ builder.Services.Replace(ServiceDescriptor.Singleton<IWorkflowEventPublisher, Si
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<AdminCredentials>();
 builder.Services.AddScoped<AuthService>();
+builder.Services.AddScoped<AgentForge.Api.GitHub.PullRequestService>();
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer()
     .AddScheme<Microsoft.AspNetCore.Authentication.AuthenticationSchemeOptions, ApiTokenHandler>(ApiTokens.Scheme, null);

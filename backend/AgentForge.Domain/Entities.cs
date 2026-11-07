@@ -8,6 +8,13 @@ public class Project
     public string BaseBranch { get; set; } = "main";
     public string BuildCommand { get; set; } = "";
     public string TestCommand { get; set; } = "";
+    /// <summary>Branch de destino dos pull requests das tarefas concluídas (ex.: develop). Vazio = <see cref="BaseBranch"/>.</summary>
+    public string PullRequestBaseBranch { get; set; } = "";
+    /// <summary>
+    /// Token do GitHub (escrita em Contents e Pull requests só neste repositório) usado para fazer push do branch da tarefa e abrir o
+    /// PR. Guardado protegido (Data Protection), nunca devolvido nem logado. Vazio = sem PR pelo AgentForge.
+    /// </summary>
+    public string ProtectedGitHubToken { get; set; } = "";
     /// <summary>Quando true, desliga as aprovações humanas do fluxo (modo automático).</summary>
     public bool AutoMode { get; set; }
     /// <summary>Onde os agentes e o git deste projeto rodam. Null = o ambiente padrão do servidor (Agents:Launcher).</summary>
@@ -67,6 +74,9 @@ public class WorkItem
     public string? BlockedReason { get; set; }
     /// <summary>A máquina do ambiente está fora do ar: a tarefa continua no estado atual e será retomada quando ela voltar (não é Blocked).</summary>
     public string? WaitingReason { get; set; }
+    /// <summary>Pull request aberto no GitHub com o branch desta tarefa (depois de concluída e aprovada).</summary>
+    public string? PullRequestUrl { get; set; }
+    public int? PullRequestNumber { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public List<WorkItem> Dependencies { get; set; } = [];
 }

@@ -2,7 +2,7 @@ import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 import {
-  AgentInfo, AgentTestResult, ApiTokenInfo, CreatedApiToken, Demand, EnvironmentInput, EnvironmentList, EnvironmentLoadReport, EnvironmentTest, ExecutionEnvironment, Finding, GitAccessResult, GitHubImportRequest, GitHubImportResult, GitHubRepo, GitSshStatus, LoginSession, McpToolInfo, BuildImageResult, Project, ProjectInput, RoleConfig, Run, RunSummary, StackProfile, StackProfileInput, WorkItem,
+  AgentInfo, AgentTestResult, ApiTokenInfo, CreatedApiToken, Demand, EnvironmentInput, EnvironmentList, EnvironmentLoadReport, EnvironmentTest, ExecutionEnvironment, Finding, GitAccessResult, GitHubImportRequest, GitHubImportResult, GitHubRepo, GitSshStatus, LoginSession, McpToolInfo, BuildImageResult, PullRequestResult, Project, ProjectInput, RoleConfig, Run, RunSummary, StackProfile, StackProfileInput, WorkItem,
 } from './models';
 
 /** Parâmetros de query com o ambiente escolhido; sem ambiente (padrão do servidor) a URL fica exatamente como antes. */
@@ -27,6 +27,8 @@ export class ApiService {
   demand = (id: string) => this.http.get<Demand>(`/api/demands/${id}`);
   createDemand = (d: { projectId: string; title: string; description: string }) =>
     this.http.post<Demand>('/api/demands', d);
+  openPullRequest = (workItemId: string, baseBranch?: string) =>
+    this.http.post<PullRequestResult>(`/api/work-items/${workItemId}/pull-request`, { baseBranch: baseBranch || null });
   startDemand = (id: string) => this.http.post<void>(`/api/demands/${id}/start`, null);
   approvePlan = (id: string) => this.http.post<void>(`/api/demands/${id}/approve-plan`, null);
 

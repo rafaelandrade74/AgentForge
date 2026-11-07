@@ -27,6 +27,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.Property(x => x.Name).HasMaxLength(200);
             e.Property(x => x.RepositoryUrl).HasMaxLength(500);
             e.Property(x => x.BaseBranch).HasMaxLength(200);
+            e.Property(x => x.PullRequestBaseBranch).HasMaxLength(200);
+            e.Property(x => x.ProtectedGitHubToken).HasMaxLength(2000);
             // um ambiente em uso não pode ser apagado (o clone do projeto mora nele)
             e.HasOne<ExecutionEnvironment>().WithMany().HasForeignKey(x => x.EnvironmentId).OnDelete(DeleteBehavior.Restrict);
             e.HasOne<StackProfile>().WithMany().HasForeignKey(x => x.StackProfileId).OnDelete(DeleteBehavior.Restrict);
@@ -72,6 +74,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.Property(x => x.Title).HasMaxLength(300);
             e.Property(x => x.BranchName).HasMaxLength(200);
             e.Property(x => x.WaitingReason).HasMaxLength(500);
+            e.Property(x => x.PullRequestUrl).HasMaxLength(500);
             e.HasMany(x => x.Dependencies).WithMany()
                 .UsingEntity("WorkItemDependencies",
                     l => l.HasOne(typeof(WorkItem)).WithMany().HasForeignKey("DependsOnId").OnDelete(DeleteBehavior.Cascade),

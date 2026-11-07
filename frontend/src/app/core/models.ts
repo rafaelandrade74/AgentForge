@@ -20,6 +20,12 @@ export interface Project {
   stackProfileId?: string | null;
   /** Papel (TechLead | Security) → ambiente onde ele roda no lugar do ambiente do projeto (revisa só pelo diff). */
   roleEnvironments?: Record<string, string | null> | null;
+  /** Branch de destino dos pull requests das tarefas concluídas (ex.: develop); vazio = a branch base. */
+  pullRequestBaseBranch?: string;
+  /** Há um token do GitHub guardado para abrir PRs (o token nunca volta pela API). */
+  hasGitHubToken?: boolean;
+  /** Só na gravação: ausente mantém o token guardado; "" apaga; um valor substitui. */
+  githubToken?: string;
   createdAt: string;
 }
 export type ProjectInput = Omit<Project, 'id' | 'createdAt'>;
@@ -46,6 +52,9 @@ export interface WorkItem {
   blockedReason: string | null;
   /** A máquina do ambiente está fora do ar: a tarefa continua no estado atual e retoma sozinha quando ela voltar. */
   waitingReason?: string | null;
+  /** Pull request aberto no GitHub com o branch desta tarefa. */
+  pullRequestUrl?: string | null;
+  pullRequestNumber?: number | null;
   dependsOnIds: string[];
   createdAt: string;
 }
@@ -302,4 +311,12 @@ export interface WaitingEntry {
 export interface EnvironmentLoadReport {
   environments: EnvironmentLoadRow[];
   waiting: WaitingEntry[];
+}
+
+export interface PullRequestResult {
+  url: string;
+  number: number;
+  branch: string;
+  baseBranch: string;
+  alreadyExisted: boolean;
 }

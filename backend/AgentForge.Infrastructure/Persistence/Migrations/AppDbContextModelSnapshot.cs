@@ -269,6 +269,16 @@ namespace AgentForge.Infrastructure.Persistence.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
 
+                    b.Property<string>("ProtectedGitHubToken")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<string>("PullRequestBaseBranch")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
                     b.Property<string>("RepositoryUrl")
                         .IsRequired()
                         .HasMaxLength(500)
@@ -464,6 +474,13 @@ namespace AgentForge.Infrastructure.Persistence.Migrations
 
                     b.Property<int>("Estimate")
                         .HasColumnType("integer");
+
+                    b.Property<int?>("PullRequestNumber")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("PullRequestUrl")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
 
                     b.Property<int>("ReworkCount")
                         .HasColumnType("integer");

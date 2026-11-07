@@ -450,7 +450,9 @@ Vale para qualquer cenário.
    vivo, o diff e as execuções.
 6. Em **Aguardando aprovação**, revise o diff e **aprove** ou **rejeite com comentário** (a tarefa volta ao Dev). Tarefas que
    voltam três vezes ficam **Bloqueadas** esperando a sua decisão (*Reexecutar* ou *Cancelar*).
-7. Depois de **Done**, o trabalho está no branch `agentforge/task-<id>` do clone local. **Nenhum agente faz push**: o merge é seu.
+7. Depois de **Done**, o trabalho está no branch `agentforge/task-<id>` do clone local. **Nenhum agente faz push.** Para abrir o pull
+   request (para `develop` ou a branch principal), cadastre antes o token do GitHub e a branch de destino em **Projetos → Editar** e use
+   **Abrir PR** na tarefa (README, "Pull request ao concluir a tarefa"). O merge é seu.
    Os clones ficam em `<raiz>/<id-do-projeto>/repo` e os worktrees em `<raiz>/<id-do-projeto>/worktrees/<id-da-tarefa>`, onde
    a raiz é `/data/repos` no volume `repos` (A, B, C), `HOST_WORKSPACES_ROOT` (D) ou `.agentforge/repos` (E).
 

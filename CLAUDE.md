@@ -5,7 +5,7 @@ Aplicação web auto-hospedada (homelab) que orquestra o ciclo de desenvolviment
 ## Princípios
 - Backend C# (.NET 8), frontend Angular 18+ (standalone, signals). Tudo sobe com `docker compose up`.
 - Todo agente roda pelo próprio binário CLI, nunca por API. Um único `CliAgentRunner` cuida de processo, streaming, timeout e persistência; cada agente implementa um `ICliAgentAdapter`. Só existe o `ClaudeCodeAdapter` no MVP. O backend não lê nem guarda credenciais de agentes.
-- Cada tarefa roda em um git worktree isolado, branch `agentforge/task-<id>`; ninguém faz push para `main`.
+- Cada tarefa roda em um git worktree isolado, branch `agentforge/task-<id>`; nenhum agente faz push, e o AgentForge nunca escreve na branch base: só publica o `agentforge/task-<id>` de uma tarefa concluída, por ação humana, para abrir o PR (ADR 0023).
 - Toda execução é persistida (prompt, saída, custo, duração, status) e transmitida ao vivo.
 - Humano no controle: aprovações configuráveis.
 - A saída de todo agente termina com um bloco JSON validado; inválida conta como falha e é reexecutada uma vez.
@@ -29,7 +29,7 @@ Projetos → "Importar do GitHub": lista repositórios pelo token (usado só na 
 Processos filhos (`claude`, `git`) nascem sem os segredos da aplicação (`Secrets.ScrubEnvironment`); URLs com token saem mascaradas (`Secrets.MaskUrls`); login limitado (`Auth:LoginAttemptsPerMinute`). Nunca logar nem devolver token/senha.
 
 ## MCP (ADR 0012)
-O AgentForge é também servidor MCP em `POST /mcp` (19 ferramentas; tokens de acesso `afk_...` criados na tela Integração, válidos só no `/mcp`). Código em `backend/AgentForge.Api/Mcp`, sem dependência nova.
+O AgentForge é também servidor MCP em `POST /mcp` (21 ferramentas; tokens de acesso `afk_...` criados na tela Integração, válidos só no `/mcp`). Código em `backend/AgentForge.Api/Mcp`, sem dependência nova.
 
 ## Credenciais Git (ADR 0013)
 Tela **Git**: gera uma chave SSH ed25519 no servidor (modo 2; a privada nunca sai dele), mostra a pública para autorizar no GitHub e testa o acesso. O `git` usa a chave via `GIT_SSH_COMMAND` (só se ela existir). Testes que geram chave usam a imagem `backend/Dockerfile.tests` (`docker build -f backend/Dockerfile.tests -t agentforge-tests backend`).
@@ -65,3 +65,6 @@ Telas **Git** e **Agentes** têm seletor de ambiente (`?environmentId=` em `/api
 
 ## Ambiente por papel, fila e carga (ADR 0020)
 `ExecutionEnvironment.MaxConcurrency` + `EnvironmentGate`: o que não cabe fica estacionado no ambiente (não prende trabalhador); `Orchestrator:MaxConcurrency` segue como teto global. Máquina fora do ar (`HostUnreachableException`) não bloqueia: `ExecOutcome.Unavailable` → `EnvironmentDeferredException` → backoff (`Orchestrator:EnvironmentRetry*Seconds`), `WorkItem.WaitingReason`. `ProjectRoleEnvironment`: só TechLead/Security rodam em outro ambiente (sem repositório, só o diff; `AgentRequest.EnvironmentOverride`). `AgentRun.EnvironmentId`. Painel: `GET /api/environments/load` e MCP `get_environment_load`.
+
+## Pull request da tarefa concluída (ADR 0023)
+Tarefa `Done` → botão *Abrir PR* / MCP `open_pull_request` (ação humana). `PullRequestService` (`AgentForge.Api/GitHub`): push do branch da tarefa pela máquina do ambiente (`IWorkspaceManager.PushTaskBranchAsync`, refspec fixo, URL https com o token, erros mascarados) e PR via `GitHubClient.CreatePullRequestAsync`; idempotente (`WorkItem.PullRequestUrl/Number`). `Project.PullRequestBaseBranch` (vazio = base) e `Project.ProtectedGitHubToken` (Data Protection; escrita só pela tela, nunca pelo MCP). MCP `update_project` altera o destino.

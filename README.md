@@ -5,7 +5,8 @@ projeto (repositório Git), escreve uma demanda em linguagem natural e acompanha
 demanda em tarefas, o Dev implementando, o Tech Lead e o Security revisando e o QA testando, até a tarefa chegar a **Done**
 com um branch pronto para merge. Cada papel é uma execução do **Claude Code** em modo headless.
 
-Nenhum agente faz push: o trabalho fica no branch `agentforge/task-<id>` do clone local, e o merge é seu.
+Nenhum agente faz push: o trabalho fica no branch `agentforge/task-<id>` do clone local. Depois de aprovado, **você** pode abrir o pull request
+(botão *Abrir PR* ou MCP) para `develop` ou a branch principal do projeto; o merge continua sendo seu.
 
 > **Documentação online:** https://rafaelandrade74.github.io/AgentForge/ (fonte em `docs/index.html`, publicada pelo GitHub Pages a partir da pasta `/docs` da `main`).
 >
@@ -190,12 +191,33 @@ demandas, acompanhar tarefas, ler o diff e **aprovar ou rejeitar** entregas por 
 3. Converse: *"crie uma demanda no projeto X para adicionar o filtro por status e inicie"*, *"o que depende de mim?"*,
    *"mostre o diff da tarefa e aprove"*.
 
-Ferramentas (18): `list_projects`, `get_project`, `create_project`, `create_demand`, `start_demand`, `approve_plan`, `get_demand`,
+Ferramentas (21): `list_projects`, `get_project`, `create_project`, `create_demand`, `start_demand`, `approve_plan`, `get_demand`,
 `list_tasks`, `get_task`, `get_task_diff`, `get_run_output`, `approve_task`, `reject_task`, `retry_task`, `cancel_task`,
-`list_pending_actions`, `list_agents`, `test_agent`. As de leitura são marcadas como somente leitura e `cancel_task` como
-destrutiva, para o cliente pedir confirmação. **Não existe ferramenta que faça push, merge ou apague projeto.** Atrás de um
+`list_pending_actions`, `list_agents`, `test_agent`, `get_environment_load`, `update_project`, `open_pull_request`. As de leitura são marcadas como somente leitura e `cancel_task` como
+destrutiva, para o cliente pedir confirmação. **Não existe ferramenta que faça merge ou apague projeto**, e o único push é o `open_pull_request` (só do branch da tarefa concluída, para abrir o PR). Atrás de um
 proxy reverso, repasse `/mcp` à API e use HTTPS (o token trafega no cabeçalho). `start_demand`/`create_demand` com `start` e
 `test_agent` gastam créditos do agente.
+
+## Pull request ao concluir a tarefa
+
+Depois que a tarefa passou por Dev, Tech Lead, Security e QA **e você aprovou a entrega** (estado *Done*), a tela da tarefa mostra
+**Abrir PR**. O AgentForge publica só o branch `agentforge/task-<id>` no GitHub e abre o pull request para a branch de destino.
+Os agentes não ganham nenhuma credencial de escrita: quem faz o push é o servidor, por ação sua.
+
+1. No GitHub, crie um token **fine-grained** limitado ao repositório, com **Contents: Read and write** e **Pull requests: Read and write**.
+2. **Projetos → Editar → Token do GitHub para PRs**: cole o token. Fica no banco criptografado (como o token dos ambientes) e nunca
+   volta para a tela; *Apagar token* o remove. Se a chave de proteção mudar (volume `dp-keys`), informe-o de novo.
+3. **Branch de destino dos PRs** (mesma tela): `develop`, por exemplo. Vazio = a branch base do projeto. Também dá para trocar pelo
+   MCP (`update_project`, argumento `pullRequestBaseBranch`) e, na hora, no campo ao lado do botão *Abrir PR* (ou `baseBranch` em `open_pull_request`).
+   **O token não passa pelo MCP** de propósito: cadastre-o só na tela.
+4. Na tarefa *Done*: **Abrir PR**. Pelo MCP: `open_pull_request` com o `taskId`; `list_pending_actions` mostra, em `readyForPullRequest`,
+   o que está pronto para PR.
+
+Detalhes: só projetos em github.com; o push usa um refspec fixo (o branch da tarefa para o mesmo nome, sem `--force`), roda na máquina do
+ambiente do projeto e nunca atualiza a base; abrir de novo devolve o mesmo PR; se o GitHub recusar o PR (ex.: branch de destino
+inexistente), o branch já está publicado e basta corrigir e tentar de novo. Uma tarefa que depende de outras leva o trabalho delas no
+branch (o PR avisa): mescle primeiro o das dependências. Decisão na [ADR 0023](docs/adr/0023-pull-request-da-tarefa-concluida.md).
+
 ## Primeiro uso
 
 1. **Agentes:** confira que o Claude Code está **Conectado** e o teste passou.

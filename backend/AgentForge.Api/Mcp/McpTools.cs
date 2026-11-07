@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using AgentForge.Api.Endpoints;
+using AgentForge.Api.GitHub;
 using AgentForge.Domain;
 using AgentForge.Infrastructure.Persistence;
 using AgentForge.Orchestrator.Agents;
@@ -17,6 +18,9 @@ public sealed class ToolContext(JsonObject args, IServiceProvider services, Canc
     public CancellationToken Ct { get; } = ct;
     public T Get<T>() where T : notnull => Services.GetRequiredService<T>();
     public AppDbContext Db => Get<AppDbContext>();
+
+    /// <summary>O argumento foi informado (mesmo vazio)? Permite distinguir "não mexer" de "limpar".</summary>
+    public bool Has(string name) => args.ContainsKey(name);
 
     public string Text(string name, bool required = true, int max = 20_000)
     {
@@ -95,6 +99,7 @@ public sealed class McpToolRegistry
             Schema(Text("name", "Nome do projeto", req: true), Text("repositoryUrl", "URL ou caminho do repositório Git", req: true),
                 Text("baseBranch", "Branch base (padrão: main)"), Text("buildCommand", "Comando de build, ex.: dotnet build"),
                 Text("testCommand", "Comando de teste, ex.: dotnet test"),
+                Text("pullRequestBaseBranch", "Branch de destino dos pull requests das tarefas concluídas, ex.: develop (vazio = a branch base)"),
                 Bool("autoMode", "true desliga as aprovações humanas (plano e entrega); padrão false")),
             readOnly: false, destructive: false,
             async c =>
@@ -105,9 +110,33 @@ public sealed class McpToolRegistry
                     BaseBranch = c.Text("baseBranch", required: false, max: 200) is { Length: > 0 } b ? b.Trim() : "main",
                     BuildCommand = c.Text("buildCommand", required: false, max: 500), TestCommand = c.Text("testCommand", required: false, max: 500),
                     AutoMode = c.Bool("autoMode"),
+                    PullRequestBaseBranch = PullBranch(c),
                 };
                 if (p.RepositoryUrl.StartsWith('-')) throw new ToolInputException("URL de repositório inválida.");
                 c.Db.Projects.Add(p);
+                await c.Db.SaveChangesAsync(c.Ct);
+                return CrudEndpoints.ToDto(p);
+            });
+
+        Add("update_project", "Alterar projeto",
+            "Altera configurações do projeto (só as informadas): branch base, branch de destino dos pull requests, comandos de build/teste e modo automático. " +
+            "O token do GitHub para abrir PR NÃO passa por aqui (segredo): cadastre-o na tela do projeto.",
+            Schema(Id("projectId", "UUID do projeto", req: true), Text("name", "Novo nome"),
+                Text("baseBranch", "Branch base (de onde as tarefas nascem)"),
+                Text("pullRequestBaseBranch", "Branch de destino dos pull requests, ex.: develop; vazio volta a usar a branch base"),
+                Text("buildCommand", "Comando de build"), Text("testCommand", "Comando de teste"),
+                Bool("autoMode", "true desliga as aprovações humanas")),
+            readOnly: false, destructive: false,
+            async c =>
+            {
+                var id = c.Id("projectId");
+                var p = await c.Db.Projects.FirstOrDefaultAsync(x => x.Id == id, c.Ct) ?? throw NotFound("Projeto");
+                if (c.Has("name")) p.Name = c.Text("name", max: 200).Trim();
+                if (c.Has("baseBranch")) p.BaseBranch = c.Text("baseBranch", max: 200).Trim();
+                if (c.Has("pullRequestBaseBranch")) p.PullRequestBaseBranch = PullBranch(c);
+                if (c.Has("buildCommand")) p.BuildCommand = c.Text("buildCommand", required: false, max: 500);
+                if (c.Has("testCommand")) p.TestCommand = c.Text("testCommand", required: false, max: 500);
+                if (c.Has("autoMode")) p.AutoMode = c.Bool("autoMode");
                 await c.Db.SaveChangesAsync(c.Ct);
                 return CrudEndpoints.ToDto(p);
             });
@@ -153,7 +182,7 @@ public sealed class McpToolRegistry
                     {
                         i.Id, i.Title, i.State, i.ReworkCount, i.BlockedReason, i.BranchName,
                         dependsOn = i.Dependencies.Select(d => titles.GetValueOrDefault(d.Id, d.Title)),
-                        nextAction = NextAction(i.State),
+                        nextAction = NextAction(i),
                     }),
                     costUsd = cost,
                     nextAction = demand.Status switch
@@ -201,7 +230,7 @@ public sealed class McpToolRegistry
                     findings = findings.Select(CrudEndpoints.ToDto),
                     runs,
                     costUsd = runs.Sum(r => r.CostUsd),
-                    nextAction = NextAction(item.State),
+                    nextAction = NextAction(item),
                 };
             });
 
@@ -247,6 +276,26 @@ public sealed class McpToolRegistry
             Schema(Id("taskId", "UUID da tarefa", req: true)), readOnly: false, destructive: true,
             async c => Outcome(await c.Get<WorkflowActions>().CancelAsync(c.Id("taskId")), "Tarefa", "Cancelada."));
 
+        Add("open_pull_request", "Abrir pull request",
+            "Para uma tarefa JÁ CONCLUÍDA (Done: passou por Dev, Tech Lead, Security, QA e foi aprovada): publica o branch agentforge/task-<id> no GitHub e abre o pull request " +
+            "para a branch de destino do projeto (ou a informada). Usa o token do GitHub cadastrado no projeto. Ação externa: aparece no GitHub; só faz push do branch da tarefa, nunca da base.",
+            Schema(Id("taskId", "UUID da tarefa concluída", req: true),
+                Text("baseBranch", "Branch de destino deste PR (padrão: a do projeto, ex.: develop; senão a base)")),
+            readOnly: false, destructive: false,
+            async c =>
+            {
+                var branch = c.Text("baseBranch", required: false, max: 200).Trim();
+                if (branch.Length > 0 && !PullRequestService.IsValidBranchName(branch)) throw new ToolInputException("Nome de branch inválido.");
+                try
+                {
+                    return await c.Get<PullRequestService>().OpenAsync(c.Id("taskId"), branch.Length > 0 ? branch : null, c.Ct);
+                }
+                catch (PullRequestException ex)
+                {
+                    throw new ToolInputException(ex.Message);
+                }
+            });
+
         Add("list_pending_actions", "O que depende de mim", "Tudo que espera uma decisão humana: planos a aprovar, entregas a revisar, tarefas bloqueadas e demandas que falharam.",
             Schema(), readOnly: true,
             async c =>
@@ -266,6 +315,11 @@ public sealed class McpToolRegistry
                         .Select(w => new { taskId = w.Id, w.Title, w.Demand, action = "get_task, get_task_diff → approve_task ou reject_task" }),
                     blocked = waiting.Where(w => w.State == WorkItemState.Blocked)
                         .Select(w => new { taskId = w.Id, w.Title, w.Demand, reason = w.BlockedReason, action = "retry_task ou cancel_task" }),
+                    readyForPullRequest = await db.WorkItems.AsNoTracking().Where(w => w.State == WorkItemState.Done && w.PullRequestUrl == null)
+                        .Join(db.Demands, w => w.DemandId, d => d.Id, (w, d) => new { w.Id, w.Title, d.ProjectId })
+                        .Join(db.Projects.Where(p => p.ProtectedGitHubToken != ""), x => x.ProjectId, p => p.Id,
+                            (x, p) => new { taskId = x.Id, x.Title, project = p.Name, targetBranch = p.PullRequestBaseBranch != "" ? p.PullRequestBaseBranch : p.BaseBranch, action = "open_pull_request" })
+                        .ToListAsync(c.Ct),
                     demandsNotStarted = failed.Select(d => new { demandId = d.Id, d.Title, d.Status, action = "start_demand" }),
                 };
             });
@@ -303,6 +357,16 @@ public sealed class McpToolRegistry
         ActionOutcome.NotFound => throw NotFound(what),
         _ => throw new ToolInputException($"A ação não vale para o estado atual ({what.ToLowerInvariant()}). Use get_task/get_demand para ver o estado e a próxima ação."),
     };
+
+    private static string PullBranch(ToolContext c)
+    {
+        var branch = c.Text("pullRequestBaseBranch", required: false, max: 200).Trim();
+        if (branch.Length > 0 && !PullRequestService.IsValidBranchName(branch)) throw new ToolInputException("Nome de branch inválido para o PR.");
+        return branch;
+    }
+
+    private static string? NextAction(WorkItem item) =>
+        item.State == WorkItemState.Done && item.PullRequestUrl is null ? "open_pull_request (se quiser o PR; exige o token do GitHub no projeto)" : NextAction(item.State);
 
     private static string? NextAction(WorkItemState state) => state switch
     {

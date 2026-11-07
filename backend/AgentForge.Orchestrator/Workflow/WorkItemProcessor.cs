@@ -282,7 +282,7 @@ public partial class WorkItemProcessor(
     {
         var dependents = await db.WorkItems
             .Include(w => w.Dependencies)
-            .Where(w => !WorkflowDefinition.IsTerminal(w.State) && w.Dependencies.Any(d => d.Id == cancelled.Id))
+            .Where(w => w.State != WorkItemState.Done && w.State != WorkItemState.Cancelled && w.Dependencies.Any(d => d.Id == cancelled.Id))   // sem chamar método C# dentro da consulta: o EF não traduz
             .ToListAsync();
         if (dependents.Count == 0) return;
 

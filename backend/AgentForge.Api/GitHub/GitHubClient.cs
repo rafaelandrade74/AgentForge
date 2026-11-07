@@ -18,6 +18,8 @@ public class GitHubException(HttpStatusCode status, string message) : Exception(
 
 public enum DeployKeyResult { Added, AlreadyRegistered }
 
+public record PullRequestInfo(string Url, int Number, bool AlreadyExisted);
+
 /// <summary>
 /// Cliente mínimo da API do GitHub. O token vem da requisição da pessoa, é usado só para a chamada e **nunca é guardado nem
 /// registrado em log** (as mensagens de erro não o repetem).
@@ -79,6 +81,27 @@ public sealed partial class GitHubClient(HttpClient http)
         }
     }
 
+    /// <summary>Abre o pull request. Se já existe um aberto para o mesmo branch, devolve esse (não é erro).</summary>
+    public async Task<PullRequestInfo> CreatePullRequestAsync(string token, string fullName, string title, string head, string baseBranch,
+        string body, CancellationToken ct)
+    {
+        using var request = Request(HttpMethod.Post, $"repos/{fullName}/pulls", token);
+        request.Content = JsonContent.Create(new { title, head, @base = baseBranch, body });
+        try
+        {
+            var created = await SendAsync<PullDto>(request, ct) ?? throw new GitHubException(HttpStatusCode.BadGateway, "Resposta vazia do GitHub.");
+            return new PullRequestInfo(created.HtmlUrl, created.Number, AlreadyExisted: false);
+        }
+        catch (GitHubException ex) when (ex.Status == HttpStatusCode.UnprocessableEntity && ex.Message.Contains("already exists", StringComparison.OrdinalIgnoreCase))
+        {
+            var owner = fullName.Split('/')[0];
+            using var list = Request(HttpMethod.Get, $"repos/{fullName}/pulls?state=open&head={Uri.EscapeDataString(owner + ":" + head)}", token);
+            var open = await SendAsync<List<PullDto>>(list, ct) ?? [];
+            if (open.FirstOrDefault() is { } existing) return new PullRequestInfo(existing.HtmlUrl, existing.Number, AlreadyExisted: true);
+            throw;
+        }
+    }
+
     // ------------------------------------------------------------------------------------------------
 
     private static HttpRequestMessage Request(HttpMethod method, string path, string? token)
@@ -115,7 +138,7 @@ public sealed partial class GitHubClient(HttpClient http)
                 HttpStatusCode.NotFound => "Repositório não encontrado, ou o token não tem acesso a ele.",
                 HttpStatusCode.Forbidden when response.Headers.TryGetValues("X-RateLimit-Remaining", out var left) && left.FirstOrDefault() == "0" =>
                     "Limite de requisições do GitHub atingido; tente de novo mais tarde.",
-                HttpStatusCode.Forbidden => "O token não tem permissão para isso (para deploy key: repositório com permissão de administração).",
+                HttpStatusCode.Forbidden => "O token não tem permissão para isso (deploy key: administração; pull request: Pull requests e Contents de escrita neste repositório).",
                 _ => string.IsNullOrWhiteSpace(detail) ? $"O GitHub respondeu {(int)response.StatusCode}." : detail,
             });
         }
@@ -150,6 +173,10 @@ public sealed partial class GitHubClient(HttpClient http)
         [property: JsonPropertyName("ssh_url")] string SshUrl,
         [property: JsonPropertyName("updated_at")] DateTime? UpdatedAt,
         [property: JsonPropertyName("permissions")] PermissionsDto? Permissions);
+
+    private sealed record PullDto(
+        [property: JsonPropertyName("html_url")] string HtmlUrl,
+        [property: JsonPropertyName("number")] int Number);
 
     private sealed record PermissionsDto([property: JsonPropertyName("admin")] bool Admin);
 }

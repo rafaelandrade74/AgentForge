@@ -104,6 +104,38 @@ public static class PromptBuilder
         Informe a severidade de cada achado.
         """;
 
+    private const string ReassessFormat = """
+        Termine a resposta com UM bloco ```json neste formato (e nada depois dele):
+        {"actions":[{"workItemId":"<guid>","action":"remove_dependency|block","newDescription":"...","newAcceptanceCriteria":"..."}]}
+        - "remove_dependency": remove a dependência cancelada e ajusta a descrição/critérios de aceite para que a tarefa faça sentido sozinha.
+        - "block": a tarefa não faz sentido sem a dependência cancelada; será bloqueada para decisão humana.
+        - "newDescription" e "newAcceptanceCriteria" são obrigatórios quando action é "remove_dependency" (o texto completo atualizado).
+        """;
+
+    public static string ScrumMasterReassess(WorkItem cancelled, List<WorkItem> dependents, Project project)
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine($"A tarefa abaixo foi CANCELADA:");
+        sb.AppendLine($"  Título: {cancelled.Title}");
+        sb.AppendLine($"  Descrição: {cancelled.Description}");
+        sb.AppendLine();
+        sb.AppendLine("As seguintes tarefas dependiam dela e estão travadas:");
+        foreach (var d in dependents)
+        {
+            sb.AppendLine($"  - [{d.Id}] {d.Title}");
+            sb.AppendLine($"    Descrição: {d.Description}");
+            sb.AppendLine($"    Critérios de aceite: {d.AcceptanceCriteria}");
+            sb.AppendLine($"    Outras dependências: {(d.Dependencies.Where(dep => dep.Id != cancelled.Id).Select(dep => dep.Title).ToList() is { Count: > 0 } others ? string.Join("; ", others) : "nenhuma")}");
+        }
+        sb.AppendLine();
+        sb.AppendLine($"Projeto: {project.Name}. Para cada tarefa afetada, decida:");
+        sb.AppendLine("1. Se a tarefa faz sentido sem o trabalho da tarefa cancelada, escolha \"remove_dependency\" e ajuste a descrição e os critérios de aceite.");
+        sb.AppendLine("2. Se a tarefa depende fundamentalmente do trabalho cancelado, escolha \"block\".");
+        sb.AppendLine();
+        sb.Append(ReassessFormat);
+        return sb.ToString();
+    }
+
     public static string Qa(WorkItem item, Project project) => $"""
         Valide a tarefa no branch atual: execute o build e os testes, confira CADA critério de aceite e escreva testes de integração quando faltarem.
 

@@ -17,6 +17,9 @@ public record ReviewReport(bool Approved, List<FindingData> Findings);
 public record QaCriterion(string Criterion, bool Passed, string Evidence);
 public record QaReport(bool Passed, List<QaCriterion> Criteria);
 
+public record ReassessAction(Guid WorkItemId, string Action, string? NewDescription, string? NewAcceptanceCriteria);
+public record ReassessmentReport(List<ReassessAction> Actions);
+
 /// <summary>Valida o bloco JSON final de cada papel. Mensagens de erro vão de volta ao agente na segunda tentativa.</summary>
 public static class OutputParsers
 {
@@ -137,6 +140,25 @@ public static class OutputParsers
         if (c.ValueKind != JsonValueKind.Array) return "";
         return string.Join("\n", c.EnumerateArray().Where(x => x.ValueKind == JsonValueKind.String).Select(x => "- " + x.GetString()));
     }
+
+    public static Parsed<ReassessmentReport> ParseReassessment(string? json, IReadOnlySet<Guid> validIds) => Guard(json, root =>
+    {
+        if (!root.TryGetProperty("actions", out var arr) || arr.ValueKind != JsonValueKind.Array || arr.GetArrayLength() == 0)
+            return Parsed<ReassessmentReport>.Fail("\"actions\" deve ser uma lista não vazia.");
+
+        var actions = new List<ReassessAction>();
+        foreach (var a in arr.EnumerateArray())
+        {
+            var idStr = Str(a, "workItemId");
+            if (!Guid.TryParse(idStr, out var id) || !validIds.Contains(id))
+                return Parsed<ReassessmentReport>.Fail($"\"workItemId\" inválido ou fora do escopo: {idStr}");
+            var action = Str(a, "action")?.Trim().ToLowerInvariant();
+            if (action is not ("remove_dependency" or "block"))
+                return Parsed<ReassessmentReport>.Fail("\"action\" deve ser \"remove_dependency\" ou \"block\".");
+            actions.Add(new ReassessAction(id, action, Str(a, "newDescription"), Str(a, "newAcceptanceCriteria")));
+        }
+        return Parsed<ReassessmentReport>.Success(new ReassessmentReport(actions));
+    });
 
     private static bool HasCycle(List<PlannedTask> tasks)
     {

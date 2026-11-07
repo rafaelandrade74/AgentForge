@@ -37,6 +37,7 @@ public static class WorkflowDefinition
         {
             [(WorkItemState.Backlog, WorkflowEvent.HumanApproved)] = WorkItemState.Todo,
             [(WorkItemState.Todo, WorkflowEvent.Started)] = WorkItemState.InDevelopment,
+            [(WorkItemState.Todo, WorkflowEvent.AgentFailed)] = WorkItemState.Blocked,
 
             [(WorkItemState.InDevelopment, WorkflowEvent.DevDone)] = WorkItemState.TechLeadReview,
             [(WorkItemState.InDevelopment, WorkflowEvent.AgentFailed)] = WorkItemState.Blocked,

@@ -268,8 +268,71 @@ public partial class WorkItemProcessor(
             case WorkItemState.Cancelled:
                 await queue.CancelRunningAsync(item.Id);
                 await workspaces.RemoveWorktreeAsync(project, item.Id, deleteBranch: true, CancellationToken.None);
+                await ReassessDependentsAsync(item, project);
+                await CompleteDemandIfFinishedAsync(item.DemandId);
                 break;
         }
+    }
+
+    /// <summary>
+    /// Quando uma tarefa é cancelada, o Scrum Master reavalia as dependentes: remove a dependência (ajustando
+    /// descrição/critérios) ou bloqueia para decisão humana. Se o Scrum Master falhar, as dependentes vão para Blocked.
+    /// </summary>
+    private async Task ReassessDependentsAsync(WorkItem cancelled, Project project)
+    {
+        var dependents = await db.WorkItems
+            .Include(w => w.Dependencies)
+            .Where(w => !WorkflowDefinition.IsTerminal(w.State) && w.Dependencies.Any(d => d.Id == cancelled.Id))
+            .ToListAsync();
+        if (dependents.Count == 0) return;
+
+        var repo = await workspaces.EnsureRepositoryAsync(project, CancellationToken.None);
+        var prompt = PromptBuilder.ScrumMasterReassess(cancelled, dependents, project);
+        var validIds = dependents.Select(d => d.Id).ToHashSet();
+
+        var result = await executor.RunAsync(AgentRole.ScrumMaster, prompt, repo,
+            project.Id, null, null,
+            json => Task.FromResult(OutputParsers.ParseReassessment(json, validIds)),
+            CancellationToken.None);
+
+        if (result.Outcome == ExecOutcome.Ok && result.Value is not null)
+        {
+            var actionsById = result.Value.Actions.ToDictionary(a => a.WorkItemId);
+            foreach (var dep in dependents)
+            {
+                if (actionsById.TryGetValue(dep.Id, out var action) && action.Action == "remove_dependency")
+                {
+                    dep.Dependencies.RemoveAll(d => d.Id == cancelled.Id);
+                    if (!string.IsNullOrWhiteSpace(action.NewDescription))
+                        dep.Description = action.NewDescription;
+                    if (!string.IsNullOrWhiteSpace(action.NewAcceptanceCriteria))
+                        dep.AcceptanceCriteria = action.NewAcceptanceCriteria;
+                    await db.SaveChangesAsync(CancellationToken.None);
+                    await events.PublishChangeAsync(project.Id, dep);
+                    queue.EnqueueWorkItem(dep.Id);
+                }
+                else
+                {
+                    await BlockDependentAsync(dep, project, cancelled);
+                }
+            }
+        }
+        else
+        {
+            logger.LogWarning("Scrum Master falhou ao reavaliar dependentes da tarefa cancelada {Id}: {Error}", cancelled.Id, result.Error);
+            foreach (var dep in dependents)
+                await BlockDependentAsync(dep, project, cancelled);
+        }
+    }
+
+    private async Task BlockDependentAsync(WorkItem dep, Project project, WorkItem cancelled)
+    {
+        if (WorkflowDefinition.IsTerminal(dep.State)) return;
+        var reason = $"Dependência cancelada: \"{cancelled.Title}\" ({cancelled.Id}) — aguarda decisão humana.";
+        if (WorkflowDefinition.Next(dep.State, WorkflowEvent.AgentFailed) is not null)
+            await TransitionAsync(dep, project, WorkflowEvent.AgentFailed, reason: reason, ct: CancellationToken.None);
+        else
+            await TransitionAsync(dep, project, WorkflowEvent.Cancel, reason: reason, ct: CancellationToken.None);
     }
 
     private async Task CompleteDemandIfFinishedAsync(Guid demandId)

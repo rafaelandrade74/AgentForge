@@ -58,6 +58,12 @@ public class WorkflowDefinitionTests
 
     [Fact]
     public void Three_returns_is_the_rework_limit() => Assert.Equal(3, WorkflowDefinition.MaxRework);
+
+    [Fact]
+    public void Todo_can_be_blocked_by_agent_failure()
+    {
+        Assert.Equal(WorkItemState.Blocked, WorkflowDefinition.Next(WorkItemState.Todo, WorkflowEvent.AgentFailed));
+    }
 }
 
 public class OutputParsersTests
@@ -103,6 +109,46 @@ public class OutputParsersTests
         Assert.Equal(3, r.Value.Findings[0].Line);
         Assert.False(OutputParsers.ParseReview("""{"verdict":"changes_requested","findings":[{"file":"a"}]}""").Ok);
         Assert.False(OutputParsers.ParseReview("""{"verdict":"ok"}""").Ok);
+    }
+
+    [Fact]
+    public void Reassessment_accepts_valid_actions()
+    {
+        var id = Guid.NewGuid();
+        var json = $$"""{"actions":[{"workItemId":"{{id}}","action":"remove_dependency","newDescription":"updated","newAcceptanceCriteria":"new criteria"}]}""";
+        var r = OutputParsers.ParseReassessment(json, new HashSet<Guid> { id });
+        Assert.True(r.Ok, r.Error);
+        Assert.Single(r.Value!.Actions);
+        Assert.Equal("remove_dependency", r.Value.Actions[0].Action);
+    }
+
+    [Fact]
+    public void Reassessment_accepts_block_action()
+    {
+        var id = Guid.NewGuid();
+        var json = $$"""{"actions":[{"workItemId":"{{id}}","action":"block"}]}""";
+        var r = OutputParsers.ParseReassessment(json, new HashSet<Guid> { id });
+        Assert.True(r.Ok, r.Error);
+        Assert.Equal("block", r.Value!.Actions[0].Action);
+    }
+
+    [Fact]
+    public void Reassessment_rejects_unknown_work_item_id()
+    {
+        var json = $$"""{"actions":[{"workItemId":"{{Guid.NewGuid()}}","action":"block"}]}""";
+        var r = OutputParsers.ParseReassessment(json, new HashSet<Guid> { Guid.NewGuid() });
+        Assert.False(r.Ok);
+        Assert.Contains("inválido", r.Error);
+    }
+
+    [Fact]
+    public void Reassessment_rejects_invalid_action()
+    {
+        var id = Guid.NewGuid();
+        var json = $$"""{"actions":[{"workItemId":"{{id}}","action":"delete"}]}""";
+        var r = OutputParsers.ParseReassessment(json, new HashSet<Guid> { id });
+        Assert.False(r.Ok);
+        Assert.Contains("remove_dependency", r.Error);
     }
 
     [Fact]

@@ -1,3 +1,4 @@
+using AgentForge.Orchestrator.Agents;
 using System.Collections.Concurrent;
 using System.Threading.Channels;
 using AgentForge.Domain;
@@ -175,19 +176,33 @@ public sealed class OrchestratorService(
         return TimeSpan.FromSeconds(Math.Min(seconds, options.Value.EnvironmentRetryMaxSeconds));
     }
 
-    private async Task<TimeSpan> DeferAsync(Work work, string reason)
+    private async Task<TimeSpan> DeferAsync(Work work, Exception cause)
     {
-        var delay = NextDelay(work);
-        _waiting[work] = new WaitingEntry(work.IsDemand, work.Id, reason, DateTime.UtcNow + delay, _attempts.GetValueOrDefault(work));
-        logger.LogWarning("{Kind} {Id} aguarda o ambiente voltar (tentativa {Attempt}, próxima em {Delay:0}s): {Reason}",
-            work.IsDemand ? "Demanda" : "Tarefa", work.Id, _attempts.GetValueOrDefault(work), delay.TotalSeconds, reason);
+        var reason = cause.Message;
+        var limit = (cause as EnvironmentDeferredException)?.Limit;
+        TimeSpan delay;
+        if (limit is not null)
+        {
+            // limite de uso: não adianta o backoff curto; volta quando o agente libera (ou na sonda, se o reset é desconhecido)
+            _attempts.AddOrUpdate(work, 1, (_, n) => n + 1);
+            delay = TimeSpan.FromSeconds(Math.Max(1, (limit.RetryAt - DateTime.UtcNow).TotalSeconds));
+        }
+        else
+        {
+            delay = NextDelay(work);
+        }
+        _waiting[work] = new WaitingEntry(work.IsDemand, work.Id, reason, DateTime.UtcNow + delay, _attempts.GetValueOrDefault(work), limit);
+        logger.LogWarning("{Kind} {Id} aguarda {What} (tentativa {Attempt}, próxima em {Delay:0}s): {Reason}",
+            work.IsDemand ? "Demanda" : "Tarefa", work.Id, limit is null ? "o ambiente voltar" : "o limite de uso do agente liberar",
+            _attempts.GetValueOrDefault(work), delay.TotalSeconds, reason);
         if (!work.IsDemand)
         {
             using var scope = scopes.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-            var message = reason.Length > 480 ? reason[..480] + "…" : reason;
+            var shown = limit is null ? "Aguardando o ambiente voltar: " + reason : UsageLimitText.WaitingReason(limit);
+            var message = shown.Length > 490 ? shown[..490] + "…" : shown;
             var updated = await db.WorkItems.Where(w => w.Id == work.Id)
-                .ExecuteUpdateAsync(s => s.SetProperty(w => w.WaitingReason, "Aguardando o ambiente voltar: " + message));
+                .ExecuteUpdateAsync(s => s.SetProperty(w => w.WaitingReason, message));
             if (updated > 0)
                 await scope.ServiceProvider.GetRequiredService<IWorkflowEventPublisher>().PublishChangeAsync(await ProjectIdOfAsync(db, work.Id), await db.WorkItems.AsNoTracking().FirstAsync(w => w.Id == work.Id));
         }
@@ -239,7 +254,7 @@ public sealed class OrchestratorService(
         catch (OperationCanceledException) when (stop.IsCancellationRequested) { }
         catch (Exception ex) when (IsEnvironmentDown(ex))
         {
-            return await DeferAsync(work, ex.Message);
+            return await DeferAsync(work, ex);
         }
         catch (Exception ex)
         {
@@ -277,7 +292,7 @@ public sealed class OrchestratorService(
         catch (OperationCanceledException) { }
         catch (Exception ex) when (IsEnvironmentDown(ex))
         {
-            return await DeferAsync(work, ex.Message);
+            return await DeferAsync(work, ex);
         }
         catch (Exception ex)
         {

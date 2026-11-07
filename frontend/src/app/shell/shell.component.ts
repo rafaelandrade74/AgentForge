@@ -1,4 +1,7 @@
 import { Component, inject } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { interval } from 'rxjs';
+import { usageLimitText } from '../core/usage-limit';
 import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatToolbarModule } from '@angular/material/toolbar';
@@ -36,6 +39,12 @@ import { RealtimeService } from '../core/realtime.service';
         <a mat-flat-button routerLink="/agents">Configurar agentes</a>
       </div>
     }
+    @for (l of agents.usageLimits(); track l.environment + l.agent) {
+      <div class="banner limit" role="status" data-testid="usage-limit">
+        <span>{{ limitText(l) }} As tarefas ficam em espera e retomam sozinhas.</span>
+        <a mat-flat-button routerLink="/environments">Ver tarefas em espera</a>
+      </div>
+    }
     <router-outlet />
   `,
   styles: `
@@ -46,6 +55,7 @@ import { RealtimeService } from '../core/realtime.service';
     .user { font-size: .9rem; opacity: .8; }
     .rt { color: #777; font-size: .8rem; }
     .rt.on { color: #5fd47a; }
+    .banner.limit { background: #3a2a4a; color: #e6d0ff; }
     .banner { display: flex; gap: 1rem; align-items: center; justify-content: center; flex-wrap: wrap; padding: .5rem 1rem; background: #4a3a10; color: #ffe08a; }
   `,
 })
@@ -54,7 +64,11 @@ export class ShellComponent {
   readonly realtime = inject(RealtimeService);
   readonly agents = inject(AgentsService);
 
+  readonly limitText = usageLimitText;
+
   constructor() {
     this.agents.refresh();
+    this.agents.refreshLimits();
+    interval(30_000).pipe(takeUntilDestroyed()).subscribe(() => this.agents.refreshLimits());
   }
 }

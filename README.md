@@ -417,6 +417,7 @@ o que exige `no-new-privileges` desligado e algumas capabilities do `apt`; para 
 
 | Sintoma | Causa e solução |
 |---|---|
+| Faixa roxa "limite de uso atingido" | Os créditos ou a janela de horas do agente acabaram. As tarefas ficam **em espera** (não falham) e retomam sozinhas quando o agente libera; a faixa mostra o horário. Sem horário informado, o AgentForge tenta de novo a cada 5 min. Veja o ADR 0024 |
 | Faixa amarela "não está conectado" | Abra **Agentes** e conecte (link) ou use um dos outros modos |
 | Execuções falham em segundos | Claude Code sem login: veja a tela Agentes; a saída da execução mostra o motivo |
 | Modo 1: "Host agent inacessível" | O `scripts/host-agent` não está rodando, a porta/URL difere de `HOST_AGENT_URL`, ou (Linux) ele escuta só em loopback |

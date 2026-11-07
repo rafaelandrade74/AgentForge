@@ -581,6 +581,7 @@ git pull && docker compose up -d --build</code></pre>
 <h2 id="problemas">Problemas comuns</h2>
 <table>
   <tr><th>Sintoma</th><th>Causa e solução</th></tr>
+  <tr><td>Faixa roxa "limite de uso atingido"</td><td>Os créditos ou a janela de horas do agente acabaram. As tarefas ficam <strong>em espera</strong> (não falham) e retomam sozinhas quando o agente libera; a faixa mostra o horário. Sem horário informado, tenta de novo a cada 5 min</td></tr>
   <tr><td>Faixa amarela "não está conectado"</td><td>Abra <strong>Agentes</strong> e conecte (link) ou use outro modo</td></tr>
   <tr><td>Execuções falham em segundos</td><td>Claude Code sem login: veja <strong>Agentes</strong>; a saída da execução mostra o motivo</td></tr>
   <tr><td>Host agent inacessível</td><td><code>scripts/host-agent</code> parado, porta/URL diferente de <code>HOST_AGENT_URL</code>, ou (Linux) escutando só em loopback</td></tr>

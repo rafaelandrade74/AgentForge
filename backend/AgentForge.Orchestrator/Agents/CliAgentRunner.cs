@@ -3,6 +3,7 @@ using AgentForge.Domain;
 using AgentForge.Execution;
 using AgentForge.Infrastructure.Persistence;
 using AgentForge.Orchestrator.Environments;
+using AgentForge.Orchestrator.Workflow;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -18,8 +19,11 @@ public class CliAgentRunner(
     AppDbContext db,
     IAgentEventPublisher publisher,
     IEnvironmentLaunchers environments,
-    ILogger<CliAgentRunner> logger) : IAgentRunner
+    ILogger<CliAgentRunner> logger,
+    IUsageLimitTracker? usageLimits = null) : IAgentRunner
 {
+    private readonly IUsageLimitTracker _usage = usageLimits ?? new UsageLimitTracker();
+
     /// <summary>Um ambiente só, com o launcher dado (testes e instalações sem ambientes cadastrados).</summary>
     public CliAgentRunner(AgentAdapterRegistry adapters, AppDbContext db, IAgentEventPublisher publisher,
         IProcessLauncher launcher, ILogger<CliAgentRunner> logger)
@@ -58,6 +62,7 @@ public class CliAgentRunner(
         string? failure = null;
         var timedOut = false;
         var environmentDown = false;
+        UsageLimit? usageLimit = null;
         var workingDirectory = request.WorkingDirectory;
 
         using var timeoutCts = new CancellationTokenSource(request.Timeout ?? DefaultTimeout);
@@ -90,24 +95,47 @@ public class CliAgentRunner(
             run.EnvironmentId = target.EnvironmentId;
             if (!request.Ephemeral) await db.SaveChangesAsync(CancellationToken.None);
 
-            // o prompt vai pelo stdin (e o stdin fecha)
-            await using var process = await target.Launcher.StartAsync(
-                new LaunchSpec(adapter.Executable, adapter.BuildArguments(request), workingDirectory, request.Prompt, Container: container), linked.Token);
-            using var killOnCancel = linked.Token.Register(process.Kill);
-
-            var errTask = ReadStderrAsync(process, stderr);
-
-            string? line;
-            while ((line = await process.ReadStdoutLineAsync(linked.Token)) is not null)
+            // limite de uso já conhecido nesta conta: nem inicia o CLI (a execução falharia do mesmo jeito e gastaria a vez)
+            var accountKey = target.EnvironmentId?.ToString() ?? EnvironmentKeys.Default;
+            if (_usage.Active(accountKey, adapter.Name) is { } known)
             {
-                stdout.Add(line);
-                if (adapter.ParseEvent(line) is { } data) await Emit(data.Kind, data.Text);
+                usageLimit = known;
+                failure = "Limite de uso do agente em vigor: " + known.Message;
+                await Emit("rate_limit", known.Message);
             }
+            else
+            {
 
-            exitCode = await process.WaitForExitAsync(linked.Token);
-            // stderr costuma fechar junto com o processo; não espera para sempre se algum neto segurar o pipe.
-            await Task.WhenAny(errTask, Task.Delay(TimeSpan.FromSeconds(5), CancellationToken.None));
-            result = adapter.ParseResult(stdout, exitCode.Value);
+                // o prompt vai pelo stdin (e o stdin fecha)
+                await using var process = await target.Launcher.StartAsync(
+                    new LaunchSpec(adapter.Executable, adapter.BuildArguments(request), workingDirectory, request.Prompt, Container: container), linked.Token);
+                using var killOnCancel = linked.Token.Register(process.Kill);
+
+                var errTask = ReadStderrAsync(process, stderr);
+
+                string? line;
+                while ((line = await process.ReadStdoutLineAsync(linked.Token)) is not null)
+                {
+                    stdout.Add(line);
+                    if (adapter.ParseEvent(line) is { } data) await Emit(data.Kind, data.Text);
+                }
+
+                exitCode = await process.WaitForExitAsync(linked.Token);
+                // stderr costuma fechar junto com o processo; não espera para sempre se algum neto segurar o pipe.
+                await Task.WhenAny(errTask, Task.Delay(TimeSpan.FromSeconds(5), CancellationToken.None));
+                result = adapter.ParseResult(stdout, exitCode.Value);
+
+                if (result.Limit is { } hit)
+                {
+                    usageLimit = hit;
+                    _usage.Record(accountKey, adapter.Name, hit);
+                    logger.LogWarning("Agente {Adapter} atingiu o limite de uso (volta a tentar em {RetryAt:u}).", adapter.Name, hit.RetryAt);
+                }
+                else if (!result.IsError)
+                {
+                    _usage.Clear(accountKey, adapter.Name);   // a sonda passou: o limite acabou
+                }
+            }
         }
         catch (OperationCanceledException)
         {
@@ -124,7 +152,7 @@ public class CliAgentRunner(
         clock.Stop();
         var status =
             failure is not null ? (timedOut || !ct.IsCancellationRequested ? AgentRunStatus.Failed : AgentRunStatus.Cancelled)
-            : result!.IsError ? AgentRunStatus.Failed
+            : result!.IsError || usageLimit is not null ? AgentRunStatus.Failed
             : AgentRunStatus.Succeeded;
 
         var output = result?.Text ?? "";
@@ -142,7 +170,7 @@ public class CliAgentRunner(
         if (!request.Ephemeral) await db.SaveChangesAsync(CancellationToken.None);
         await Emit("run_finished", status.ToString());
 
-        return new AgentRunResult(run.Id, status, output, result?.Json, run.CostUsd, clock.Elapsed, exitCode, environmentDown);
+        return new AgentRunResult(run.Id, status, output, result?.Json, run.CostUsd, clock.Elapsed, exitCode, environmentDown, usageLimit);
     }
 
     /// <summary>

@@ -324,9 +324,9 @@ public sealed class McpToolRegistry
                 };
             });
 
-        Add("get_environment_load", "Carga dos ambientes", "Mostra, por ambiente (máquina), quantas tarefas rodam, quantas esperam vaga, quantos agentes estão rodando e o que aguarda uma máquina fora do ar voltar.",
+        Add("get_environment_load", "Carga dos ambientes", "Mostra, por ambiente (máquina), quantas tarefas rodam, quantas esperam vaga, quantos agentes estão rodando e o que aguarda uma máquina fora do ar voltar e os limites de uso (créditos ou janela de horas) que seguram os agentes, com o horário em que liberam.",
             Schema(), readOnly: true,
-            async c => await EnvironmentEndpoints.LoadAsync(c.Db, c.Get<IEnvironmentLoad>(), c.Get<IOptions<OrchestratorOptions>>().Value, c.Ct));
+            async c => await EnvironmentEndpoints.LoadAsync(c.Db, c.Get<IEnvironmentLoad>(), c.Get<IOptions<OrchestratorOptions>>().Value, c.Get<AgentForge.Orchestrator.Agents.IUsageLimitTracker>(), c.Get<AgentForge.Orchestrator.Agents.AgentAdapterRegistry>(), c.Ct));
 
         Add("list_agents", "Agentes e conexão", "Mostra os agentes (CLIs) instalados, se estão conectados e quais papéis usam cada um. Não gasta créditos.",
             Schema(), readOnly: true, async c => await c.Get<AgentCliService>().ListAsync(c.Ct));

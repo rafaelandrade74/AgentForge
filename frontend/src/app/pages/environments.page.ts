@@ -96,9 +96,9 @@ const EMPTY: EnvironmentInput = { name: '', url: '', token: '', workspaceRoot: '
           </table>
           @for (w of report.waiting; track w.id) {
             <div class="alert-waiting" role="status" data-testid="waiting-row">
-              <app-badge label="aguardando a máquina" tone="warn" />
+              <app-badge [label]="w.cause === 'usage-limit' ? 'aguardando o limite de uso' : 'aguardando a máquina'" tone="warn" />
               <strong>{{ w.title }}</strong> <span class="muted small">({{ w.project }}, {{ w.kind === 'demand' ? 'refinamento' : 'tarefa' }})</span>
-              <span class="muted small">{{ w.reason }} · tentativa {{ w.attempts }}, próxima em {{ retryIn(w.retryAt) }}</span>
+              <span class="muted small">{{ w.reason }} · {{ w.cause === 'usage-limit' ? 'volta a tentar' : 'tentativa ' + w.attempts + ', próxima' }} em {{ retryIn(w.retryAt) }}</span>
             </div>
           }
         </section>

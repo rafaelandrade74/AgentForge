@@ -1,6 +1,7 @@
 using AgentForge.Domain;
 using AgentForge.Execution;
 using AgentForge.Infrastructure.Persistence;
+using AgentForge.Orchestrator.Agents;
 using AgentForge.Orchestrator.Environments;
 using AgentForge.Orchestrator.Workflow;
 using Microsoft.EntityFrameworkCore;
@@ -22,9 +23,14 @@ public record EnvironmentListDto(DefaultEnvironmentDto Default, List<Environment
 public record EnvironmentLoadDto(Guid? Id, string Name, string Kind, int MaxConcurrency, int RunningTasks, int QueuedTasks, int RunningAgents, int ProjectCount);
 
 /// <summary>Tarefa/demanda que espera a máquina do ambiente voltar (não está Blocked).</summary>
-public record WaitingDto(string Kind, Guid Id, string Title, string Project, string Reason, DateTime RetryAt, int Attempts);
+/// <param name="Cause">"environment" (máquina fora do ar) ou "usage-limit" (a conta do agente atingiu o limite de uso).</param>
+public record WaitingDto(string Kind, Guid Id, string Title, string Project, string Reason, DateTime RetryAt, int Attempts,
+    string Cause = "environment");
 
-public record EnvironmentLoadReport(List<EnvironmentLoadDto> Environments, List<WaitingDto> Waiting);
+/// <summary>Limite de uso em vigor numa conta de agente. <c>ResetsAt</c> nulo = o CLI não disse quando libera (o sistema sonda a cada <c>RetryAt</c>).</summary>
+public record UsageLimitDto(Guid? EnvironmentId, string Environment, string Agent, string Kind, DateTime? ResetsAt, DateTime RetryAt, string Message);
+
+public record EnvironmentLoadReport(List<EnvironmentLoadDto> Environments, List<WaitingDto> Waiting, List<UsageLimitDto>? UsageLimits = null);
 
 public record ToolCheckDto(string Tool, bool Ok, string Detail);
 public record EnvironmentTestDto(bool Reachable, string? Error, bool WorkspaceRootExists, List<ToolCheckDto> Tools,
@@ -53,9 +59,13 @@ public static class EnvironmentEndpoints
                 items.Select(e => ToDto(e, counts.GetValueOrDefault(e.Id))).ToList());
         }).WithSummary("Ambientes cadastrados e o ambiente padrão do servidor.");
 
-        g.MapGet("/load", (AppDbContext db, IEnvironmentLoad load, IOptions<OrchestratorOptions> options, CancellationToken ct) =>
-                LoadAsync(db, load, options.Value, ct))
+        g.MapGet("/load", (AppDbContext db, IEnvironmentLoad load, IOptions<OrchestratorOptions> options, IUsageLimitTracker tracker,
+                AgentAdapterRegistry adapters, CancellationToken ct) => LoadAsync(db, load, options.Value, tracker, adapters, ct))
             .WithSummary("Carga por ambiente: tarefas rodando, na fila e esperando a máquina voltar.");
+
+        g.MapGet("/usage-limits", (AppDbContext db, IUsageLimitTracker tracker, AgentAdapterRegistry adapters, CancellationToken ct) =>
+                UsageLimitsAsync(db, tracker, adapters, ct))
+            .WithSummary("Limites de uso em vigor nas contas dos agentes (e quando liberam). Vazio = nenhum.");
 
         g.MapPost("/", async (EnvironmentInput input, AppDbContext db, ISecretProtector protector) =>
         {
@@ -113,7 +123,21 @@ public static class EnvironmentEndpoints
     }
 
     /// <summary>Monta o painel de carga (tela Ambientes e ferramenta do MCP).</summary>
-    internal static async Task<EnvironmentLoadReport> LoadAsync(AppDbContext db, IEnvironmentLoad load, OrchestratorOptions options, CancellationToken ct)
+    internal static async Task<List<UsageLimitDto>> UsageLimitsAsync(AppDbContext db, IUsageLimitTracker tracker, AgentAdapterRegistry adapters, CancellationToken ct)
+    {
+        var names = await db.ExecutionEnvironments.AsNoTracking().ToDictionaryAsync(e => e.Id.ToString(), e => e.Name, ct);
+        return tracker.Snapshot().Select(s =>
+        {
+            var display = adapters.All.FirstOrDefault(a => a.Name == s.Adapter) is ICliAgentAccount account ? account.DisplayName : s.Adapter;
+            var isDefault = s.EnvironmentKey == EnvironmentKeys.Default;
+            return new UsageLimitDto(isDefault || !Guid.TryParse(s.EnvironmentKey, out var id) ? null : id,
+                isDefault ? "Padrão do servidor" : names.GetValueOrDefault(s.EnvironmentKey, s.EnvironmentKey),
+                display, s.Limit.Kind, s.Limit.ResetsAt, s.Limit.RetryAt, s.Limit.Message);
+        }).ToList();
+    }
+
+    internal static async Task<EnvironmentLoadReport> LoadAsync(AppDbContext db, IEnvironmentLoad load, OrchestratorOptions options,
+        IUsageLimitTracker tracker, AgentAdapterRegistry adapters, CancellationToken ct)
     {
         var slots = load.Slots().ToDictionary(s => s.Key);
         var environments = await db.ExecutionEnvironments.AsNoTracking().OrderBy(e => e.Name).ToListAsync(ct);
@@ -145,9 +169,10 @@ public static class EnvironmentEndpoints
                 ? (demands.FirstOrDefault(d => d.Id == w.Id)?.Title, demands.FirstOrDefault(d => d.Id == w.Id)?.ProjectId)
                 : (items.FirstOrDefault(i => i.Id == w.Id)?.Title, items.FirstOrDefault(i => i.Id == w.Id)?.ProjectId);
             return new WaitingDto(w.IsDemand ? "demand" : "task", w.Id, title ?? "(removida)",
-                projectId is { } p ? projectNames.GetValueOrDefault(p, "") : "", w.Reason, w.RetryAt, w.Attempts);
+                projectId is { } p ? projectNames.GetValueOrDefault(p, "") : "", w.Reason, w.RetryAt, w.Attempts,
+                w.UsageLimit is null ? "environment" : "usage-limit");
         }).ToList();
-        return new EnvironmentLoadReport(rows, entries);
+        return new EnvironmentLoadReport(rows, entries, await UsageLimitsAsync(db, tracker, adapters, ct));
     }
 
     internal static EnvironmentDto ToDto(ExecutionEnvironment e, int projectCount) =>

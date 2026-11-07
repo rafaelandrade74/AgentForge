@@ -1,3 +1,4 @@
+using AgentForge.Orchestrator.Agents;
 namespace AgentForge.Orchestrator.Workflow;
 
 public class OrchestratorOptions
@@ -14,7 +15,8 @@ public class OrchestratorOptions
 }
 
 /// <summary>Uma tarefa/demanda que espera a máquina do ambiente voltar (não está Blocked).</summary>
-public record WaitingEntry(bool IsDemand, Guid Id, string Reason, DateTime RetryAt, int Attempts);
+/// <param name="UsageLimit">Preenchido quando a espera é por limite de uso do agente (a tela mostra o horário do reset).</param>
+public record WaitingEntry(bool IsDemand, Guid Id, string Reason, DateTime RetryAt, int Attempts, UsageLimit? UsageLimit = null);
 
 /// <summary>Carga do orquestrador por ambiente (chave = id do ambiente ou "default"): para a tela Ambientes e o MCP.</summary>
 public interface IEnvironmentLoad

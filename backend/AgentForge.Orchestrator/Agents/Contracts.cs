@@ -45,7 +45,8 @@ public record AgentEventData(string Kind, string Text);
 public record AgentEvent(Guid RunId, Guid? ProjectId, Guid? DemandId, Guid? WorkItemId, AgentRole Role, string Kind, string Text, DateTime At);
 
 /// <summary>Resultado final lido da saída do CLI.</summary>
-public record AgentResult(string Text, string? Json, decimal CostUsd, bool IsError);
+/// <param name="Limit">Preenchido quando o erro é limite de uso da conta (não falha do trabalho): vale esperar, não falhar.</param>
+public record AgentResult(string Text, string? Json, decimal CostUsd, bool IsError, UsageLimit? Limit = null);
 
 public record AgentRunResult(
     Guid RunId,
@@ -56,7 +57,9 @@ public record AgentRunResult(
     TimeSpan Duration,
     int? ExitCode,
     /// <summary>Falhou porque a máquina do ambiente não respondeu (vale tentar de novo quando voltar), não por erro do agente.</summary>
-    bool EnvironmentDown = false);
+    bool EnvironmentDown = false,
+    /// <summary>Falhou porque a conta do agente atingiu o limite de uso: espera até liberar em vez de contar como falha.</summary>
+    UsageLimit? UsageLimit = null);
 
 public interface IAgentRunner
 {

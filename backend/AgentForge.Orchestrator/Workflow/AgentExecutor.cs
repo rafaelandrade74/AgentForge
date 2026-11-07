@@ -12,18 +12,22 @@ public enum ExecOutcome { Ok, Failed, Cancelled, Unavailable }
 /// A máquina do ambiente não respondeu: o passo não deve virar falha nem Blocked. O orquestrador solta o item, espera e tenta de
 /// novo (backoff) até a máquina voltar; o estado persistido não muda, então nada se perde.
 /// </summary>
-public class EnvironmentDeferredException(string reason) : Exception(reason);
+public class EnvironmentDeferredException(string reason, UsageLimit? limit = null) : Exception(reason)
+{
+    /// <summary>Preenchido quando a espera é por limite de uso da conta do agente (e não por máquina fora do ar).</summary>
+    public UsageLimit? Limit { get; } = limit;
+}
 
 /// <summary>Papel movido para outro ambiente que o do projeto (ver <see cref="ProjectRoleEnvironment"/>).</summary>
 public record RoleEnvironment(Guid EnvironmentId);
 
-public record ExecResult<T>(ExecOutcome Outcome, T? Value, string? Error, Guid? RunId = null)
+public record ExecResult<T>(ExecOutcome Outcome, T? Value, string? Error, Guid? RunId = null, UsageLimit? Limit = null)
 {
     public static ExecResult<T> Cancelled(Guid? runId = null) => new(ExecOutcome.Cancelled, default, null, runId);
 
     /// <exception cref="EnvironmentDeferredException">a máquina do ambiente está fora do ar.</exception>
     public ExecResult<T> ThrowIfUnavailable() =>
-        Outcome == ExecOutcome.Unavailable ? throw new EnvironmentDeferredException(Error ?? "Ambiente indisponível.") : this;
+        Outcome == ExecOutcome.Unavailable ? throw new EnvironmentDeferredException(Error ?? "Ambiente indisponível.", Limit) : this;
 }
 
 /// <summary>
@@ -58,6 +62,7 @@ public class AgentExecutor(IServiceScopeFactory scopes)
 
             runId = run.RunId;
             if (run.Status == AgentRunStatus.Cancelled) return ExecResult<T>.Cancelled(runId);
+            if (run.UsageLimit is { } limit) return new(ExecOutcome.Unavailable, default, Truncate(limit.Message, 500), runId, limit);   // espera liberar; não gasta a 2ª tentativa
             if (run.EnvironmentDown) return new(ExecOutcome.Unavailable, default, Truncate(run.Output, 500), runId);   // não gasta a 2ª tentativa
             if (run.Status == AgentRunStatus.Succeeded)
             {

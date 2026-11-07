@@ -35,6 +35,8 @@ public class ScriptedAdapter : ICliAgentAdapter
     public ConcurrentDictionary<AgentRole, string> RawShell { get; } = new();
     /// <summary>Script do Dev calculado por pedido (ex.: todos escrevem o mesmo arquivo, para provocar conflito).</summary>
     public Func<AgentRequest, string>? DevShell { get; set; }
+    /// <summary>Enquanto preenchido, toda execução termina como "limite de uso atingido" (a conta do agente esgotou).</summary>
+    public volatile UsageLimit? LimitToReturn;
 
     public void Enqueue(AgentRole role, params string[] responses)
     {
@@ -81,7 +83,9 @@ public class ScriptedAdapter : ICliAgentAdapter
     public AgentResult ParseResult(IReadOnlyList<string> stdoutLines, int exitCode)
     {
         var text = stdoutLines.LastOrDefault(l => l.StartsWith("result:"))?[7..] ?? string.Join("\n", stdoutLines);
-        return new AgentResult(text, JsonBlock.ExtractLast(text), 0.01m, exitCode != 0);
+        return LimitToReturn is { } limit
+            ? new AgentResult("You've hit your limit", null, 0m, true, limit)
+            : new AgentResult(text, JsonBlock.ExtractLast(text), 0.01m, exitCode != 0);
     }
 }
 

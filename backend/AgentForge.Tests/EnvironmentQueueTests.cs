@@ -1,5 +1,6 @@
 using AgentForge.Domain;
 using AgentForge.Execution;
+using AgentForge.Orchestrator.Agents;
 using AgentForge.Orchestrator.Environments;
 using AgentForge.Orchestrator.Workflow;
 using Microsoft.EntityFrameworkCore;
@@ -293,6 +294,56 @@ public sealed class EnvironmentQueueTests(PostgresFixture pg) : IAsyncLifetime
         var done = await h.WithDb(db => db.WorkItems.AsNoTracking().FirstAsync(w => w.Id == taskId));
         Assert.Null(done.WaitingReason);
         Assert.Empty(load.Waiting());
+    }
+
+    [PosixFact]
+    public async Task A_usage_limit_parks_the_task_until_the_agent_frees_up_without_failing_or_spending_runs()
+    {
+        var envs = new TestEnvironments(_temp);
+        var adapter = new ScriptedAdapter();
+        await using var h = await Start(envs, adapter, concurrency: 2);
+        var a = await AddEnvironment(h, "A", max: 1);
+        envs.Add(a, "A");
+        var (_, demand) = await Project(h, a);
+        var load = h.Services.GetRequiredService<IEnvironmentLoad>();
+        var tracker = h.Services.GetRequiredService<IUsageLimitTracker>();
+
+        Guid taskId = default;
+        await h.WithDb(async db =>
+        {
+            demand = await db.Demands.FirstAsync(d => d.Id == demand.Id);
+            demand.Status = DemandStatus.InProgress;
+            var item = new WorkItem { DemandId = demand.Id, Title = "Tarefa A", AcceptanceCriteria = "x", State = WorkItemState.InDevelopment };
+            db.WorkItems.Add(item);
+            await db.SaveChangesAsync();
+            taskId = item.Id;
+            return 0;
+        });
+
+        // a conta esgota e libera em ~4s
+        var resets = DateTime.UtcNow.AddSeconds(4);
+        adapter.LimitToReturn = new UsageLimit(resets, resets, UsageLimitKinds.Session, "You've hit your limit · resets 3pm");
+        h.Services.GetRequiredService<IWorkQueue>().EnqueueWorkItem(taskId);
+
+        Assert.True(await OrchestratorHarness.UntilAsync(() => h.WithDb(async db =>
+            (await db.WorkItems.AsNoTracking().FirstAsync(w => w.Id == taskId)).WaitingReason is not null), 30), "avisa que espera o agente");
+        var waiting = await h.WithDb(db => db.WorkItems.AsNoTracking().FirstAsync(w => w.Id == taskId));
+        Assert.Equal(WorkItemState.InDevelopment, waiting.State);          // continua onde estava, não vira Blocked
+        Assert.Null(waiting.BlockedReason);
+        Assert.Contains("Aguardando o agente liberar", waiting.WaitingReason);
+        Assert.Contains("limite da janela de uso", waiting.WaitingReason);
+        var entry = Assert.Single(load.Waiting(), w => w.Id == taskId);
+        Assert.NotNull(entry.UsageLimit);
+        Assert.Equal(resets, entry.UsageLimit!.ResetsAt);
+        Assert.Contains(tracker.Snapshot(), s => s.EnvironmentKey == a.ToString() && s.Adapter == adapter.Name);
+        Assert.Equal(1, adapter.Count(AgentRole.Dev));                       // uma execução só: o limite não gasta tentativas
+
+        adapter.LimitToReturn = null;                                        // o agente libera
+        Assert.True(await h.UntilItems(demand.Id, items => items.All(i => i.State == WorkItemState.Done), 90), "retoma e conclui sozinha");
+        var done = await h.WithDb(db => db.WorkItems.AsNoTracking().FirstAsync(w => w.Id == taskId));
+        Assert.Null(done.WaitingReason);
+        Assert.Empty(load.Waiting());
+        Assert.Empty(tracker.Snapshot());                                    // a sonda passou: limite limpo
     }
 
     [PosixFact]

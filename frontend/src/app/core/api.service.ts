@@ -2,7 +2,7 @@ import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 import {
-  AgentInfo, AgentTestResult, ApiTokenInfo, CreatedApiToken, Demand, EnvironmentInput, EnvironmentList, EnvironmentLoadReport, EnvironmentTest, ExecutionEnvironment, Finding, GitAccessResult, GitHubImportRequest, GitHubImportResult, GitHubRepo, GitSshStatus, LoginSession, McpToolInfo, BuildImageResult, PullRequestResult, Project, ProjectInput, RoleConfig, Run, RunSummary, StackProfile, StackProfileInput, WorkItem,
+  AgentInfo, AgentTestResult, ApiTokenInfo, CreatedApiToken, Demand, EnvironmentInput, EnvironmentList, EnvironmentLoadReport, EnvironmentTest, ExecutionEnvironment, Finding, GitAccessResult, GitHubImportRequest, GitHubImportResult, GitHubRepo, GitSshStatus, LoginSession, McpToolInfo, BuildImageResult, PullRequestResult, Project, ProjectInput, RoleConfig, Run, RunSummary, StackProfile, StackProfileInput, UsageLimitInfo, WorkItem,
 } from './models';
 
 /** Parâmetros de query com o ambiente escolhido; sem ambiente (padrão do servidor) a URL fica exatamente como antes. */
@@ -84,6 +84,7 @@ export class ApiService {
   // ambientes de execução
   environments = () => this.http.get<EnvironmentList>('/api/environments');
   environmentLoad = () => this.http.get<EnvironmentLoadReport>('/api/environments/load');
+  usageLimits = () => this.http.get<UsageLimitInfo[]>('/api/environments/usage-limits');
 
   // perfis de stack (container por tarefa)
   stackProfiles = () => this.http.get<StackProfile[]>('/api/stack-profiles');

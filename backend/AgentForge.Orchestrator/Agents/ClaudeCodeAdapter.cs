@@ -73,6 +73,8 @@ public class ClaudeCodeAdapter : ICliAgentAdapter, ICliAgentAccount
                     return FromContent(root, "tool_result");
                 case "result":
                     return new("result", Cut(Str(root, "result") ?? ""));
+                case "rate_limit_event" when RateLimitInfo(root) is { } info && Str(info, "status") == "rejected":
+                    return new("rate_limit", "Limite de uso do agente atingido.");
                 default:
                     return null;
             }
@@ -92,12 +94,49 @@ public class ClaudeCodeAdapter : ICliAgentAdapter, ICliAgentAccount
                 var text = Str(root, "result") ?? "";
                 var cost = root.TryGetProperty("total_cost_usd", out var c) && c.ValueKind == JsonValueKind.Number ? c.GetDecimal() : 0m;
                 var isError = exitCode != 0 || (root.TryGetProperty("is_error", out var e) && e.ValueKind == JsonValueKind.True);
-                return new AgentResult(text, JsonBlock.ExtractLast(text), cost, isError);
+                var limit = isError ? DetectLimit(stdoutLines, text) : null;
+                return new AgentResult(text, JsonBlock.ExtractLast(text), cost, isError, limit);
             }
         }
 
-        return new AgentResult("O CLI terminou sem emitir o evento de resultado.", null, 0m, true);
+        // sem evento de resultado: o limite pode ter vindo só como rate_limit_event rejeitado (ou na própria mensagem)
+        var fallback = DetectLimit(stdoutLines, string.Join(' ', stdoutLines.TakeLast(5)));
+        return new AgentResult("O CLI terminou sem emitir o evento de resultado.", null, 0m, true, fallback);
     }
+
+    /// <summary>
+    /// Limite de uso da conta: um rate_limit_event "rejected" (traz o horário em resetsAt) ou um resultado de erro
+    /// cujo texto fala em limite. Chamado só quando a execução já falhou.
+    /// </summary>
+    private static UsageLimit? DetectLimit(IReadOnlyList<string> stdoutLines, string resultText)
+    {
+        DateTime? resetFromEvent = null;
+        string? type = null;
+        var rejected = false;
+        foreach (var line in stdoutLines)
+        {
+            if (!TryParse(line, out var doc)) continue;
+            using (doc)
+            {
+                if (Str(doc.RootElement, "type") != "rate_limit_event" || RateLimitInfo(doc.RootElement) is not { } info) continue;
+                if (Str(info, "status") != "rejected") continue;
+                rejected = true;
+                type = Str(info, "rateLimitType") ?? type;
+                if (info.TryGetProperty("resetsAt", out var r) && r.ValueKind == JsonValueKind.Number && r.TryGetInt64(out var epoch))
+                    resetFromEvent = UsageLimitParser.FromEpoch(epoch);
+            }
+        }
+
+        if (!rejected && !UsageLimitParser.LooksLikeLimit(resultText)) return null;
+
+        var now = DateTime.UtcNow;
+        var reset = resetFromEvent ?? UsageLimitParser.ResetFromText(resultText, now);
+        var message = string.IsNullOrWhiteSpace(resultText) ? "Limite de uso do agente atingido." : resultText.Trim();
+        return UsageLimitRules.Create(reset, UsageLimitParser.KindOf(resultText, type), message, now);
+    }
+
+    private static JsonElement? RateLimitInfo(JsonElement root) =>
+        root.TryGetProperty("rate_limit_info", out var info) && info.ValueKind == JsonValueKind.Object ? info : null;
 
     private static AgentEventData? FromContent(JsonElement root, string defaultKind)
     {

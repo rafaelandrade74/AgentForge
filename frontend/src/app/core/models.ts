@@ -307,10 +307,23 @@ export interface WaitingEntry {
   reason: string;
   retryAt: string;
   attempts: number;
+  /** 'environment' = máquina fora do ar; 'usage-limit' = a conta do agente atingiu o limite de uso. */
+  cause?: 'environment' | 'usage-limit';
+}
+/** Limite de uso em vigor numa conta de agente; resetsAt nulo = o CLI não disse quando libera (o sistema sonda em retryAt). */
+export interface UsageLimitInfo {
+  environmentId: string | null;
+  environment: string;
+  agent: string;
+  kind: 'session' | 'weekly' | 'rate' | 'unknown';
+  resetsAt: string | null;
+  retryAt: string;
+  message: string;
 }
 export interface EnvironmentLoadReport {
   environments: EnvironmentLoadRow[];
   waiting: WaitingEntry[];
+  usageLimits?: UsageLimitInfo[];
 }
 
 export interface PullRequestResult {

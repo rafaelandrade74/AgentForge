@@ -30,9 +30,11 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<ICliAgentAdapter, ClaudeCodeAdapter>();
         services.TryAddSingleton<AgentAdapterRegistry>();
         services.TryAddSingleton<IAgentEventPublisher, NullAgentEventPublisher>();
+        services.TryAddSingleton<IUsageLimitTracker, UsageLimitTracker>();
         services.TryAddScoped<IAgentRunner>(sp => new CliAgentRunner(sp.GetRequiredService<AgentAdapterRegistry>(),
             sp.GetRequiredService<AppDbContext>(), sp.GetRequiredService<IAgentEventPublisher>(),
-            sp.GetRequiredService<IEnvironmentLaunchers>(), sp.GetRequiredService<ILogger<CliAgentRunner>>()));
+            sp.GetRequiredService<IEnvironmentLaunchers>(), sp.GetRequiredService<ILogger<CliAgentRunner>>(),
+            sp.GetRequiredService<IUsageLimitTracker>()));
         services.TryAddSingleton(sp => new AgentCliService(sp.GetRequiredService<AgentAdapterRegistry>(),
             sp.GetRequiredService<IServiceScopeFactory>(), sp.GetRequiredService<IEnvironmentLaunchers>(), sp.GetRequiredService<ILogger<AgentCliService>>()));
         return services;

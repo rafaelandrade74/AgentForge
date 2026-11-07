@@ -18,7 +18,23 @@ public static class CrudEndpoints
         MapAgentRuns(api.MapGroup("/agent-runs").WithTags("AgentRuns"));
         MapFindings(api.MapGroup("/review-findings").WithTags("ReviewFindings"));
         MapRoleConfigs(api.MapGroup("/role-configs").WithTags("RoleConfigs"));
+        api.MapGet("/approvals", (AppDbContext db, CancellationToken ct) => ApprovalsAsync(db, ct))
+            .WithTags("WorkItems").WithSummary("Tarefas aguardando a aprovação da entrega, de todos os projetos (as mais antigas primeiro).");
     }
+
+    internal static async Task<List<ApprovalDto>> ApprovalsAsync(AppDbContext db, CancellationToken ct) =>
+        (await db.WorkItems.AsNoTracking().Where(w => w.State == WorkItemState.AwaitingApproval)
+            .Join(db.Demands, w => w.DemandId, d => d.Id, (w, d) => new { Item = w, Demand = d })
+            .Join(db.Projects, x => x.Demand.ProjectId, p => p.Id, (x, p) => new
+            {
+                x.Item.Id, x.Item.Title, ProjectId = p.Id, Project = p.Name, DemandId = x.Demand.Id, Demand = x.Demand.Title,
+                x.Item.ReworkCount, x.Item.Estimate, x.Item.BranchName, x.Item.CreatedAt,
+                WaitingSince = db.AgentRuns.Where(r => r.WorkItemId == x.Item.Id).Max(r => r.FinishedAt),
+            })
+            .ToListAsync(ct))
+        .OrderBy(a => a.WaitingSince ?? a.CreatedAt)
+        .Select(a => new ApprovalDto(a.Id, a.Title, a.ProjectId, a.Project, a.DemandId, a.Demand, a.ReworkCount, a.Estimate, a.BranchName, a.CreatedAt, a.WaitingSince))
+        .ToList();
 
     private static IResult Invalid(string field, string message) =>
         Results.ValidationProblem(new Dictionary<string, string[]> { [field] = [message] });

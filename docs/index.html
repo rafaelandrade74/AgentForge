@@ -424,7 +424,7 @@ export 'HostAgent__Docker__AllowedImages__0=minha/*'                            
     </ul></li>
   <li><strong>Nova demanda → Criar e iniciar refinamento.</strong> Descreva em linguagem natural o que quer. O Scrum Master lê o repositório e propõe as tarefas.</li>
   <li><strong>Aprovar plano</strong> na tela da demanda. O quadro do projeto mostra as tarefas andando; clique numa tarefa para ver o log ao vivo, o diff e as execuções.</li>
-  <li>Em <strong>Aguardando aprovação</strong>, revise o diff e <strong>aprove</strong> ou <strong>rejeite com comentário</strong> (a tarefa volta ao Dev). Tarefas que voltam três vezes ficam <strong>Bloqueadas</strong>.</li>
+  <li>Em <strong>Aguardando aprovação</strong> (a página <strong>Aprovações</strong>, no menu de cima, lista as entregas pendentes de <strong>todos os projetos</strong>, com o número no selo), revise o diff e <strong>aprove</strong> ou <strong>rejeite com comentário</strong> (a tarefa volta ao Dev). Tarefas que voltam três vezes ficam <strong>Bloqueadas</strong>.</li>
   <li>Depois de <strong>Done</strong>, o trabalho está no branch <code>agentforge/task-&lt;id&gt;</code> do clone local. <strong>Nenhum agente faz push.</strong> Para abrir o pull request (para <code>develop</code> ou a branch principal), cadastre o token do GitHub e a branch de destino em <em>Projetos → Editar</em> e use <strong>Abrir PR</strong> na tarefa. O merge é seu.</li>
 </ol>
 <p>Onde ficam os arquivos: clones em <code>&lt;raiz&gt;/&lt;id-do-projeto&gt;/repo</code> e worktrees em <code>&lt;raiz&gt;/&lt;id-do-projeto&gt;/worktrees/&lt;id-da-tarefa&gt;</code>, com a raiz em <code>/data/repos</code> (volume <code>repos</code>; A, B, C), <code>HOST_WORKSPACES_ROOT</code> (D) ou <code>.agentforge/repos</code> (E).</p>

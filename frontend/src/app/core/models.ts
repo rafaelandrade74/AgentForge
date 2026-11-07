@@ -326,6 +326,21 @@ export interface EnvironmentLoadReport {
   usageLimits?: UsageLimitInfo[];
 }
 
+/** Tarefa aguardando a aprovação da entrega (lista de todos os projetos). */
+export interface Approval {
+  id: string;
+  title: string;
+  projectId: string;
+  project: string;
+  demandId: string;
+  demand: string;
+  reworkCount: number;
+  estimate: number;
+  branchName: string | null;
+  createdAt: string;
+  waitingSince: string | null;
+}
+
 export interface PullRequestResult {
   url: string;
   number: number;

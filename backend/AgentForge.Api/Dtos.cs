@@ -22,6 +22,11 @@ public record WorkItemDto(Guid Id, Guid DemandId, string Title, string Descripti
     int Estimate, WorkItemState State, int ReworkCount, string? BranchName, string? BlockedReason,
     List<Guid> DependsOnIds, DateTime CreatedAt, string? WaitingReason = null, string? PullRequestUrl = null, int? PullRequestNumber = null);
 
+/// <summary>Tarefa que espera a aprovação humana da entrega, com o projeto e a demanda (lista de todos os projetos).</summary>
+/// <param name="WaitingSince">Quando o último agente terminou (a entrega ficou pronta para revisão); nulo se não houve execução.</param>
+public record ApprovalDto(Guid Id, string Title, Guid ProjectId, string Project, Guid DemandId, string Demand, int ReworkCount,
+    int Estimate, string? BranchName, DateTime CreatedAt, DateTime? WaitingSince);
+
 public record AgentRunDto(Guid Id, Guid? DemandId, Guid? WorkItemId, AgentRole Role, string Prompt, string Output,
     decimal CostUsd, long DurationMs, AgentRunStatus Status, DateTime StartedAt, DateTime? FinishedAt);
 

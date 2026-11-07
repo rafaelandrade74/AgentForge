@@ -66,6 +66,9 @@ Telas **Git** e **Agentes** têm seletor de ambiente (`?environmentId=` em `/api
 ## Ambiente por papel, fila e carga (ADR 0020)
 `ExecutionEnvironment.MaxConcurrency` + `EnvironmentGate`: o que não cabe fica estacionado no ambiente (não prende trabalhador); `Orchestrator:MaxConcurrency` segue como teto global. Máquina fora do ar (`HostUnreachableException`) não bloqueia: `ExecOutcome.Unavailable` → `EnvironmentDeferredException` → backoff (`Orchestrator:EnvironmentRetry*Seconds`), `WorkItem.WaitingReason`. `ProjectRoleEnvironment`: só TechLead/Security rodam em outro ambiente (sem repositório, só o diff; `AgentRequest.EnvironmentOverride`). `AgentRun.EnvironmentId`. Painel: `GET /api/environments/load` e MCP `get_environment_load`.
 
+## Aprovações
+Página **Aprovações** (`/approvals`) + `GET /api/approvals` (`CrudEndpoints.ApprovalsAsync`): tarefas em `AwaitingApproval` de todos os projetos, mais antigas primeiro (`WaitingSince` = fim da última execução). O menu mostra o número de pendentes.
+
 ## Limite de uso do agente (ADR 0024)
 Créditos/janela de horas esgotados não falham a tarefa: `ClaudeCodeAdapter` devolve `AgentResult.Limit` (`UsageLimitParser`: `rate_limit_event` rejeitado, `usage limit reached|epoch`, `resets 3pm (tz)`); `IUsageLimitTracker` (por ambiente e agente) faz o runner nem iniciar o CLI enquanto vale; `ExecOutcome.Unavailable` + `EnvironmentDeferredException.Limit` reaproveitam a espera da ADR 0020, mas até o `RetryAt` do limite (sem horário = sonda a cada 5 min). `GET /api/environments/usage-limits`, `usageLimits` no `/load` e faixa roxa na barra.
 

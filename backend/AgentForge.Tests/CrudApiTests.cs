@@ -41,6 +41,7 @@ public class CrudApiTests : IAsyncLifetime
     [InlineData("/api/projects")]
     [InlineData("/api/demands")]
     [InlineData("/api/work-items")]
+    [InlineData("/api/approvals")]
     [InlineData("/api/agent-runs")]
     [InlineData("/api/review-findings")]
     [InlineData("/api/role-configs")]
@@ -48,6 +49,36 @@ public class CrudApiTests : IAsyncLifetime
     {
         var res = await _factory.CreateClient().GetAsync(url);
         Assert.Equal(HttpStatusCode.Unauthorized, res.StatusCode);
+    }
+
+    [Fact]
+    public async Task Approvals_lists_only_deliveries_awaiting_approval_from_every_project()
+    {
+        var p1 = await CreateAsync("/api/projects", new { name = "Alfa", repositoryUrl = "https://git/a.git" });
+        var p2 = await CreateAsync("/api/projects", new { name = "Beta", repositoryUrl = "https://git/b.git" });
+        var d1 = await CreateAsync("/api/demands", new { projectId = p1, title = "Demanda A", description = "d" });
+        var d2 = await CreateAsync("/api/demands", new { projectId = p2, title = "Demanda B", description = "d" });
+        var pendingA = await CreateAsync("/api/work-items", new { demandId = d1, title = "Entrega A", state = "AwaitingApproval" });
+        var pendingB = await CreateAsync("/api/work-items", new { demandId = d2, title = "Entrega B", state = "AwaitingApproval" });
+        await CreateAsync("/api/work-items", new { demandId = d1, title = "Em andamento", state = "InDevelopment" });
+        await CreateAsync("/api/work-items", new { demandId = d2, title = "Pronta", state = "Done" });
+        await CreateAsync("/api/work-items", new { demandId = d2, title = "Bloqueada", state = "Blocked" });
+
+        var list = await _http.GetFromJsonAsync<JsonElement>("/api/approvals");
+
+        var items = list.EnumerateArray().ToList();
+        Assert.Equal(2, items.Count);                                          // só AwaitingApproval, dos dois projetos
+        var a = items.Single(i => i.GetProperty("id").GetGuid() == pendingA);
+        Assert.Equal("Alfa", a.GetProperty("project").GetString());
+        Assert.Equal("Demanda A", a.GetProperty("demand").GetString());
+        Assert.Equal(p1, a.GetProperty("projectId").GetGuid());
+        Assert.Equal("Beta", items.Single(i => i.GetProperty("id").GetGuid() == pendingB).GetProperty("project").GetString());
+    }
+
+    [Fact]
+    public async Task Approvals_is_empty_when_nothing_waits()
+    {
+        Assert.Empty((await _http.GetFromJsonAsync<JsonElement>("/api/approvals")).EnumerateArray());
     }
 
     [Fact]

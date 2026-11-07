@@ -1,6 +1,7 @@
-import { Component, inject } from '@angular/core';
+import { Component, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { interval } from 'rxjs';
+import { debounceTime, interval } from 'rxjs';
+import { ApiService } from '../core/api.service';
 import { usageLimitText } from '../core/usage-limit';
 import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
@@ -17,6 +18,9 @@ import { RealtimeService } from '../core/realtime.service';
     <mat-toolbar>
       <a routerLink="/" class="brand">AgentForge</a>
       <a mat-button routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }">Projetos</a>
+      <a mat-button routerLink="/approvals" routerLinkActive="active" data-testid="nav-approvals">
+        Aprovações @if (pending() > 0) { <span class="pending" [attr.aria-label]="pending() + ' aguardando'">{{ pending() }}</span> }
+      </a>
       <a mat-button routerLink="/agents" routerLinkActive="active">Agentes</a>
       <a mat-button routerLink="/prompts" routerLinkActive="active">Prompts</a>
       <a mat-button routerLink="/environments" routerLinkActive="active">Ambientes</a>
@@ -53,6 +57,7 @@ import { RealtimeService } from '../core/realtime.service';
     .spacer { flex: 1; }
     .active { background: #ffffff14; }
     .user { font-size: .9rem; opacity: .8; }
+    .pending { display: inline-block; min-width: 1.3rem; padding: 0 .35rem; margin-left: .25rem; border-radius: 999px; background: #c9a227; color: #1a1a1a; font-size: .75rem; font-weight: 700; text-align: center; }
     .rt { color: #777; font-size: .8rem; }
     .rt.on { color: #5fd47a; }
     .banner.limit { background: #3a2a4a; color: #e6d0ff; }
@@ -60,15 +65,24 @@ import { RealtimeService } from '../core/realtime.service';
   `,
 })
 export class ShellComponent {
+  refreshPending(): void {
+    this.api.approvals().subscribe({ next: (a) => this.pending.set(a.length), error: () => undefined });
+  }
+
   readonly auth = inject(AuthService);
   readonly realtime = inject(RealtimeService);
   readonly agents = inject(AgentsService);
 
   readonly limitText = usageLimitText;
+  private readonly api = inject(ApiService);
+  /** Quantas tarefas esperam a sua aprovação (selo no menu). */
+  readonly pending = signal(0);
 
   constructor() {
     this.agents.refresh();
     this.agents.refreshLimits();
+    this.refreshPending();
+    this.realtime.workItemChanged$.pipe(debounceTime(500), takeUntilDestroyed()).subscribe(() => this.refreshPending());
     interval(30_000).pipe(takeUntilDestroyed()).subscribe(() => this.agents.refreshLimits());
   }
 }

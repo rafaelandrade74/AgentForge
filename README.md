@@ -226,7 +226,7 @@ branch (o PR avisa): mescle primeiro o das dependências. Decisão na [ADR 0023]
 4. **Aprovar plano** na tela da demanda. O quadro do projeto mostra as tarefas andando; clique numa tarefa para ver o log ao
    vivo, o diff e as execuções. A saída e o prompt de cada execução aparecem **formatados** (títulos, listas, código, tabelas);
    o botão **Ver texto bruto** mostra o texto original.
-5. Ao chegar em *Aguardando aprovação*, revise o diff e **aprove** ou **rejeite com comentário**. Depois do `Done`, faça o
+5. Ao chegar em *Aguardando aprovação*, revise o diff e **aprove** ou **rejeite com comentário**. A página **Aprovações** (barra de cima, com o número de pendentes) lista as entregas esperando de **todos os projetos**, as mais antigas primeiro. Depois do `Done`, faça o
    merge do branch `agentforge/task-<id>` como preferir.
 
 O projeto pode ser marcado como **modo automático** (sem as duas aprovações humanas). Tarefas que voltam três vezes ao Dev

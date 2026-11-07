@@ -15,6 +15,7 @@ export const routes: Routes = [
       { path: 'projects/:id/demands/new', loadComponent: () => import('./pages/new-demand.page').then((m) => m.NewDemandPage) },
       { path: 'demands/:id', loadComponent: () => import('./pages/demand.page').then((m) => m.DemandPage) },
       { path: 'tasks/:id', loadComponent: () => import('./pages/task.page').then((m) => m.TaskPage) },
+      { path: 'approvals', loadComponent: () => import('./pages/approvals.page').then((m) => m.ApprovalsPage) },
       { path: 'agents', loadComponent: () => import('./pages/agents.page').then((m) => m.AgentsPage) },
       { path: 'profiles', loadComponent: () => import('./pages/profiles.page').then((m) => m.ProfilesPage) },
       { path: 'environments', loadComponent: () => import('./pages/environments.page').then((m) => m.EnvironmentsPage) },

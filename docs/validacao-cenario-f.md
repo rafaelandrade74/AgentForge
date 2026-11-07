@@ -1,7 +1,7 @@
 # Validação do cenário F com máquinas reais
 
-Roteiro para conferir, **numa instalação sua**, o que as fases 10 a 13 entregam. O que já foi verificado sem máquinas físicas e o
-que fica por sua conta está no fim ([ADR 0021](adr/0021-validacao-cenario-f.md)). Gasta créditos do Claude (poucas execuções
+Roteiro para conferir, **numa instalação sua**, o que as fases 10 a 13 entregam. O que já foi verificado (inclusive com um host agent
+Linux e Docker reais, usando um `claude` de mentira) e o que fica por sua conta está na [ADR 0021](adr/0021-validacao-cenario-f.md). Gasta créditos do Claude (poucas execuções
 pequenas); use um repositório de teste e o **modo automático** do projeto.
 
 Material: o servidor (qualquer cenário A–E) e **uma outra máquina Linux ou macOS com Docker** (a "B"). Se só tiver Windows na

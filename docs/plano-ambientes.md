@@ -1,6 +1,6 @@
 # Plano: ambientes de execução por stack
 
-Continuação das fases do projeto (0 a 9 concluídas; 10 a 14 feitas; falta rodar o roteiro com máquinas reais). Cada fase tem ADR, testes e commit `fase-N: <resumo>`; paramos para
+Continuação das fases do projeto (0 a 9 concluídas; 10 a 14 feitas; falta só o roteiro com máquinas físicas e Claude real). Cada fase tem ADR, testes e commit `fase-N: <resumo>`; paramos para
 validação antes da seguinte.
 
 **Decisões já tomadas:** o token de cada máquina fica no banco, **criptografado** (Data Protection, chaves em volume próprio);
@@ -35,6 +35,6 @@ Sobrescrita por papel no projeto (Dev e QA no ambiente da stack; Tech Lead e Sec
 ambiente, novas tentativas quando a máquina volta, painel de carga/estado, MCP e documentação atualizados.
 Pronto quando: uma demanda usa dois ambientes entre os papéis e a queda de uma máquina não perde tarefas.
 
-## Fase 14 — Documentação e validação ponta a ponta (feita na parte automatizável; ADR 0021)
+## Fase 14 — Documentação e validação ponta a ponta (feita; ADR 0021)
 Cenário "F" (várias máquinas e stacks) no README, no getting-started e no site; validação real com um host agent em outra máquina
 e um container por tarefa; correção das lacunas.

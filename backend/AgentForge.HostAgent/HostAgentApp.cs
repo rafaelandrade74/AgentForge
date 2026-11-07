@@ -209,8 +209,9 @@ app.MapPost(HostAgentRoutes.ImagesEnsure, async (EnsureImageRequest req, Cancell
     var present = inspect.ExitCode == 0;
     if (!hasDockerfile || (present && !req.Force)) return Results.Ok(new EnsureImageResponse(req.Image, false, present, ""));
 
-    // sem contexto de arquivos: o Dockerfile vem pelo stdin, então a construção não enxerga nada da máquina
-    var build = await dockerLauncher.RunAsync(new LaunchSpec(docker.Executable, ["build", "--progress=plain", "-t", req.Image, "-"], guard.Scratch, req.Dockerfile),
+    // sem contexto de arquivos: o Dockerfile vem pelo stdin, então a construção não enxerga nada da máquina.
+    // Sem flags opcionais (ex.: --progress): o docker.io das distros vem sem buildx e recusa o que não conhece.
+    var build = await dockerLauncher.RunAsync(new LaunchSpec(docker.Executable, ["build", "-t", req.Image, "-"], guard.Scratch, req.Dockerfile),
         TimeSpan.FromMinutes(25), ct);
     var log = (build.Stdout + build.Stderr).Trim();
     if (log.Length > 8000) log = "…" + log[^8000..];

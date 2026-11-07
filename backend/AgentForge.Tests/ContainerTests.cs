@@ -198,6 +198,7 @@ public sealed class ContainerTests(PostgresFixture pg) : IAsyncLifetime
         Assert.False(second.Built);
         Assert.True(second.Present);
         Assert.True(forced.Built);
+        Assert.DoesNotContain("--progress", Log());              // docker sem buildx recusa flags que não conhece
         Assert.DoesNotContain(Log().Split('\n'), l => l.StartsWith("ARGS build") && !l.EndsWith(" -t " + tag + " -") && !l.Contains("-t " + tag + " -"));
     }
 

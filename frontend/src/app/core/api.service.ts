@@ -2,7 +2,7 @@ import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 import {
-  AgentInfo, AgentTestResult, Approval, ApiTokenInfo, CreatedApiToken, Demand, EnvironmentInput, EnvironmentList, EnvironmentLoadReport, EnvironmentTest, ExecutionEnvironment, Finding, GitAccessResult, GitHubImportRequest, GitHubImportResult, GitHubRepo, GitSshStatus, LoginSession, McpToolInfo, BuildImageResult, PullRequestResult, PushResult, Project, ProjectInput, RoleConfig, Run, RunSummary, StackProfile, StackProfileInput, UsageLimitInfo, WorkItem,
+  AgentInfo, AgentTestResult, Approval, ApiTokenInfo, CreatedApiToken, Demand, EnvironmentInput, EnvironmentList, EnvironmentLoadReport, EnvironmentTest, ExecutionEnvironment, Finding, GitAccessResult, GitHubImportRequest, GitHubImportResult, GitHubRepo, GitSshStatus, LoginSession, McpToolInfo, BuildImageResult, PullRequestResult, PushResult, LiveAgents, ChatSession, ChatDetail, ChatMessage, ProposalCreated, Project, ProjectInput, RoleConfig, Run, RunSummary, StackProfile, StackProfileInput, UsageLimitInfo, WorkItem,
 } from './models';
 
 /** Parâmetros de query com o ambiente escolhido; sem ambiente (padrão do servidor) a URL fica exatamente como antes. */
@@ -29,6 +29,15 @@ export class ApiService {
     this.http.post<Demand>('/api/demands', d);
   openPullRequest = (workItemId: string, baseBranch?: string) =>
     this.http.post<PullRequestResult>(`/api/work-items/${workItemId}/pull-request`, { baseBranch: baseBranch || null });
+  liveAgents = () => this.http.get<LiveAgents>('/api/live/agents');
+  chats = () => this.http.get<ChatSession[]>('/api/chats');
+  chat = (id: string) => this.http.get<ChatDetail>(`/api/chats/${id}`);
+  createChat = (body: { projectId: string; environmentId: string | null; adapterName?: string }) =>
+    this.http.post<ChatSession>('/api/chats', body);
+  sendChat = (id: string, text: string) => this.http.post<ChatMessage>(`/api/chats/${id}/messages`, { text });
+  deleteChat = (id: string) => this.http.delete<void>(`/api/chats/${id}`);
+  createProposalDemand = (chatId: string, messageId: string, index: number, start: boolean) =>
+    this.http.post<ProposalCreated>(`/api/chats/${chatId}/messages/${messageId}/demands/${index}`, { start });
   pushBranch = (workItemId: string) => this.http.post<PushResult>(`/api/work-items/${workItemId}/push`, null);
   startDemand = (id: string) => this.http.post<void>(`/api/demands/${id}/start`, null);
   approvePlan = (id: string) => this.http.post<void>(`/api/demands/${id}/approve-plan`, null);

@@ -13,6 +13,17 @@ namespace AgentForge.Api.Realtime;
 public class RunsHub : Hub
 {
     public static string Group(Guid projectId) => $"project:{projectId}";
+    public static string ChatGroup(Guid sessionId) => $"chat:{sessionId}";
+    /// <summary>Quem está na página "Agentes ao vivo" recebe os eventos de execução de TODOS os projetos.</summary>
+    public const string LiveGroup = "live";
+
+    public Task JoinLive() => Groups.AddToGroupAsync(Context.ConnectionId, LiveGroup);
+
+    public Task LeaveLive() => Groups.RemoveFromGroupAsync(Context.ConnectionId, LiveGroup);
+
+    public Task JoinChat(Guid sessionId) => Groups.AddToGroupAsync(Context.ConnectionId, ChatGroup(sessionId));
+
+    public Task LeaveChat(Guid sessionId) => Groups.RemoveFromGroupAsync(Context.ConnectionId, ChatGroup(sessionId));
 
     public Task JoinProject(Guid projectId) => Groups.AddToGroupAsync(Context.ConnectionId, Group(projectId));
 
@@ -23,10 +34,10 @@ public class SignalRAgentEventPublisher(IHubContext<RunsHub> hub, ILogger<Signal
 {
     public async Task PublishAsync(AgentEvent evt, CancellationToken ct = default)
     {
-        if (evt.ProjectId is not { } projectId) return;
         try
         {
-            await hub.Clients.Group(RunsHub.Group(projectId)).SendAsync("runEvent", evt, ct);
+            if (evt.ProjectId is { } projectId) await hub.Clients.Group(RunsHub.Group(projectId)).SendAsync("runEvent", evt, ct);
+            await hub.Clients.Group(RunsHub.LiveGroup).SendAsync("liveRunEvent", evt, ct);
         }
         catch (Exception ex)
         {

@@ -66,6 +66,9 @@ Telas **Git** e **Agentes** têm seletor de ambiente (`?environmentId=` em `/api
 ## Ambiente por papel, fila e carga (ADR 0020)
 `ExecutionEnvironment.MaxConcurrency` + `EnvironmentGate`: o que não cabe fica estacionado no ambiente (não prende trabalhador); `Orchestrator:MaxConcurrency` segue como teto global. Máquina fora do ar (`HostUnreachableException`) não bloqueia: `ExecOutcome.Unavailable` → `EnvironmentDeferredException` → backoff (`Orchestrator:EnvironmentRetry*Seconds`), `WorkItem.WaitingReason`. `ProjectRoleEnvironment`: só TechLead/Security rodam em outro ambiente (sem repositório, só o diff; `AgentRequest.EnvironmentOverride`). `AgentRun.EnvironmentId`. Painel: `GET /api/environments/load` e MCP `get_environment_load`.
 
+## Agentes ao vivo e chat (ADR 0026)
+Página **Ao vivo** (`/live`, `GET /api/live/agents`, `LiveEndpoints`): agentes de todas as máquinas (acessível, instalado, conectado, limite de uso, execuções agora) + execuções rodando, com o grupo SignalR `live` (`liveRunEvent`). Página **Chat** (`/chat`, `/api/chats`, `AgentForge.Api/Chat`): `ChatSession`/`ChatMessage`; cada mensagem é `claude -p --resume` (`AgentRequest.ResumeSessionId`/`AgentResult.SessionId`) em segundo plano, avulsa (`Ephemeral`), só leitura do código (`Read,Glob,Grep`) quando o clone está na mesma máquina; o agente PROPÕE demandas (bloco `{"demands":[...]}`) e a pessoa cria por clique (`POST /api/chats/{id}/messages/{m}/demands/{i}`). Resposta por SignalR `chatChanged`.
+
 ## Aprovações
 Página **Aprovações** (`/approvals`) + `GET /api/approvals` (`CrudEndpoints.ApprovalsAsync`): tarefas em `AwaitingApproval` de todos os projetos, mais antigas primeiro (`WaitingSince` = fim da última execução). O menu mostra o número de pendentes.
 

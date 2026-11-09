@@ -69,6 +69,7 @@ builder.Services.AddSingleton<AdminCredentials>();
 builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<AgentForge.Api.GitHub.PullRequestService>();
 builder.Services.AddScoped<AgentForge.Orchestrator.Workflow.IBranchPublisher, AgentForge.Api.GitHub.AutoBranchPublisher>();
+builder.Services.AddSingleton<AgentForge.Api.Chat.ChatService>();
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer()
     .AddScheme<Microsoft.AspNetCore.Authentication.AuthenticationSchemeOptions, ApiTokenHandler>(ApiTokens.Scheme, null);
@@ -163,6 +164,8 @@ app.MapGitEndpoints();
 app.MapEnvironmentEndpoints();
 app.MapStackProfileEndpoints();
 app.MapGitHubEndpoints();
+app.MapChatEndpoints();
+app.MapLiveEndpoints();
 app.MapMcp();
 app.MapHub<RunsHub>("/hubs/runs");
 

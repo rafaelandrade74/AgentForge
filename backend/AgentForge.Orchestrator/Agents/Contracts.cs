@@ -25,7 +25,9 @@ public record AgentRequest(
     /// (Tech Lead/Security numa máquina leve). Sem o worktree do projeto: o diretório de trabalho é o temporário da máquina e
     /// não há container de perfil.
     /// </summary>
-    bool EnvironmentOverride = false)
+    bool EnvironmentOverride = false,
+    /// <summary>Retoma uma conversa do CLI (claude --resume): o chat da interface.</summary>
+    string? ResumeSessionId = null)
 {
     public static AgentRequest FromConfig(AgentRoleConfig config, string prompt, string workingDirectory,
         Guid? demandId = null, Guid? workItemId = null, TimeSpan? timeout = null, Guid? projectId = null,
@@ -46,7 +48,7 @@ public record AgentEvent(Guid RunId, Guid? ProjectId, Guid? DemandId, Guid? Work
 
 /// <summary>Resultado final lido da saída do CLI.</summary>
 /// <param name="Limit">Preenchido quando o erro é limite de uso da conta (não falha do trabalho): vale esperar, não falhar.</param>
-public record AgentResult(string Text, string? Json, decimal CostUsd, bool IsError, UsageLimit? Limit = null);
+public record AgentResult(string Text, string? Json, decimal CostUsd, bool IsError, UsageLimit? Limit = null, string? SessionId = null);
 
 public record AgentRunResult(
     Guid RunId,
@@ -59,7 +61,9 @@ public record AgentRunResult(
     /// <summary>Falhou porque a máquina do ambiente não respondeu (vale tentar de novo quando voltar), não por erro do agente.</summary>
     bool EnvironmentDown = false,
     /// <summary>Falhou porque a conta do agente atingiu o limite de uso: espera até liberar em vez de contar como falha.</summary>
-    UsageLimit? UsageLimit = null);
+    UsageLimit? UsageLimit = null,
+    /// <summary>Id da sessão do CLI desta execução (para retomar a conversa no turno seguinte).</summary>
+    string? SessionId = null);
 
 public interface IAgentRunner
 {

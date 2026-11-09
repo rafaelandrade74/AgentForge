@@ -155,6 +155,84 @@ namespace AgentForge.Infrastructure.Persistence.Migrations
                     b.ToTable("ApiTokens");
                 });
 
+            modelBuilder.Entity("AgentForge.Domain.ChatMessage", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ChatSessionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("CostUsd")
+                        .HasColumnType("numeric");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("Failed")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Proposals")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<string>("Text")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ChatSessionId", "CreatedAt");
+
+                    b.ToTable("ChatMessages");
+                });
+
+            modelBuilder.Entity("AgentForge.Domain.ChatSession", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("AdapterName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("EnvironmentId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ProviderSessionId")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProjectId");
+
+                    b.HasIndex("UpdatedAt");
+
+                    b.ToTable("ChatSessions");
+                });
+
             modelBuilder.Entity("AgentForge.Domain.Demand", b =>
                 {
                     b.Property<Guid>("Id")
@@ -539,6 +617,24 @@ namespace AgentForge.Infrastructure.Persistence.Migrations
                         .WithMany()
                         .HasForeignKey("WorkItemId")
                         .OnDelete(DeleteBehavior.Cascade);
+                });
+
+            modelBuilder.Entity("AgentForge.Domain.ChatMessage", b =>
+                {
+                    b.HasOne("AgentForge.Domain.ChatSession", null)
+                        .WithMany()
+                        .HasForeignKey("ChatSessionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AgentForge.Domain.ChatSession", b =>
+                {
+                    b.HasOne("AgentForge.Domain.Project", null)
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("AgentForge.Domain.Demand", b =>

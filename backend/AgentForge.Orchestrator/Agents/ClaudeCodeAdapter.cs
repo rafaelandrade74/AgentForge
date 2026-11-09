@@ -53,6 +53,7 @@ public class ClaudeCodeAdapter : ICliAgentAdapter, ICliAgentAccount
         if (!string.IsNullOrWhiteSpace(request.SystemPrompt)) args.AddRange(["--append-system-prompt", request.SystemPrompt]);
         if (!string.IsNullOrWhiteSpace(request.AllowedTools)) args.AddRange(["--allowedTools", request.AllowedTools]);
         if (request.MaxTurns > 0) args.AddRange(["--max-turns", request.MaxTurns.ToString()]);
+        if (!string.IsNullOrWhiteSpace(request.ResumeSessionId)) args.AddRange(["--resume", request.ResumeSessionId]);
         if (!string.IsNullOrWhiteSpace(request.Model)) args.AddRange(["--model", request.Model]);
         return args;
     }
@@ -95,7 +96,7 @@ public class ClaudeCodeAdapter : ICliAgentAdapter, ICliAgentAccount
                 var cost = root.TryGetProperty("total_cost_usd", out var c) && c.ValueKind == JsonValueKind.Number ? c.GetDecimal() : 0m;
                 var isError = exitCode != 0 || (root.TryGetProperty("is_error", out var e) && e.ValueKind == JsonValueKind.True);
                 var limit = isError ? DetectLimit(stdoutLines, text) : null;
-                return new AgentResult(text, JsonBlock.ExtractLast(text), cost, isError, limit);
+                return new AgentResult(text, JsonBlock.ExtractLast(text), cost, isError, limit, Str(root, "session_id"));
             }
         }
 

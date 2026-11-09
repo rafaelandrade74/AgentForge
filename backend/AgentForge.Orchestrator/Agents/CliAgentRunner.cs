@@ -170,7 +170,7 @@ public class CliAgentRunner(
         if (!request.Ephemeral) await db.SaveChangesAsync(CancellationToken.None);
         await Emit("run_finished", status.ToString());
 
-        return new AgentRunResult(run.Id, status, output, result?.Json, run.CostUsd, clock.Elapsed, exitCode, environmentDown, usageLimit);
+        return new AgentRunResult(run.Id, status, output, result?.Json, run.CostUsd, clock.Elapsed, exitCode, environmentDown, usageLimit, result?.SessionId);
     }
 
     /// <summary>

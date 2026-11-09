@@ -183,3 +183,36 @@ public class ProjectRoleEnvironment
     public AgentRole Role { get; set; }
     public Guid EnvironmentId { get; set; }
 }
+
+public enum ChatRole { User, Assistant }
+
+/// <summary>
+/// Conversa com o agente de uma máquina (ambiente) sobre um projeto. Serve para tirar dúvidas e para o agente PROPOR demandas, que
+/// só viram demandas quando a pessoa clica em criar. <see cref="ProviderSessionId"/> é a sessão do CLI (claude --resume).
+/// </summary>
+public class ChatSession
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public string Title { get; set; } = "";
+    public Guid ProjectId { get; set; }
+    /// <summary>Máquina cujo agente conversa. Null = o ambiente padrão do servidor. Sem FK: o ambiente pode ser apagado e a conversa fica.</summary>
+    public Guid? EnvironmentId { get; set; }
+    public string AdapterName { get; set; } = "claude-code";
+    public string? ProviderSessionId { get; set; }
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+}
+
+public class ChatMessage
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid ChatSessionId { get; set; }
+    public ChatRole Role { get; set; }
+    public string Text { get; set; } = "";
+    /// <summary>A resposta falhou (agente sem login, limite de uso, erro): o texto explica; a pessoa pode reenviar.</summary>
+    public bool Failed { get; set; }
+    /// <summary>Demandas que o agente propôs nesta resposta (JSON: [{title, description, demandId?}]). demandId preenchido = já criada.</summary>
+    public string? Proposals { get; set; }
+    public decimal CostUsd { get; set; }
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+}

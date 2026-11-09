@@ -16,6 +16,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<ExecutionEnvironment> ExecutionEnvironments => Set<ExecutionEnvironment>();
     public DbSet<StackProfile> StackProfiles => Set<StackProfile>();
     public DbSet<ProjectRoleEnvironment> ProjectRoleEnvironments => Set<ProjectRoleEnvironment>();
+    public DbSet<ChatSession> ChatSessions => Set<ChatSession>();
+    public DbSet<ChatMessage> ChatMessages => Set<ChatMessage>();
 
     protected override void ConfigureConventions(ModelConfigurationBuilder b) =>
         b.Properties<Enum>().HaveConversion<string>().HaveMaxLength(32);
@@ -39,6 +41,21 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.HasKey(x => new { x.ProjectId, x.Role });
             e.HasOne<Project>().WithMany().HasForeignKey(x => x.ProjectId).OnDelete(DeleteBehavior.Cascade);
             e.HasOne<ExecutionEnvironment>().WithMany().HasForeignKey(x => x.EnvironmentId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        b.Entity<ChatSession>(e =>
+        {
+            e.Property(x => x.Title).HasMaxLength(200);
+            e.Property(x => x.AdapterName).HasMaxLength(100);
+            e.Property(x => x.ProviderSessionId).HasMaxLength(200);
+            e.HasOne<Project>().WithMany().HasForeignKey(x => x.ProjectId).OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(x => x.UpdatedAt);
+        });
+
+        b.Entity<ChatMessage>(e =>
+        {
+            e.HasOne<ChatSession>().WithMany().HasForeignKey(x => x.ChatSessionId).OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(x => new { x.ChatSessionId, x.CreatedAt });
         });
 
         b.Entity<StackProfile>(e =>

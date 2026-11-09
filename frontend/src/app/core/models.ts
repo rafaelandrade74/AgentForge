@@ -349,6 +349,75 @@ export interface PushResult {
   pushedAt: string;
 }
 
+/** Um agente (CLI) de uma máquina, no painel "Agentes ao vivo". */
+export interface LiveAgent {
+  environmentId: string | null;
+  environment: string;
+  mode: string;
+  agent: string;
+  displayName: string;
+  /** false = a máquina não respondeu (host agent fora do ar, token recusado...). */
+  reachable: boolean;
+  installed: boolean;
+  authenticated: boolean;
+  version: string | null;
+  detail: string | null;
+  runningNow: number;
+  usageLimit: UsageLimitInfo | null;
+}
+export interface LiveRun {
+  runId: string;
+  role: string;
+  projectId: string | null;
+  project: string;
+  workItemId: string | null;
+  task: string | null;
+  environmentId: string | null;
+  environment: string;
+  startedAt: string;
+}
+export interface LiveAgents {
+  agents: LiveAgent[];
+  running: LiveRun[];
+  at: string;
+}
+
+export interface ChatSession {
+  id: string;
+  title: string;
+  projectId: string;
+  project: string;
+  environmentId: string | null;
+  environment: string;
+  agent: string;
+  busy: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+/** Demanda que o agente propôs; demandId preenchido = a pessoa já criou. */
+export interface DemandProposal {
+  title: string;
+  description: string;
+  demandId?: string | null;
+}
+export interface ChatMessage {
+  id: string;
+  role: 'User' | 'Assistant';
+  text: string;
+  failed: boolean;
+  proposals: DemandProposal[];
+  costUsd: number;
+  createdAt: string;
+}
+export interface ChatDetail {
+  session: ChatSession;
+  messages: ChatMessage[];
+}
+export interface ProposalCreated {
+  demand: Demand;
+  started: boolean;
+}
+
 export interface PullRequestResult {
   url: string;
   number: number;

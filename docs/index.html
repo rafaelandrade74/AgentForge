@@ -29,6 +29,7 @@
   <a href="#pr">Pull request da tarefa</a>
   <a href="#privados">Repositórios privados</a>
   <a href="#ambientes">Várias máquinas e perfis</a>
+  <a href="#ao-vivo">Agentes ao vivo e chat</a>
   <a href="#mcp">Controlar pelo Claude (MCP)</a>
   <h4>Operar</h4>
   <a href="#config">Configuração</a>
@@ -468,6 +469,13 @@ export 'HostAgent__Docker__AllowedImages__0=minha/*'                            
   <tr><td><strong>Máquina fora do ar</strong></td><td>A tarefa <strong>não vira Bloqueada</strong>: mostra <em>Aguardando o ambiente voltar…</em> e é tentada de novo (15 s, 30 s… até 5 min) até a máquina responder, inclusive depois de reiniciar a API.</td></tr>
   <tr><td><strong>Revisão em outra máquina</strong></td><td>No projeto, <em>Tech Lead roda em</em> e <em>Security roda em</em> mandam esses papéis para uma máquina leve. Eles recebem só o diff e a descrição (sem o repositório). Dev e QA ficam no ambiente do projeto.</td></tr>
 </table>
+
+<h2 id="ao-vivo">Agentes ao vivo e chat</h2>
+<ul>
+  <li><strong>Ao vivo</strong> (menu de cima): um cartão por agente e por máquina (<em>pronto</em>, <em>trabalhando</em>, <em>não conectado</em>, <em>limite de uso</em> com o horário de liberação, <em>máquina inacessível</em>) e, abaixo, o que está <strong>rodando agora</strong> em todos os projetos, em tempo real. Em cada cartão, <strong>Conversar</strong> abre um chat com aquele agente.</li>
+  <li><strong>Chat:</strong> conversa com o Claude da máquina escolhida sobre um projeto. Se o clone do projeto está na mesma máquina, o agente <strong>lê o código</strong> (só leitura). Peça <em>"proponha uma demanda para..."</em>: o agente sugere e você cria com <strong>Criar demanda</strong> ou <strong>Criar e iniciar refinamento</strong>; nada vira demanda sem o seu clique. As conversas ficam salvas e retomáveis.</li>
+</ul>
+<div class="note"><p>Cada resposta do chat gasta créditos do agente. A resposta aparece inteira ao final (não é transmitida aos poucos). Se a máquina estiver com limite de uso, a conversa avisa e você reenvia depois.</p></div>
 
 <h2 id="mcp">Controlar pelo Claude Code (MCP)</h2>
 <p>O AgentForge é também um <strong>servidor MCP</strong> (HTTP, <code>POST /mcp</code>). O Claude Code, ou qualquer cliente MCP, pode criar projetos e demandas, acompanhar tarefas, ler o diff e aprovar ou rejeitar entregas por conversa. Funciona em todos os cenários.</p>

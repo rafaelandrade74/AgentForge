@@ -20,11 +20,50 @@ export class RealtimeService {
   readonly workItemChanged$ = new Subject<WorkItemChanged>();
   readonly demandChanged$ = new Subject<DemandChanged>();
   readonly reconnected$ = new Subject<void>();
+  /** Eventos de execução de TODOS os projetos (só para quem entrou em joinLive). */
+  readonly liveRunEvent$ = new Subject<RunEvent>();
+  readonly chatChanged$ = new Subject<{ sessionId: string }>();
 
   private connection: HubConnection | null = null;
   private connecting: Promise<HubConnection | null> | null = null;
   private retryTimer: ReturnType<typeof setTimeout> | null = null;
   private readonly joined = new Map<string, number>();
+  private liveCount = 0;
+  private readonly chats = new Map<string, number>();
+
+  /** Quantas telas estão interessadas em tempo real (projetos, painel ao vivo, conversas): zero = pode desconectar. */
+  private interest(): number {
+    return this.joined.size + this.liveCount + this.chats.size;
+  }
+
+  async joinLive(): Promise<void> {
+    this.liveCount++;
+    const connection = await this.ensureConnected();
+    if (connection && this.liveCount > 0) await this.invoke(connection, 'JoinLive');
+  }
+
+  async leaveLive(): Promise<void> {
+    this.liveCount = Math.max(0, this.liveCount - 1);
+    if (this.liveCount === 0 && this.connection?.state === HubConnectionState.Connected) await this.invoke(this.connection, 'LeaveLive');
+    if (this.interest() === 0) await this.disconnect();
+  }
+
+  async joinChat(sessionId: string): Promise<void> {
+    this.chats.set(sessionId, (this.chats.get(sessionId) ?? 0) + 1);
+    const connection = await this.ensureConnected();
+    if (connection && (this.chats.get(sessionId) ?? 0) > 0) await this.invoke(connection, 'JoinChat', sessionId);
+  }
+
+  async leaveChat(sessionId: string): Promise<void> {
+    const count = (this.chats.get(sessionId) ?? 0) - 1;
+    if (count > 0) {
+      this.chats.set(sessionId, count);
+      return;
+    }
+    this.chats.delete(sessionId);
+    if (this.connection?.state === HubConnectionState.Connected) await this.invoke(this.connection, 'LeaveChat', sessionId);
+    if (this.interest() === 0) await this.disconnect();
+  }
 
   /** Chamar em contexto de injeção (construtor do componente): entra/sai do grupo conforme o id muda. */
   bindProject(projectId: () => string | null): void {
@@ -57,7 +96,7 @@ export class RealtimeService {
     }
     this.joined.delete(projectId);
     if (this.connection?.state === HubConnectionState.Connected) await this.invoke(this.connection, 'LeaveProject', projectId);
-    if (this.joined.size === 0) await this.disconnect();
+    if (this.interest() === 0) await this.disconnect();
   }
 
   private ensureConnected(): Promise<HubConnection | null> {
@@ -95,6 +134,8 @@ export class RealtimeService {
     connection.on('runEvent', (e: RunEvent) => this.runEvent$.next(e));
     connection.on('workItemChanged', (e: WorkItemChanged) => this.workItemChanged$.next(e));
     connection.on('demandChanged', (e: DemandChanged) => this.demandChanged$.next(e));
+    connection.on('liveRunEvent', (e: RunEvent) => this.liveRunEvent$.next(e));
+    connection.on('chatChanged', (e: { sessionId: string }) => this.chatChanged$.next(e));
     connection.onreconnecting(() => this.status.set('reconnecting'));
     connection.onreconnected(async () => {
       this.status.set('connected');
@@ -103,13 +144,15 @@ export class RealtimeService {
     });
     connection.onclose(() => {
       this.status.set('disconnected');
-      if (this.joined.size > 0) this.scheduleRetry();
+      if (this.interest() > 0) this.scheduleRetry();
     });
     return connection;
   }
 
   private async rejoinAll(connection: HubConnection): Promise<void> {
     for (const id of this.joined.keys()) await this.invoke(connection, 'JoinProject', id);
+    if (this.liveCount > 0) await this.invoke(connection, 'JoinLive');
+    for (const id of this.chats.keys()) await this.invoke(connection, 'JoinChat', id);
   }
 
   private async invoke(connection: HubConnection, method: string, ...args: unknown[]): Promise<void> {
@@ -122,10 +165,10 @@ export class RealtimeService {
 
   /** Se a primeira conexão falhar (API reiniciando, token vencido), tenta de novo enquanto houver tela interessada. */
   private scheduleRetry(): void {
-    if (this.retryTimer || this.joined.size === 0) return;
+    if (this.retryTimer || this.interest() === 0) return;
     this.retryTimer = setTimeout(async () => {
       this.retryTimer = null;
-      if (this.joined.size === 0) return;
+      if (this.interest() === 0) return;
       const connection = await this.ensureConnected();
       if (connection) this.reconnected$.next();
     }, 5000);

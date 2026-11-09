@@ -21,6 +21,8 @@ import { RealtimeService } from '../core/realtime.service';
       <a mat-button routerLink="/approvals" routerLinkActive="active" data-testid="nav-approvals">
         Aprovações @if (pending() > 0) { <span class="pending" [attr.aria-label]="pending() + ' aguardando'">{{ pending() }}</span> }
       </a>
+      <a mat-button routerLink="/live" routerLinkActive="active" data-testid="nav-live">Ao vivo</a>
+      <a mat-button routerLink="/chat" routerLinkActive="active" data-testid="nav-chat">Chat</a>
       <a mat-button routerLink="/agents" routerLinkActive="active">Agentes</a>
       <a mat-button routerLink="/prompts" routerLinkActive="active">Prompts</a>
       <a mat-button routerLink="/environments" routerLinkActive="active">Ambientes</a>

@@ -175,6 +175,11 @@ Tutorial passo a passo (cenário F) em [docs/getting-started.md](docs/getting-st
 
 Decisões nas [ADR 0017](docs/adr/0017-ambientes-de-execucao.md), [ADR 0018](docs/adr/0018-git-e-login-por-ambiente.md), [ADR 0019](docs/adr/0019-perfis-de-stack-e-container-por-tarefa.md) e [ADR 0020](docs/adr/0020-ambiente-por-papel-fila-e-carga.md); o plano completo (próxima fase: validação ponta a ponta) está em [docs/plano-ambientes.md](docs/plano-ambientes.md).
 
+## Agentes ao vivo e chat
+
+- **Ao vivo** (menu de cima): um cartão por agente e por máquina (pronto, trabalhando, não conectado, limite de uso com o horário de liberação, máquina inacessível) e, abaixo, o que está **rodando agora** em todos os projetos, em tempo real. Em cada cartão, **Conversar** abre um chat com aquele agente.
+- **Chat:** conversa com o Claude da máquina escolhida sobre um projeto. Se o clone do projeto está na mesma máquina, o agente **lê o código** (só leitura). Peça *"proponha uma demanda para..."*: o agente sugere e você cria com **Criar demanda** ou **Criar e iniciar refinamento**; nada vira demanda sem o seu clique. As conversas ficam salvas. Cada resposta gasta créditos do agente. Veja o ADR 0026.
+
 ## Controlar o AgentForge pelo Claude Code (MCP)
 
 O AgentForge é também um **servidor MCP** (HTTP, `POST /mcp`): o Claude Code, ou qualquer cliente MCP, pode criar projetos e

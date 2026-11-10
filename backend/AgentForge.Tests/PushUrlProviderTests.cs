@@ -99,4 +99,11 @@ public sealed class PushUrlProviderTests
         await Assert.ThrowsAsync<PullRequestException>(() => svc.PushBranchAsync(new WorkItem(), new Project(), default));
         Assert.Equal("git@github.com:octo/repo.git", ws.PushedUrl);
     }
+
+    [Fact]
+    public void Result_ToString_nao_vaza_segredo()
+    {
+        var text = new PushUrlResult("https://x-access-token:SEGREDO@github.com/o/r.git", "SEGREDO", null).ToString();
+        Assert.DoesNotContain("SEGREDO", text);
+    }
 }

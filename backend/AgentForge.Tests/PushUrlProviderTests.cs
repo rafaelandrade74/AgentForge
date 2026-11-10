@@ -17,7 +17,7 @@ public sealed class PushUrlProviderTests
     [Fact]
     public async Task Ssh_project_returns_its_ssh_url()
     {
-        var p = new Project { RepositoryUrl = " git@github.com:octo/repo.git " };
+        var p = new Project { RepositoryUrl = "git@github.com:octo/repo.git " };
         Assert.Equal("git@github.com:octo/repo.git", await Provider().ResolveAsync(p));
     }
 

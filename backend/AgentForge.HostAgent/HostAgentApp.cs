@@ -128,6 +128,18 @@ app.MapPost(HostAgentRoutes.FsMkdir, (PathRequest req) =>
     return Results.NoContent();
 });
 
+// só hooks do git: <clone>/.git/hooks/<arquivo>, dentro das pastas permitidas (o AgentForge instala o pre-push)
+app.MapPost(HostAgentRoutes.FsWrite, async (WriteFileRequest req, CancellationToken ct) =>
+{
+    if (!guard.Allows(req.Path, strict: true)) return Forbidden();
+    var full = Path.GetFullPath(req.Path).Replace('\\', '/');
+    var name = Path.GetFileName(full);
+    if (name.Length == 0 || name.Contains("..") || !Path.GetDirectoryName(full)!.Replace('\\', '/').EndsWith("/.git/hooks", StringComparison.Ordinal))
+        return Forbidden();
+    await new LocalProcessLauncher().WriteFileAsync(full, req.Content, req.Executable, ct);
+    return Results.NoContent();
+});
+
 app.MapPost(HostAgentRoutes.FsDelete, (PathRequest req) =>
 {
     if (!guard.Allows(req.Path, strict: true)) return Forbidden();   // nunca a própria raiz

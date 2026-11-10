@@ -11,6 +11,7 @@ public static class HostAgentRoutes
     public const string FsExists = "/v1/fs/exists";
     public const string FsMkdir = "/v1/fs/mkdir";
     public const string FsDelete = "/v1/fs/delete";
+    public const string FsWrite = "/v1/fs/write";
     /// <summary>Chave SSH da máquina: GET = estado, DELETE = apaga; <see cref="SshGenerate"/> cria (a privada nunca sai da máquina).</summary>
     public const string Ssh = "/v1/ssh";
     public const string SshGenerate = "/v1/ssh/generate";
@@ -32,6 +33,7 @@ public record StartProcessRequest(string Executable, IReadOnlyList<string> Argum
 public record StartProcessResponse(string Id);
 public record StdinRequest(string? Text, bool Close);
 public record PathRequest(string Path);
+public record WriteFileRequest(string Path, string Content, bool Executable);
 public record ExistsResponse(bool Exists);
 public record HostError(string Error);
 

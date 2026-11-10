@@ -48,6 +48,9 @@ public interface IProcessLauncher
     Task<bool> DirectoryExistsAsync(string path, CancellationToken ct);
     Task CreateDirectoryAsync(string path, CancellationToken ct);
     Task DeleteDirectoryAsync(string path, CancellationToken ct);
+
+    /// <summary>Grava um arquivo de texto (UTF-8, quebras LF), criando a pasta se preciso; <paramref name="executable"/> = chmod +x (no-op no Windows). No host agent só vale dentro de &lt;clone&gt;/.git/hooks.</summary>
+    Task WriteFileAsync(string path, string content, bool executable, CancellationToken ct);
 }
 
 /// <param name="Unreachable">Não iniciou porque a máquina do host agent não respondeu (vale tentar de novo depois).</param>

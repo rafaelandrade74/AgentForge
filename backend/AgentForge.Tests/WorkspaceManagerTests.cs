@@ -72,6 +72,49 @@ public sealed class WorkspaceManagerTests : IAsyncLifetime
         Assert.Equal(await OriginHead(), (await Git(second, "rev-parse", "origin/main")).Trim());
     }
 
+    private static async Task<(int Code, string Err)> TryGitAsync(string dir, params string[] args)
+    {
+        try { await Git(dir, args); return (0, ""); }
+        catch (GitException ex) { return (ex.ExitCode, ex.Message); }
+    }
+
+    [Fact]
+    public async Task Installs_executable_pre_push_hook_also_in_existing_clones()
+    {
+        if (OperatingSystem.IsWindows()) return;
+        var repo = await _manager.EnsureRepositoryAsync(_project, default);
+        var hook = Path.Combine(repo, ".git", "hooks", "pre-push");
+        Assert.True(File.Exists(hook));
+        Assert.True(File.GetUnixFileMode(hook).HasFlag(UnixFileMode.UserExecute));
+
+        // clone antigo: hook ausente/adulterado volta a ser instalado
+        await File.WriteAllTextAsync(hook, "#!/bin/sh\nexit 0\n");
+        await _manager.EnsureRepositoryAsync(_project, default);
+        Assert.Equal(WorkspaceManager.PrePushHook, await File.ReadAllTextAsync(hook));
+    }
+
+    [Fact]
+    public async Task Pre_push_hook_allows_only_task_branches_even_from_a_worktree()
+    {
+        if (OperatingSystem.IsWindows()) return;
+        var ws = await _manager.CreateWorktreeAsync(_project, Guid.NewGuid(), default);
+        await CommitAsync(ws, "a.txt", "a");
+        await Git(ws.Path, "tag", "v1");
+
+        Assert.Equal(0, (await TryGitAsync(ws.Path, "push", _origin, $"{ws.Branch}:refs/heads/{ws.Branch}")).Code);
+
+        foreach (var target in new[] { "refs/heads/main", "refs/heads/develop", "refs/heads/outro", "refs/tags/v1" })
+        {
+            var r = await TryGitAsync(ws.Path, "push", _origin, $"HEAD:{target}");
+            Assert.NotEqual(0, r.Code);
+            Assert.Contains("agentforge/task-", r.Err);
+        }
+        var del = await TryGitAsync(ws.Path, "push", _origin, $":refs/heads/{ws.Branch}");
+        Assert.NotEqual(0, del.Code);
+        Assert.Contains("deleção", del.Err);
+        Assert.Contains(ws.Branch, await Git(_origin, "branch", "--list", ws.Branch));
+    }
+
     [Fact]
     public async Task Two_tasks_do_not_see_each_others_changes()
     {

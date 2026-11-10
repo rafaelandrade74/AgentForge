@@ -166,6 +166,19 @@ public sealed class HostAgentTests(PostgresFixture pg) : IAsyncLifetime
     }
 
     [PosixFact]
+    public async Task Host_agent_writes_only_git_hooks_inside_the_allowed_folders()
+    {
+        var hook = Root + "/proj/repo/.git/hooks/pre-push";
+        await _launcher.WriteFileAsync(hook, "#!/bin/sh\nexit 0\n", executable: true, default);
+        Assert.Equal("#!/bin/sh\nexit 0\n", await File.ReadAllTextAsync(hook));
+        Assert.True(File.GetUnixFileMode(hook).HasFlag(UnixFileMode.UserExecute));
+
+        await Assert.ThrowsAsync<ProcessStartException>(() => _launcher.WriteFileAsync(Root + "/proj/repo/qualquer.sh", "x", true, default));
+        await Assert.ThrowsAsync<ProcessStartException>(() => _launcher.WriteFileAsync("/tmp/.git/hooks/pre-push", "x", true, default));
+        await Assert.ThrowsAsync<ProcessStartException>(() => _launcher.WriteFileAsync(Root + "/../fora/.git/hooks/pre-push", "x", true, default));
+    }
+
+    [PosixFact]
     public async Task Unreachable_host_agent_is_reported_clearly()
     {
         var offline = new RemoteProcessLauncher(new HttpClient(), "http://127.0.0.1:1", Token);

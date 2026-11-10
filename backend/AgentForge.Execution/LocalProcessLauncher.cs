@@ -69,6 +69,15 @@ public sealed class LocalProcessLauncher : IProcessLauncher
         return Task.CompletedTask;
     }
 
+    public Task WriteFileAsync(string path, string content, bool executable, CancellationToken ct)
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        File.WriteAllText(path, content.Replace("\r\n", "\n"), new UTF8Encoding(false));
+        if (executable && !OperatingSystem.IsWindows())
+            File.SetUnixFileMode(path, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute | UnixFileMode.GroupRead | UnixFileMode.GroupExecute | UnixFileMode.OtherRead | UnixFileMode.OtherExecute);
+        return Task.CompletedTask;
+    }
+
     public static ProcessStartInfo StartInfo(string executable, IEnumerable<string> args, string workingDirectory, string? gitSshDirectory = null)
     {
         var psi = new ProcessStartInfo(executable)

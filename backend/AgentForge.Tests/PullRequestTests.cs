@@ -535,4 +535,27 @@ public sealed class PullRequestTests(PostgresFixture pg) : IAsyncLifetime
             workspaces.PushTaskBranchAsync(p, task, "https://x-access-token:SEGREDO123456789012345@127.0.0.1:1/octo/x.git", default));
         Assert.DoesNotContain("SEGREDO123456789012345", ex.Message);
     }
+
+    [Fact]
+    public async Task IsBranchPublished_compara_o_sha_local_com_o_remoto_e_falha_sem_vazar()
+    {
+        var project = await CreateProject(new { githubToken = FakeGitHub.Token });
+        var task = await DoneTask(Id(project));
+        await using var scope = _factory.Services.CreateAsyncScope();
+        var workspaces = scope.ServiceProvider.GetRequiredService<IWorkspaceManager>();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var p = await db.Projects.FirstAsync(x => x.Id == Id(project));
+
+        var remote = Path.Combine(_temp, "remoto-" + Guid.NewGuid().ToString("N")[..6] + ".git");
+        Directory.CreateDirectory(remote);
+        await GitCli.RunAsync(remote, ["init", "--bare"], default);
+        var url = "file://" + remote;
+
+        Assert.False(await workspaces.IsBranchPublishedAsync(p, task, url, default));   // ausente no remoto
+        await workspaces.PushTaskBranchAsync(p, task, url, default);
+        Assert.True(await workspaces.IsBranchPublishedAsync(p, task, url, default));    // mesmo commit
+        Assert.False(await workspaces.IsBranchPublishedAsync(p, task, "https://x-access-token:SEGREDO123456789012345@127.0.0.1:1/o/x.git", default)); // falha → false
+        Assert.False(await workspaces.IsBranchPublishedAsync(p, task, "--receive-pack=x", default));                 // URL insegura
+        Assert.False(await workspaces.IsBranchPublishedAsync(p, Guid.NewGuid(), url, default));                       // sem branch local
+    }
 }

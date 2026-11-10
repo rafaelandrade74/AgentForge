@@ -109,9 +109,20 @@ public sealed partial class PullRequestService(
     private async Task PushToAsync(WorkItem item, Project project, PushUrlResult resolved, CancellationToken ct)
     {
         var pushUrl = resolved.Url ?? throw new PullRequestException(resolved.Reason ?? "Não há URL de push para o projeto.");
+        // o agente pode já ter publicado o branch: remoto no mesmo commit → só registra, sem novo push. Falha na checagem = push normal.
+        var alreadyPublished = false;
         try
         {
-            await workspaces.PushTaskBranchAsync(project, item.Id, pushUrl, ct);
+            alreadyPublished = await workspaces.IsBranchPublishedAsync(project, item.Id, pushUrl, ct);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger.LogDebug("Checagem do branch remoto da tarefa {Task} falhou; seguindo para o push", item.Id);
+        }
+        try
+        {
+            if (!alreadyPublished)
+                await workspaces.PushTaskBranchAsync(project, item.Id, pushUrl, ct);
         }
         catch (WorkspaceException ex)
         {

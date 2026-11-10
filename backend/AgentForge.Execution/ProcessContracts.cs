@@ -49,7 +49,7 @@ public interface IProcessLauncher
     Task CreateDirectoryAsync(string path, CancellationToken ct);
     Task DeleteDirectoryAsync(string path, CancellationToken ct);
 
-    /// <summary>Grava um arquivo de texto (UTF-8, quebras LF), criando a pasta se preciso; <paramref name="executable"/> = chmod +x (no-op no Windows). No host agent só vale dentro de     Task DeleteDirectoryAsync(string path, CancellationToken ct);lt;clone&gt;/.git/hooks.</summary>
+    /// <summary>Grava um arquivo de texto (UTF-8, quebras LF), criando a pasta se preciso; <paramref name="executable"/> = chmod +x (no-op no Windows). No host agent só vale dentro de &lt;clone&gt;/.git/hooks.</summary>
     Task WriteFileAsync(string path, string content, bool executable, CancellationToken ct);
 }
 

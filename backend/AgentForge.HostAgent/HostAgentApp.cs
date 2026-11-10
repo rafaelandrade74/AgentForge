@@ -140,7 +140,7 @@ app.MapPost(HostAgentRoutes.FsWrite, async (WriteFileRequest req, CancellationTo
     return Results.NoContent();
 });
 
-app.MapPost(HostAgentRoutes.FsDelete,(PathRequest req) =>
+app.MapPost(HostAgentRoutes.FsDelete, (PathRequest req) =>
 {
     if (!guard.Allows(req.Path, strict: true)) return Forbidden();   // nunca a própria raiz
     if (Directory.Exists(req.Path))

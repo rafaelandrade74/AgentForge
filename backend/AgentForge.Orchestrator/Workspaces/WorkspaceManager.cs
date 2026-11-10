@@ -159,12 +159,13 @@ public class WorkspaceManager(IOptions<WorkspaceOptions> options, IEnvironmentLa
 
         """;
 
-    // Grava (e dá chmod +x) pelo próprio launcher: o IProcessLauncher não escreve arquivos, então vai por sh + stdin.
+    // Grava (e dá chmod +x) pelo próprio launcher: via Launcher.WriteFileAsync (local ou host agent).
     // Idempotente: reescreve a cada chamada, valendo também para clones antigos.
     private static async Task InstallPrePushHookAsync(EnvironmentTarget t, string repo, CancellationToken ct)
     {
         try { await t.Launcher.WriteFileAsync($"{repo}/.git/hooks/pre-push", PrePushHook, executable: true, ct); }
-        catch (Exception ex) when (ex is ProcessStartException { } and not HostUnreachableException or IOException or UnauthorizedAccessException)
+        catch (HostUnreachableException) { throw; }
+        catch (Exception ex) when (ex is ProcessStartException or IOException or UnauthorizedAccessException)
         {
             throw new GitException($"Não foi possível instalar o hook pre-push: {ex.Message}", -1);
         }

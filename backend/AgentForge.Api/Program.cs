@@ -67,6 +67,7 @@ builder.Services.Replace(ServiceDescriptor.Singleton<IWorkflowEventPublisher, Si
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<AdminCredentials>();
 builder.Services.AddScoped<AuthService>();
+builder.Services.AddScoped<AgentForge.Orchestrator.Workspaces.IPushUrlProvider, AgentForge.Api.GitHub.PushUrlProvider>();
 builder.Services.AddScoped<AgentForge.Api.GitHub.PullRequestService>();
 builder.Services.AddScoped<AgentForge.Orchestrator.Workflow.IBranchPublisher, AgentForge.Api.GitHub.AutoBranchPublisher>();
 builder.Services.AddSingleton<AgentForge.Api.Chat.ChatService>();

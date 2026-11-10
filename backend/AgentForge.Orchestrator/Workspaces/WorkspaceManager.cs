@@ -52,6 +52,13 @@ public interface IWorkspaceManager
     /// fixo — branch da tarefa para o mesmo nome — então nunca atualiza a base. O `origin` do clone continua sem push (NoPushUrl).
     /// </summary>
     Task PushTaskBranchAsync(Project project, Guid workItemId, string pushUrl, CancellationToken ct);
+
+    /// <summary>
+    /// true se o remoto (<paramref name="pushUrl"/>) já tem o branch da tarefa exatamente no commit local (o agente já publicou).
+    /// Qualquer falha na checagem (remoto fora, sem acesso, URL inválida) devolve false — o chamador segue para o push normal.
+    /// Nunca lança por falha de git, então não expõe URL/token.
+    /// </summary>
+    Task<bool> IsBranchPublishedAsync(Project project, Guid workItemId, string pushUrl, CancellationToken ct);
 }
 
 /// <summary>
@@ -265,6 +272,30 @@ public class WorkspaceManager(IOptions<WorkspaceOptions> options, IEnvironmentLa
             await Git(t, RepoPath(t, project), ["push", pushUrl, $"refs/heads/{branch}:refs/heads/{branch}"], ct);
             return 0;
         });
+    }
+
+    public async Task<bool> IsBranchPublishedAsync(Project project, Guid workItemId, string pushUrl, CancellationToken ct)
+    {
+        if (!IsSafePushUrl(pushUrl)) return false;
+        try
+        {
+            return await LockedAsync(project, ct, async t =>
+            {
+                var repo = RepoPath(t, project);
+                var branch = $"refs/heads/{BranchName(workItemId)}";
+                var local = (await Git(t, repo, ["rev-parse", "--verify", "--quiet", branch], ct)).Trim();
+                if (local.Length == 0) return false;
+                var remote = await Git(t, repo, ["ls-remote", pushUrl, branch], ct);
+                var line = remote.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                    .FirstOrDefault(l => l.EndsWith(branch, StringComparison.Ordinal));
+                var sha = line?.Split('\t', ' ')[0];
+                return sha is not null && string.Equals(sha, local, StringComparison.OrdinalIgnoreCase);
+            });
+        }
+        catch (Exception ex) when (ex is GitException or WorkspaceException or ProcessStartException or EnvironmentUnavailableException)
+        {
+            return false;
+        }
     }
 
     public const int MaxDiffChars = 500_000;

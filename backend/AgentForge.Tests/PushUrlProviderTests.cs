@@ -23,9 +23,15 @@ public sealed class PushUrlProviderTests
     private sealed class RecordingWorkspaces : IWorkspaceManager
     {
         public string? PushedUrl;
+        public bool Published;
+        public bool CheckThrows;
+        public int Pushes;
+        public Task<bool> IsBranchPublishedAsync(Project project, Guid workItemId, string pushUrl, CancellationToken ct) =>
+            CheckThrows ? throw new InvalidOperationException("https://x:SEGREDO@h/r.git") : Task.FromResult(Published);
         public Task PushTaskBranchAsync(Project project, Guid workItemId, string pushUrl, CancellationToken ct)
         {
             PushedUrl = pushUrl;
+            Pushes++;
             throw new WorkspaceException("parou aqui");   // evita tocar o banco: só queremos ver a URL usada
         }
         public Task<string> EnsureRepositoryAsync(Project project, CancellationToken ct) => throw new NotSupportedException();
@@ -98,6 +104,35 @@ public sealed class PushUrlProviderTests
         var svc = Service(new FakeProvider(new PushUrlResult("git@github.com:octo/repo.git", null, null)), ws);
         await Assert.ThrowsAsync<PullRequestException>(() => svc.PushBranchAsync(new WorkItem(), new Project(), default));
         Assert.Equal("git@github.com:octo/repo.git", ws.PushedUrl);
+    }
+
+    [Fact]
+    public async Task PushBranch_ja_publicado_nao_faz_push()
+    {
+        var ws = new RecordingWorkspaces { Published = true };
+        var svc = Service(new FakeProvider(new PushUrlResult("git@github.com:octo/repo.git", null, null)), ws);
+        // db nulo: o SaveChanges estoura depois de registrar; basta ver que o push não ocorreu
+        await Assert.ThrowsAnyAsync<Exception>(() => svc.PushBranchAsync(new WorkItem(), new Project(), default));
+        Assert.Equal(0, ws.Pushes);
+    }
+
+    [Fact]
+    public async Task PushBranch_remoto_atras_ou_ausente_faz_push()
+    {
+        var ws = new RecordingWorkspaces { Published = false };
+        var svc = Service(new FakeProvider(new PushUrlResult("git@github.com:octo/repo.git", null, null)), ws);
+        await Assert.ThrowsAsync<PullRequestException>(() => svc.PushBranchAsync(new WorkItem(), new Project(), default));
+        Assert.Equal(1, ws.Pushes);
+    }
+
+    [Fact]
+    public async Task PushBranch_falha_na_checagem_cai_para_push_sem_vazar()
+    {
+        var ws = new RecordingWorkspaces { CheckThrows = true };
+        var svc = Service(new FakeProvider(new PushUrlResult("git@github.com:octo/repo.git", null, null)), ws);
+        var ex = await Assert.ThrowsAsync<PullRequestException>(() => svc.PushBranchAsync(new WorkItem(), new Project(), default));
+        Assert.Equal(1, ws.Pushes);
+        Assert.DoesNotContain("SEGREDO", ex.Message);
     }
 
     [Fact]

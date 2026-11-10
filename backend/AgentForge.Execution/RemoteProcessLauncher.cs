@@ -78,6 +78,19 @@ public sealed class RemoteProcessLauncher : IProcessLauncher
     public Task CreateDirectoryAsync(string path, CancellationToken ct) => FsAsync(HostAgentRoutes.FsMkdir, path, ct, reads: false);
     public Task DeleteDirectoryAsync(string path, CancellationToken ct) => FsAsync(HostAgentRoutes.FsDelete, path, ct, reads: false);
 
+    public async Task WriteFileAsync(string path, string content, bool executable, CancellationToken ct)
+    {
+        try
+        {
+            using var response = await _http.PostAsJsonAsync(HostAgentRoutes.FsWrite.TrimStart('/'), new WriteFileRequest(path, content, executable), Json, ct);
+            await EnsureOkAsync(response, ct);
+        }
+        catch (HttpRequestException ex)
+        {
+            throw new HostUnreachableException($"Host agent inacessível em {_baseUrl}: {ex.Message}");
+        }
+    }
+
     private async Task<bool> FsAsync(string route, string path, CancellationToken ct, bool reads)
     {
         try

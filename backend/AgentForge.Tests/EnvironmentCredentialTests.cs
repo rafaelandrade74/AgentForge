@@ -247,6 +247,7 @@ public sealed class EnvironmentCredentialTests(PostgresFixture pg) : IAsyncLifet
         public Task<bool> DirectoryExistsAsync(string path, CancellationToken ct) => _inner.DirectoryExistsAsync(path, ct);
         public Task CreateDirectoryAsync(string path, CancellationToken ct) => _inner.CreateDirectoryAsync(path, ct);
         public Task DeleteDirectoryAsync(string path, CancellationToken ct) => _inner.DeleteDirectoryAsync(path, ct);
+        public Task WriteFileAsync(string path, string content, bool executable, CancellationToken ct) => _inner.WriteFileAsync(path, content, executable, ct);
     }
 
     private sealed class TwoMachines(Guid a, Guid b, string temp) : IEnvironmentLaunchers

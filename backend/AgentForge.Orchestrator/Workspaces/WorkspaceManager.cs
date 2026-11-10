@@ -102,6 +102,7 @@ public class WorkspaceManager(IOptions<WorkspaceOptions> options, IEnvironmentLa
         var repo = RepoPath(t, project);
         if (await HasRepoAsync(t, repo, ct))
         {
+            await InstallPrePushHookAsync(t, repo, ct);
             await Git(t, repo, ["fetch", "--prune", "origin"], ct);
             return repo;
         }
@@ -117,6 +118,7 @@ public class WorkspaceManager(IOptions<WorkspaceOptions> options, IEnvironmentLa
             await Git(t, repo, ["config", "remote.origin.pushurl", NoPushUrl], ct);
             await Git(t, repo, ["config", "user.name", "AgentForge"], ct);
             await Git(t, repo, ["config", "user.email", "agentforge@localhost"], ct);
+            await InstallPrePushHookAsync(t, repo, ct);
         }
         catch
         {
@@ -125,6 +127,47 @@ public class WorkspaceManager(IOptions<WorkspaceOptions> options, IEnvironmentLa
             throw;
         }
         return repo;
+    }
+
+    /// <summary>
+    /// Script do hook pre-push: só deixa passar refs/heads/agentforge/task-*. Rejeita main/develop, outros branches,
+    /// tags e deleção de ref. Fica em &lt;repo&gt;/.git/hooks (o .git comum), então vale em todos os worktrees.
+    /// </summary>
+    public const string PrePushHook = """
+        #!/bin/sh
+        # AgentForge: só é permitido publicar branches agentforge/task-*.
+        zero=0000000000000000000000000000000000000000
+        while read -r local_ref local_sha remote_ref remote_sha; do
+            if [ "$local_sha" = "$zero" ]; then
+                echo "AgentForge: push rejeitado - deleção de ref ($remote_ref) não é permitida." >&2
+                exit 1
+            fi
+            case "$remote_ref" in
+                refs/heads/agentforge/task-?*) ;;
+                refs/heads/main|refs/heads/develop)
+                    echo "AgentForge: push rejeitado - o branch $remote_ref é protegido; só refs/heads/agentforge/task-* podem ser enviados." >&2
+                    exit 1 ;;
+                refs/tags/*)
+                    echo "AgentForge: push rejeitado - tags ($remote_ref) não são permitidas; só refs/heads/agentforge/task-* podem ser enviados." >&2
+                    exit 1 ;;
+                *)
+                    echo "AgentForge: push rejeitado - $remote_ref não casa com refs/heads/agentforge/task-*; só esses branches podem ser enviados." >&2
+                    exit 1 ;;
+            esac
+        done
+        exit 0
+
+        """;
+
+    // Grava (e dá chmod +x) pelo próprio launcher: o IProcessLauncher não escreve arquivos, então vai por sh + stdin.
+    // Idempotente: reescreve a cada chamada, valendo também para clones antigos.
+    private static async Task InstallPrePushHookAsync(EnvironmentTarget t, string repo, CancellationToken ct)
+    {
+        try { await t.Launcher.WriteFileAsync($"{repo}/.git/hooks/pre-push", PrePushHook, executable: true, ct); }
+        catch (Exception ex) when (ex is ProcessStartException { } and not HostUnreachableException or IOException or UnauthorizedAccessException)
+        {
+            throw new GitException($"Não foi possível instalar o hook pre-push: {ex.Message}", -1);
+        }
     }
 
     public Task<Workspace> CreateWorktreeAsync(Project project, Guid workItemId, CancellationToken ct,

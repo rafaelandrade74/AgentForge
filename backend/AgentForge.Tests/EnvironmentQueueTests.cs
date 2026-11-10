@@ -103,6 +103,7 @@ public sealed class TestMachine(string scratch) : IProcessLauncher
     public Task<bool> DirectoryExistsAsync(string path, CancellationToken ct) { Check(); return _inner.DirectoryExistsAsync(path, ct); }
     public Task CreateDirectoryAsync(string path, CancellationToken ct) { Check(); return _inner.CreateDirectoryAsync(path, ct); }
     public Task DeleteDirectoryAsync(string path, CancellationToken ct) { Check(); return _inner.DeleteDirectoryAsync(path, ct); }
+    public Task WriteFileAsync(string path, string content, bool executable, CancellationToken ct) { Check(); return _inner.WriteFileAsync(path, content, executable, ct); }
 }
 
 /// <summary>Ambientes de teste: cada um é uma <see cref="TestMachine"/> com a sua pasta de clones.</summary>

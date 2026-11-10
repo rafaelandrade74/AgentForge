@@ -25,7 +25,7 @@ public class PullRequestException(string message, int status = StatusCodes.Statu
 /// máquina do ambiente do projeto (onde está o clone), com o token do projeto e refspec fixo — só o branch da tarefa, nunca a base.
 /// </summary>
 public sealed partial class PullRequestService(
-    AppDbContext db, IWorkspaceManager workspaces, PushUrlProvider pushUrls, GitHubClient github, ILogger<PullRequestService> logger)
+    AppDbContext db, IWorkspaceManager workspaces, IPushUrlProvider pushUrls, GitHubClient github, ILogger<PullRequestService> logger)
 {
     [GeneratedRegex(@"^[A-Za-z0-9][A-Za-z0-9._/-]{0,199}$")]
     private static partial Regex BranchPattern();
@@ -58,10 +58,11 @@ public sealed partial class PullRequestService(
 
         var fullName = GitHubClient.ParseFullName(project.RepositoryUrl)
                        ?? throw new PullRequestException("Só é possível abrir PR de projetos hospedados no GitHub (github.com).");
-        var token = pushUrls.ReadToken(project);
+        var resolved = await pushUrls.ResolveAsync(project, ct);
+        var token = resolved.Token ?? throw new PullRequestException(resolved.Reason ?? "Cadastre o token do GitHub no projeto para abrir pull requests.");
 
         // 1) publica SÓ o branch da tarefa, a partir do clone da máquina do projeto
-        await PushToAsync(item, project, PushUrlProvider.Compose(project, token), ct);
+        await PushToAsync(item, project, resolved, ct);
 
         // 2) abre o PR
         PullRequestInfo pr;
@@ -105,9 +106,9 @@ public sealed partial class PullRequestService(
     public async Task PushBranchAsync(WorkItem item, Project project, CancellationToken ct) =>
         await PushToAsync(item, project, await pushUrls.ResolveAsync(project, ct), ct);
 
-    private async Task PushToAsync(WorkItem item, Project project, string? pushUrl, CancellationToken ct)
+    private async Task PushToAsync(WorkItem item, Project project, PushUrlResult resolved, CancellationToken ct)
     {
-        if (pushUrl is null) throw new PullRequestException(PushUrlProvider.UnavailableReason(project));
+        var pushUrl = resolved.Url ?? throw new PullRequestException(resolved.Reason ?? "Não há URL de push para o projeto.");
         try
         {
             await workspaces.PushTaskBranchAsync(project, item.Id, pushUrl, ct);

@@ -1,4 +1,3 @@
-using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
 using AgentForge.Domain;
@@ -26,14 +25,10 @@ public class PullRequestException(string message, int status = StatusCodes.Statu
 /// máquina do ambiente do projeto (onde está o clone), com o token do projeto e refspec fixo — só o branch da tarefa, nunca a base.
 /// </summary>
 public sealed partial class PullRequestService(
-    AppDbContext db, IWorkspaceManager workspaces, ISecretProtector protector, GitHubClient github, ILogger<PullRequestService> logger)
+    AppDbContext db, IWorkspaceManager workspaces, IPushUrlProvider pushUrls, GitHubClient github, ILogger<PullRequestService> logger)
 {
     [GeneratedRegex(@"^[A-Za-z0-9][A-Za-z0-9._/-]{0,199}$")]
     private static partial Regex BranchPattern();
-
-    /// <summary>Repositório acessado por SSH (git@... ou ssh://): o push usa a mesma chave do clone, sem token.</summary>
-    public static bool UsesSsh(Project project) =>
-        project.RepositoryUrl.StartsWith("git@", StringComparison.Ordinal) || project.RepositoryUrl.StartsWith("ssh://", StringComparison.Ordinal);
 
     public static bool IsValidBranchName(string? name) =>
         name is not null && BranchPattern().IsMatch(name) && !name.Contains("..") && !name.EndsWith('/') && !name.EndsWith(".lock") && !name.Contains("//");
@@ -63,10 +58,11 @@ public sealed partial class PullRequestService(
 
         var fullName = GitHubClient.ParseFullName(project.RepositoryUrl)
                        ?? throw new PullRequestException("Só é possível abrir PR de projetos hospedados no GitHub (github.com).");
-        var token = ReadToken(project);
+        var resolved = await pushUrls.ResolveAsync(project, ct);
+        var token = resolved.Token ?? throw new PullRequestException(resolved.Reason ?? "Cadastre o token do GitHub no projeto para abrir pull requests.");
 
         // 1) publica SÓ o branch da tarefa, a partir do clone da máquina do projeto
-        await PushBranchAsync(item, project, ct);
+        await PushToAsync(item, project, resolved, ct);
 
         // 2) abre o PR
         PullRequestInfo pr;
@@ -107,20 +103,12 @@ public sealed partial class PullRequestService(
     /// Empurra SÓ o branch da tarefa (refspec fixo) para o GitHub, pela máquina do ambiente do projeto, e registra em
     /// <c>PushedAt</c>. Vale tanto para o botão "Abrir PR" quanto para a publicação automática ao concluir a tarefa.
     /// </summary>
-    public async Task PushBranchAsync(WorkItem item, Project project, CancellationToken ct)
+    public async Task PushBranchAsync(WorkItem item, Project project, CancellationToken ct) =>
+        await PushToAsync(item, project, await pushUrls.ResolveAsync(project, ct), ct);
+
+    private async Task PushToAsync(WorkItem item, Project project, PushUrlResult resolved, CancellationToken ct)
     {
-        // SSH: empurra para a URL SSH do projeto, com a mesma chave do clone/pull (sem token). HTTPS: precisa do token do projeto na URL de push.
-        string pushUrl;
-        if (UsesSsh(project))
-        {
-            pushUrl = project.RepositoryUrl.Trim();
-        }
-        else
-        {
-            var fullName = GitHubClient.ParseFullName(project.RepositoryUrl)
-                           ?? throw new PullRequestException("Só é possível publicar projetos hospedados no GitHub (github.com).");
-            pushUrl = $"https://x-access-token:{ReadToken(project)}@github.com/{fullName}.git";
-        }
+        var pushUrl = resolved.Url ?? throw new PullRequestException(resolved.Reason ?? "Não há URL de push para o projeto.");
         try
         {
             await workspaces.PushTaskBranchAsync(project, item.Id, pushUrl, ct);
@@ -143,20 +131,6 @@ public sealed partial class PullRequestService(
         item.PushError = null;
         await db.SaveChangesAsync(CancellationToken.None);
         logger.LogInformation("Branch da tarefa {Task} publicado no GitHub", item.Id);
-    }
-
-    private string ReadToken(Project project)
-    {
-        if (string.IsNullOrEmpty(project.ProtectedGitHubToken))
-            throw new PullRequestException("Cadastre o token do GitHub no projeto (Editar projeto → Token do GitHub para PRs) para abrir pull requests.");
-        try
-        {
-            return protector.Unprotect(project.ProtectedGitHubToken);
-        }
-        catch (CryptographicException)
-        {
-            throw new PullRequestException("Não foi possível ler o token do GitHub guardado (a chave de proteção mudou?). Edite o projeto e informe o token de novo.");
-        }
     }
 
     private static string ExplainPushFailure(string gitMessage) =>

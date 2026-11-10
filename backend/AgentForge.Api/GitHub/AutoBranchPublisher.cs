@@ -18,13 +18,6 @@ public sealed class AutoBranchPublisher(AppDbContext db, PullRequestService pull
         if (item is null || item.State != WorkItemState.Done || item.PushedAt is not null) return;
 
         var project = await db.Projects.FirstAsync(p => p.Id == db.Demands.First(d => d.Id == item.DemandId).ProjectId, ct);
-        if (!PullRequestService.UsesSsh(project) && project.ProtectedGitHubToken.Length == 0)
-        {
-            item.PushError = "Branch não publicado: o projeto usa HTTPS; cadastre o token do GitHub no projeto (ou use a URL SSH com a chave da tela Git).";
-            await db.SaveChangesAsync(CancellationToken.None);
-            return;
-        }
-
         try
         {
             await pullRequests.PushBranchAsync(item, project, ct);

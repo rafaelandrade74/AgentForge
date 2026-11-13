@@ -337,7 +337,7 @@ vazios, anulariam o padrão do código (defina-os só se quiser mudar). Os segre
 | `Agents:Launcher` | `local` | `local` ou `host` (ver acima) |
 | `Agents:HostAgent:Url`, `:Token` | vazio | Obrigatórios com `host`: endereço do host agent visto pela API e segredo compartilhado (mínimo de 24 caracteres) |
 | `Workspaces:Root` | `/data/repos` | Onde ficam os clones e worktrees; é um caminho do lado onde o git roda (no modo `host`, do computador) |
-| `Git:SshDir` | `~/.agentforge/ssh` (Docker: `/home/app/.ssh`) | Pasta da chave SSH gerada pelo AgentForge |
+| `Git:SshDir` | `~/.agentforge/ssh` (Docker: `/home/app/.agentforge/ssh`) | Pasta da chave SSH gerada pelo AgentForge |
 | `Orchestrator:MaxConcurrency` | `1` | Teto global de tarefas simultâneas (cada ambiente tem o seu limite) |
 | `Orchestrator:EnvironmentRetryInitialSeconds`, `:EnvironmentRetryMaxSeconds` | `15`, `300` | Espera antes de tentar de novo quando a máquina de um ambiente não responde (dobra até o máximo) |
 | `GitHub:ApiUrl` | `https://api.github.com` | Base da API do GitHub (muda para GitHub Enterprise ou testes) |

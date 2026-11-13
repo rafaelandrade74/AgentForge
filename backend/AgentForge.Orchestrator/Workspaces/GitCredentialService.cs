@@ -9,7 +9,7 @@ public class GitOptions
 
     /// <summary>
     /// Pasta da chave SSH que o AgentForge gera (id_ed25519, id_ed25519.pub e known_hosts). No Docker é o volume
-    /// montado em /home/app/.ssh; fora dele, uma pasta própria do AgentForge (nunca o ~/.ssh do usuário).
+    /// montado em /home/app/.agentforge/ssh; fora dele, ~/.agentforge/ssh (nunca o ~/.ssh do usuário).
     /// </summary>
     public string SshDir { get; set; } = DefaultSshDir();
 

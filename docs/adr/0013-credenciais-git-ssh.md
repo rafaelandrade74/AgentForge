@@ -7,7 +7,7 @@ No modo 2 (git dentro do container) não há credenciais prontas; clonar reposit
 ## Decisão
 - Tela **Git** (`/git`) e endpoints `/api/git/ssh` (estado, `generate`, remover, `test`), só com o login (um token do MCP não
   gera nem apaga chaves). `GitCredentialService` gera uma chave **ed25519 sem passphrase** com `ssh-keygen` (pasta `Git:SshDir`:
-  volume `git-ssh` em `/home/app/.ssh` no Docker; `~/.agentforge/ssh` fora dele, **nunca** o `~/.ssh` do usuário), com
+  volume `git-ssh` em `/home/app/.agentforge/ssh` no Docker; `~/.agentforge/ssh` fora dele, **nunca** o `~/.ssh` do usuário), com
   permissões 600 (chave) e 700 (pasta). **Só a pública é devolvida**, com a impressão digital; a privada nunca sai do servidor
   nem é registrada em log. Gerar de novo exige `overwrite` explícito (a tela confirma); remover apaga os arquivos.
 - O `LocalProcessLauncher` define `GIT_SSH_COMMAND` **apenas para o `git`** e **apenas quando a chave existe**:

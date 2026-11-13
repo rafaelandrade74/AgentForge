@@ -35,7 +35,7 @@ services:
       Auth__JwtSecret: ${JWT_SECRET:?defina JWT_SECRET no .env (cp .env.example .env)}
       Orchestrator__MaxConcurrency: ${ORCHESTRATOR_CONCURRENCY:-1}
       Swagger__Enabled: ${SWAGGER_ENABLED:-true}
-      Git__SshDir: /home/app/.ssh
+      Git__SshDir: /home/app/.agentforge/ssh
       ASPNETCORE_FORWARDEDHEADERS_ENABLED: "true"
       # Login do Claude Code: pela tela "Agentes" da aplicação (link, sem chave) ou, se preferir, esta chave de API.
       # O login fica no volume claude-config. O backend só repassa o ambiente ao CLI; nunca lê nem guarda credenciais.
@@ -43,7 +43,7 @@ services:
     volumes:
       - repos:/data/repos
       # chave SSH gerada pela tela "Credenciais Git" (a privada fica aqui, nunca sai do servidor)
-      - git-ssh:/home/app/.ssh
+      - git-ssh:/home/app/.agentforge/ssh
       # chaves de proteção (Data Protection) dos tokens dos ambientes cadastrados; sem este volume os tokens se perdem
       - dp-keys:/home/app/.agentforge
       # volume nomeado por padrão; CLAUDE_CONFIG_SOURCE=<pasta do computador> reaproveita um login já existente (ver README)

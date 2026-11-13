@@ -1,7 +1,6 @@
-namespace AgentForge.Tests;
+namespace AgentForge.Tests.Integration;
 
-[Collection(PostgresCollection.Name)]
-public class HealthEndpointTests(PostgresFixture pg)
+public class HealthEndpointTests(PostgresFixture pg) : IClassFixture<PostgresFixture>
 {
     [IntegrationFact]
     public async Task Get_health_returns_200_without_token()

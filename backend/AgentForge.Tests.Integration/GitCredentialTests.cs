@@ -6,7 +6,7 @@ using System.Text.Json;
 using AgentForge.Execution;
 using AgentForge.Orchestrator.Workspaces;
 
-namespace AgentForge.Tests;
+namespace AgentForge.Tests.Integration;
 
 /// <summary>Os testes de geração de chave precisam do ssh-keygen (use a imagem backend/Dockerfile.tests); sem ele, são pulados.</summary>
 public sealed class SshFactAttribute : FactAttribute
@@ -150,8 +150,7 @@ public sealed class GitCredentialServiceTests : IDisposable
     }
 }
 
-[Collection(PostgresCollection.Name)]
-public sealed class GitEndpointsTests(PostgresFixture pg) : IAsyncLifetime
+public sealed class GitEndpointsTests(PostgresFixture pg) : IClassFixture<PostgresFixture>, IAsyncLifetime
 {
     private readonly string _dir = Path.Combine(Path.GetTempPath(), "af-ssh-api-" + Guid.NewGuid().ToString("N"));
     private ApiFactory _factory = null!;

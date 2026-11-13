@@ -8,7 +8,7 @@ using AgentForge.Api.GitHub;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Http;
 
-namespace AgentForge.Tests;
+namespace AgentForge.Tests.Integration;
 
 /// <summary>GitHub simulado: responde às rotas usadas e registra o que recebeu (inclusive o cabeçalho de autorização).</summary>
 public sealed class FakeGitHub(string cloneUrl) : HttpMessageHandler
@@ -85,8 +85,7 @@ public class GitHubParsingTests
     public void Parses_repository_references(string input, string? expected) => Assert.Equal(expected, GitHubClient.ParseFullName(input));
 }
 
-[Collection(PostgresCollection.Name)]
-public sealed class GitHubImportTests(PostgresFixture pg) : IAsyncLifetime
+public sealed class GitHubImportTests(PostgresFixture pg) : IClassFixture<PostgresFixture>, IAsyncLifetime
 {
     private readonly string _temp = Path.Combine(Path.GetTempPath(), "af-gh-" + Guid.NewGuid().ToString("N"));
     private string _origin = "";

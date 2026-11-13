@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using Npgsql;
 using Testcontainers.PostgreSql;
 
-namespace AgentForge.Tests;
+namespace AgentForge.Tests.Integration;
 
 /// <summary>Detecção estática de Postgres: variável de ambiente ou Docker acessível.</summary>
 public static class PostgresAvailability
@@ -24,14 +24,14 @@ public static class PostgresAvailability
         {
             using var proc = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
             {
-                FileName = "docker", Arguments = "info",
+                FileName = "docker", Arguments = "version --format '{{.Server.Version}}'",
                 RedirectStandardOutput = true, RedirectStandardError = true,
                 UseShellExecute = false, CreateNoWindow = true,
             });
             if (proc is not null)
             {
-                proc.WaitForExit(5000);
-                IsAvailable = proc.ExitCode == 0;
+                IsAvailable = proc.WaitForExit(10_000) && proc.ExitCode == 0;
+                if (!proc.HasExited) try { proc.Kill(); } catch { }
             }
         }
         catch
@@ -41,53 +41,68 @@ public static class PostgresAvailability
     }
 }
 
-/// <summary>Um único Postgres 16 para todos os testes de integração; cada classe cria o próprio banco dentro dele.</summary>
-public class PostgresFixture : IAsyncLifetime
+/// <summary>Singleton: um único Postgres 16 para todos os testes; cada classe cria o próprio banco.</summary>
+public static class SharedPostgres
 {
-    private static readonly string? External = Environment.GetEnvironmentVariable("AGENTFORGE_TEST_PG");
+    private static readonly SemaphoreSlim Lock = new(1, 1);
+    private static PostgreSqlContainer? _container;
+    private static string? _connectionString;
+    private static bool _initialized;
 
-    private PostgreSqlContainer? _container;
-    private string? _connectionString;
-
-    public bool Available => _connectionString is not null;
-
-    public async Task InitializeAsync()
+    public static async Task<string> GetConnectionStringAsync()
     {
-        if (!PostgresAvailability.IsAvailable) return;
-        if (External is not null)
-        {
-            _connectionString = External;
-            return;
-        }
+        if (_initialized) return _connectionString ?? throw new InvalidOperationException(PostgresAvailability.SkipReason);
+
+        await Lock.WaitAsync();
         try
         {
+            if (_initialized) return _connectionString ?? throw new InvalidOperationException(PostgresAvailability.SkipReason);
+
+            var external = Environment.GetEnvironmentVariable("AGENTFORGE_TEST_PG");
+            if (external is not null)
+            {
+                _connectionString = external;
+                _initialized = true;
+                return _connectionString;
+            }
+
             _container = new PostgreSqlBuilder().WithImage("postgres:16-alpine").WithCommand("-c", "max_connections=500").Build();
             await _container.StartAsync();
             _connectionString = _container.GetConnectionString();
+            _initialized = true;
+
+            AppDomain.CurrentDomain.ProcessExit += (_, _) =>
+            {
+                try { _container?.DisposeAsync().AsTask().GetAwaiter().GetResult(); } catch { }
+            };
+
+            return _connectionString;
         }
-        catch
+        finally
         {
-            _container = null;
-            _connectionString = null;
+            Lock.Release();
         }
     }
 
-    public Task DisposeAsync() => _container?.DisposeAsync().AsTask() ?? Task.CompletedTask;
-
-    public string NewConnectionString() =>
-        _connectionString is null
-            ? throw new InvalidOperationException(PostgresAvailability.SkipReason)
-            : new NpgsqlConnectionStringBuilder(_connectionString)
-            {
-                Database = "t_" + Guid.NewGuid().ToString("N"),
-                MaxPoolSize = 6, ConnectionIdleLifetime = 5, ConnectionPruningInterval = 1,
-            }.ConnectionString;
+    public static async Task<string> NewConnectionStringAsync()
+    {
+        var cs = await GetConnectionStringAsync();
+        return new NpgsqlConnectionStringBuilder(cs)
+        {
+            Database = "t_" + Guid.NewGuid().ToString("N"),
+            MaxPoolSize = 6, ConnectionIdleLifetime = 5, ConnectionPruningInterval = 1,
+        }.ConnectionString;
+    }
 }
 
-[CollectionDefinition(Name)]
-public class PostgresCollection : ICollectionFixture<PostgresFixture>
+/// <summary>Wrapper por classe — delega ao singleton SharedPostgres; permite IClassFixture injeção.</summary>
+public class PostgresFixture : IAsyncLifetime
 {
-    public const string Name = "postgres";
+    public Task InitializeAsync() => PostgresAvailability.IsAvailable ? SharedPostgres.GetConnectionStringAsync() : Task.CompletedTask;
+    public Task DisposeAsync() => Task.CompletedTask;
+
+    public string NewConnectionString() =>
+        SharedPostgres.NewConnectionStringAsync().GetAwaiter().GetResult();
 }
 
 /// <summary>Fact que skippa automaticamente quando Postgres não está disponível.</summary>

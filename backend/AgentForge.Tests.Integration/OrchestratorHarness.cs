@@ -10,7 +10,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
-namespace AgentForge.Tests;
+namespace AgentForge.Tests.Integration;
 
 /// <summary>
 /// CLI falso para o orquestrador: cada papel responde com um trecho de shell que imprime "result:{json}".

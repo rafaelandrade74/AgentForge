@@ -11,11 +11,10 @@ using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.EntityFrameworkCore;
 
-namespace AgentForge.Tests;
+namespace AgentForge.Tests.Integration;
 
 /// <summary>API completa (HTTP + SignalR) com o orquestrador real e um CLI falso. Só roda em Linux/macOS.</summary>
-[Collection(PostgresCollection.Name)]
-public sealed class RunsHubTests(PostgresFixture pg) : IAsyncLifetime
+public sealed class RunsHubTests(PostgresFixture pg) : IClassFixture<PostgresFixture>, IAsyncLifetime
 {
     private record Received(long AtMs, string Method, JsonElement Payload);
 

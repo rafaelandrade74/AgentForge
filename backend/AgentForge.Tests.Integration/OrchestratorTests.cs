@@ -3,11 +3,10 @@ using AgentForge.Orchestrator.Workflow;
 using AgentForge.Orchestrator.Workspaces;
 using Microsoft.EntityFrameworkCore;
 
-namespace AgentForge.Tests;
+namespace AgentForge.Tests.Integration;
 
 /// <summary>Fluxo completo com Postgres real, git real e um CLI falso (sh). Só roda em Linux/macOS.</summary>
-[Collection(PostgresCollection.Name)]
-public sealed class OrchestratorTests(PostgresFixture pg) : IAsyncLifetime
+public sealed class OrchestratorTests(PostgresFixture pg) : IClassFixture<PostgresFixture>, IAsyncLifetime
 {
     private readonly string _temp = Path.Combine(Path.GetTempPath(), "af-orch-" + Guid.NewGuid().ToString("N"));
     private string _origin = "";
@@ -333,11 +332,11 @@ public sealed class OrchestratorTests(PostgresFixture pg) : IAsyncLifetime
     }
 
     [PosixFact]
-    public async Task Conflicting_dependencies_block_the_dependent_task_with_a_clear_reason()
+    public async Task Conflicting_merges_into_demand_branch_do_not_block_dependent_tasks()
     {
-        var h = await StartAsync();
+        var h = await StartAsync(concurrency: 2);
         h.Adapter.PlanJson = """{"tasks":[{"key":"a","title":"Tarefa A","dependsOn":[]},{"key":"b","title":"Tarefa B","dependsOn":[]},{"key":"c","title":"Tarefa C","dependsOn":["a","b"]}]}""";
-        // A e B escrevem o mesmo arquivo com conteúdos diferentes: C não consegue combiná-los
+        // A e B escrevem o mesmo arquivo: o merge de B no demand branch conflita, mas C segue do demand branch
         h.Adapter.DevShell = req =>
         {
             var slug = new string(req.Prompt.Split('\n')[0].Where(char.IsLetterOrDigit).ToArray());
@@ -346,13 +345,12 @@ public sealed class OrchestratorTests(PostgresFixture pg) : IAsyncLifetime
         var (_, demand) = await h.CreateDemandAsync(_origin, autoMode: true);
         await h.WithActions(x => x.StartDemandAsync(demand.Id));
 
-        Assert.True(await h.UntilItems(demand.Id, i => i.Count == 3 && i.Single(x => x.Title == "Tarefa C").State == WorkItemState.Blocked));
+        // Com demand branches, conflito no merge de B é logado como warning mas não bloqueia C
+        Assert.True(await h.UntilItems(demand.Id, i => i.Count == 3 && i.All(x => x.State == WorkItemState.Done)), "todas Done");
 
-        var c = await Item(h, demand.Id, "Tarefa C");
-        Assert.Contains("Conflito", c.BlockedReason);
         Assert.Equal(WorkItemState.Done, (await Item(h, demand.Id, "Tarefa A")).State);
         Assert.Equal(WorkItemState.Done, (await Item(h, demand.Id, "Tarefa B")).State);
-        Assert.Equal(0, h.Adapter.Requests.Count(r => r.Role == AgentRole.Dev && r.Prompt.Contains("Tarefa: Tarefa C")));   // nenhum agente rodou
+        Assert.Equal(WorkItemState.Done, (await Item(h, demand.Id, "Tarefa C")).State);
     }
     [PosixFact]
     public async Task Dependent_task_waits_for_its_dependency_even_after_plan_approval()

@@ -17,6 +17,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AgentForge.Execution", "Age
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AgentForge.HostAgent", "AgentForge.HostAgent\AgentForge.HostAgent.csproj", "{4F8E526C-9C1C-4AEB-AB66-148E99B1AABF}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AgentForge.Tests.Integration", "AgentForge.Tests.Integration\AgentForge.Tests.Integration.csproj", "{68B45A4A-EE1E-4EF6-8544-ACA86B96D0C5}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -111,6 +113,18 @@ Global
 		{4F8E526C-9C1C-4AEB-AB66-148E99B1AABF}.Release|x64.Build.0 = Release|Any CPU
 		{4F8E526C-9C1C-4AEB-AB66-148E99B1AABF}.Release|x86.ActiveCfg = Release|Any CPU
 		{4F8E526C-9C1C-4AEB-AB66-148E99B1AABF}.Release|x86.Build.0 = Release|Any CPU
+		{68B45A4A-EE1E-4EF6-8544-ACA86B96D0C5}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{68B45A4A-EE1E-4EF6-8544-ACA86B96D0C5}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{68B45A4A-EE1E-4EF6-8544-ACA86B96D0C5}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{68B45A4A-EE1E-4EF6-8544-ACA86B96D0C5}.Debug|x64.Build.0 = Debug|Any CPU
+		{68B45A4A-EE1E-4EF6-8544-ACA86B96D0C5}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{68B45A4A-EE1E-4EF6-8544-ACA86B96D0C5}.Debug|x86.Build.0 = Debug|Any CPU
+		{68B45A4A-EE1E-4EF6-8544-ACA86B96D0C5}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{68B45A4A-EE1E-4EF6-8544-ACA86B96D0C5}.Release|Any CPU.Build.0 = Release|Any CPU
+		{68B45A4A-EE1E-4EF6-8544-ACA86B96D0C5}.Release|x64.ActiveCfg = Release|Any CPU
+		{68B45A4A-EE1E-4EF6-8544-ACA86B96D0C5}.Release|x64.Build.0 = Release|Any CPU
+		{68B45A4A-EE1E-4EF6-8544-ACA86B96D0C5}.Release|x86.ActiveCfg = Release|Any CPU
+		{68B45A4A-EE1E-4EF6-8544-ACA86B96D0C5}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

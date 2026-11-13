@@ -9,15 +9,14 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 
-namespace AgentForge.Tests;
+namespace AgentForge.Tests.Integration;
 
 /// <summary>
 /// Fase 11: credenciais Git e login do agente POR AMBIENTE. Cada "máquina" é um host agent de verdade, em processo, com a
 /// própria pasta de chave SSH; o ambiente padrão é o servidor, com a pasta Git:SshDir. Os testes de chave precisam do
 /// ssh-keygen (imagem backend/Dockerfile.tests) e, como todo teste de host agent, de Linux/macOS.
 /// </summary>
-[Collection(PostgresCollection.Name)]
-public sealed class EnvironmentCredentialTests(PostgresFixture pg) : IAsyncLifetime
+public sealed class EnvironmentCredentialTests(PostgresFixture pg) : IClassFixture<PostgresFixture>, IAsyncLifetime
 {
     private const string TokenA = "token-da-maquina-a-com-mais-de-24-caracteres";
     private const string TokenB = "token-da-maquina-b-com-mais-de-24-caracteres";

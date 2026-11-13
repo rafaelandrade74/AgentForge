@@ -7,10 +7,9 @@ using AgentForge.Domain;
 using AgentForge.Infrastructure.Persistence;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace AgentForge.Tests;
+namespace AgentForge.Tests.Integration;
 
-[Collection(PostgresCollection.Name)]
-public sealed class McpTests(PostgresFixture pg) : IAsyncLifetime
+public sealed class McpTests(PostgresFixture pg) : IClassFixture<PostgresFixture>, IAsyncLifetime
 {
     private ApiFactory _factory = null!;
     private HttpClient _jwt = null!;       // logado (JWT)
@@ -223,7 +222,7 @@ public sealed class McpTests(PostgresFixture pg) : IAsyncLifetime
         [
             "list_projects", "get_project", "create_project", "create_demand", "start_demand", "approve_plan", "get_demand",
             "list_tasks", "get_task", "get_task_diff", "get_run_output", "approve_task", "reject_task", "retry_task",
-            "cancel_task", "list_pending_actions", "list_agents", "test_agent", "get_environment_load", "open_pull_request", "update_project",
+            "cancel_task", "list_pending_actions", "list_agents", "test_agent", "get_environment_load", "open_demand_pull_request", "open_pull_request", "update_project",
         ];
         Assert.Equal(expected.Order(), byName.Keys.Order());
         foreach (var tool in byName.Values)

@@ -3,11 +3,10 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 
-namespace AgentForge.Tests;
+namespace AgentForge.Tests.Integration;
 
 /// <summary>API do ambiente por papel e da concorrência/carga por ambiente (fase 13).</summary>
-[Collection(PostgresCollection.Name)]
-public sealed class EnvironmentRolesApiTests(PostgresFixture pg) : IAsyncLifetime
+public sealed class EnvironmentRolesApiTests(PostgresFixture pg) : IClassFixture<PostgresFixture>, IAsyncLifetime
 {
     private readonly string _temp = Path.Combine(Path.GetTempPath(), "af-roles-" + Guid.NewGuid().ToString("N"));
     private Factory _factory = null!;

@@ -1,10 +1,9 @@
 using AgentForge.Domain;
 using Microsoft.EntityFrameworkCore;
 
-namespace AgentForge.Tests;
+namespace AgentForge.Tests.Integration;
 
-[Collection(PostgresCollection.Name)]
-public class RepositoryTests(PostgresFixture pg)
+public class RepositoryTests(PostgresFixture pg) : IClassFixture<PostgresFixture>
 {
     [IntegrationFact]
     public async Task Persists_full_graph_and_reads_it_back()

@@ -4,7 +4,7 @@ using AgentForge.Orchestrator.Agents;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 
-namespace AgentForge.Tests;
+namespace AgentForge.Tests.Integration;
 
 /// <summary>Os testes do runner usam `sh` como CLI falso; só rodam em Linux/macOS (CI e container).</summary>
 public sealed class PosixFactAttribute : FactAttribute
@@ -50,8 +50,7 @@ public class CollectingPublisher : IAgentEventPublisher
     }
 }
 
-[Collection(PostgresCollection.Name)]
-public class AgentRunnerTests(PostgresFixture pg)
+public class AgentRunnerTests(PostgresFixture pg) : IClassFixture<PostgresFixture>
 {
     private static AgentRequest Request(string prompt = "oi", TimeSpan? timeout = null) =>
         new(AgentRole.Dev, prompt, Path.GetTempPath(), "fake", Timeout: timeout);

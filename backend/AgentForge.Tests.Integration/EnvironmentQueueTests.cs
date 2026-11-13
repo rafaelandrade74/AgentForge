@@ -6,7 +6,7 @@ using AgentForge.Orchestrator.Workflow;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace AgentForge.Tests;
+namespace AgentForge.Tests.Integration;
 
 public class EnvironmentGateTests
 {
@@ -129,8 +129,7 @@ public sealed class TestEnvironments(string temp) : IEnvironmentLaunchers
     public EnvironmentTarget ForEnvironment(ExecutionEnvironment environment) => ResolveAsync(environment.Id, default).Result;
 }
 
-[Collection(PostgresCollection.Name)]
-public sealed class EnvironmentQueueTests(PostgresFixture pg) : IAsyncLifetime
+public sealed class EnvironmentQueueTests(PostgresFixture pg) : IClassFixture<PostgresFixture>, IAsyncLifetime
 {
     private readonly string _temp = Path.Combine(Path.GetTempPath(), "af-queue-" + Guid.NewGuid().ToString("N"));
     private string _origin = "";
@@ -349,7 +348,8 @@ public sealed class EnvironmentQueueTests(PostgresFixture pg) : IAsyncLifetime
         h.Services.GetRequiredService<IWorkQueue>().EnqueueWorkItem(taskId);
 
         Assert.True(await h.UntilItems(demand.Id, items => items.All(i => i.State == WorkItemState.Done), 90), "conclui");
-        Assert.Equal([taskId], publisher.Published.ToArray());               // publicou uma vez, só depois de concluída
+        Assert.True(await OrchestratorHarness.UntilAsync(() => Task.FromResult(!publisher.PublishedDemands.IsEmpty), 10), "publicou o branch da demanda");
+        Assert.Equal([demand.Id], publisher.PublishedDemands.ToArray());
     }
 
     [PosixFact]

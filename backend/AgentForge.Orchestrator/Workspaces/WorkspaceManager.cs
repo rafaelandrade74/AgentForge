@@ -221,6 +221,8 @@ public class WorkspaceManager(IOptions<WorkspaceOptions> options, IEnvironmentLa
                 return new Workspace(dir, branch, baseCommit ?? await MergeBaseAsync(t, repo, project, branch, ct));
             }
 
+            if (!await BranchExistsAsync(t, repo, demandBranch, ct))
+                await Git(t, repo, ["branch", demandBranch, $"origin/{project.BaseBranch}"], ct);
             await Git(t, repo, ["worktree", "add", "-b", branch, dir, demandBranch], ct);
             return new Workspace(dir, branch, (await Git(t, dir, ["rev-parse", "HEAD"], ct)).Trim());
         });

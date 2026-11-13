@@ -8,7 +8,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
-namespace AgentForge.Tests;
+namespace AgentForge.Tests.Integration;
 
 /// <summary>CLI falso com conta: "login" só funciona com o código certo e grava um arquivo de estado.</summary>
 public sealed class FakeAccountAdapter(string stateFile, string executable = "sh") : ICliAgentAdapter, ICliAgentAccount
@@ -37,8 +37,7 @@ public sealed class FakeAccountAdapter(string stateFile, string executable = "sh
         new(stdoutLines.LastOrDefault(l => l.StartsWith("result:"))?[7..] ?? "", null, 0.01m, exitCode != 0);
 }
 
-[Collection(PostgresCollection.Name)]
-public sealed class AgentCliServiceTests(PostgresFixture pg) : IAsyncLifetime
+public sealed class AgentCliServiceTests(PostgresFixture pg) : IClassFixture<PostgresFixture>, IAsyncLifetime
 {
     private readonly string _temp = Path.Combine(Path.GetTempPath(), "af-agent-" + Guid.NewGuid().ToString("N"));
     private string State => Path.Combine(_temp, "logado");
@@ -267,8 +266,7 @@ public class ClaudeCodeAccountParsingTests
     }
 }
 
-[Collection(PostgresCollection.Name)]
-public sealed class AgentEndpointsTests(PostgresFixture pg) : IAsyncLifetime
+public sealed class AgentEndpointsTests(PostgresFixture pg) : IClassFixture<PostgresFixture>, IAsyncLifetime
 {
     private ApiFactory _factory = null!;
     private HttpClient _http = null!;

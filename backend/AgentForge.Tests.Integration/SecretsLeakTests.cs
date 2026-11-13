@@ -6,7 +6,7 @@ using AgentForge.Execution;
 using AgentForge.Orchestrator.Workspaces;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace AgentForge.Tests;
+namespace AgentForge.Tests.Integration;
 
 public class SecretsTests
 {
@@ -89,8 +89,7 @@ public sealed class SkippableLinuxFactAttribute : FactAttribute
     }
 }
 
-[Collection(PostgresCollection.Name)]
-public sealed class ProjectUrlCredentialTests(PostgresFixture pg) : IAsyncLifetime
+public sealed class ProjectUrlCredentialTests(PostgresFixture pg) : IClassFixture<PostgresFixture>, IAsyncLifetime
 {
     private const string WithToken = "https://ghp_segredo123@github.com/org/repo.git";
     private const string Masked = "https://***@github.com/org/repo.git";
@@ -169,8 +168,7 @@ public sealed class ProjectUrlCredentialTests(PostgresFixture pg) : IAsyncLifeti
     }
 }
 
-[Collection(PostgresCollection.Name)]
-public sealed class LoginRateLimitTests(PostgresFixture pg)
+public sealed class LoginRateLimitTests(PostgresFixture pg) : IClassFixture<PostgresFixture>
 {
     [IntegrationFact]
     public async Task Too_many_login_attempts_from_the_same_address_get_429_even_with_the_right_password()

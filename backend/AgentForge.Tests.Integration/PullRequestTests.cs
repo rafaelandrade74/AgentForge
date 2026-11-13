@@ -11,14 +11,13 @@ using AgentForge.Orchestrator.Workspaces;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace AgentForge.Tests;
+namespace AgentForge.Tests.Integration;
 
 /// <summary>
 /// Pull request da tarefa concluída: o servidor publica SÓ o branch da tarefa e abre o PR no GitHub (simulado) para a branch de destino
 /// do projeto. O "GitHub" do git é um repositório bare local: um `insteadOf` redireciona https://github.com/ (e a URL com o token) para ele.
 /// </summary>
-[Collection(PostgresCollection.Name)]
-public sealed class PullRequestTests(PostgresFixture pg) : IAsyncLifetime
+public sealed class PullRequestTests(PostgresFixture pg) : IClassFixture<PostgresFixture>, IAsyncLifetime
 {
     private readonly string _temp = Path.Combine(Path.GetTempPath(), "af-pr-" + Guid.NewGuid().ToString("N"));
     private string Remote => Path.Combine(_temp, "gitserver", "octo", "privado.git");
@@ -85,7 +84,10 @@ public sealed class PullRequestTests(PostgresFixture pg) : IAsyncLifetime
     }
 
     /// <summary>Uma tarefa que já passou por tudo: branch com um commit de verdade no clone do projeto, worktree removido, estado Done.</summary>
-    private async Task<Guid> DoneTask(Guid projectId, WorkItemState state = WorkItemState.Done)
+    private async Task<Guid> DoneTask(Guid projectId, WorkItemState state = WorkItemState.Done) =>
+        (await DoneTaskWithDemand(projectId, state)).TaskId;
+
+    private async Task<(Guid TaskId, Guid DemandId)> DoneTaskWithDemand(Guid projectId, WorkItemState state = WorkItemState.Done)
     {
         await using var scope = _factory.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -102,9 +104,15 @@ public sealed class PullRequestTests(PostgresFixture pg) : IAsyncLifetime
         await GitCli.RunAsync(ws.Path, ["add", "."], default);
         await GitCli.RunAsync(ws.Path, ["-c", "user.name=t", "-c", "user.email=t@t", "commit", "-m", "feature"], default);
         await workspaces.RemoveWorktreeAsync(project, item.Id, deleteBranch: false, default);
+        await workspaces.MergeTaskIntoDemandAsync(project, demand.Id, item.Id, default);
         item.BranchName = ws.Branch;
+        if (state == WorkItemState.Done)
+        {
+            demand.Status = DemandStatus.Done;
+            demand.BranchName = WorkspaceManager.DemandBranchName(demand.Id);
+        }
         await db.SaveChangesAsync();
-        return item.Id;
+        return (item.Id, demand.Id);
     }
 
     /// <summary>Tarefa Done só no banco (sem clone): para os casos que a API recusa antes de chegar ao git.</summary>
@@ -500,19 +508,20 @@ public sealed class PullRequestTests(PostgresFixture pg) : IAsyncLifetime
         Assert.DoesNotContain(FakeGitHub.Token, updated.Text);
         Assert.True((await Tool(mcp, "update_project", new { projectId = id, pullRequestBaseBranch = "--x" })).IsError);
 
-        var task = await DoneTask(id);
+        var (task, demandId) = await DoneTaskWithDemand(id);
         var pending = await Tool(mcp, "list_pending_actions", new { });
-        Assert.Contains("open_pull_request", pending.Text);
-        Assert.Contains(task.ToString(), pending.Text);
+        Assert.Contains("open_demand_pull_request", pending.Text);
+        Assert.Contains(demandId.ToString(), pending.Text);
         Assert.Contains("develop", pending.Text);
 
-        var opened = await Tool(mcp, "open_pull_request", new { taskId = task });
+        var opened = await Tool(mcp, "open_demand_pull_request", new { demandId });
         Assert.False(opened.IsError, opened.Text);
         Assert.Equal("develop", JsonDocument.Parse(opened.Text).RootElement.GetProperty("baseBranch").GetString());
         Assert.Contains("pull/7", opened.Text);
-        Assert.DoesNotContain(task.ToString(), (await Tool(mcp, "list_pending_actions", new { })).Text.Split("readyForPullRequest")[1].Split("demandsNotStarted")[0]);
+        Assert.DoesNotContain(demandId.ToString(), (await Tool(mcp, "list_pending_actions", new { })).Text.Split("readyForPullRequest")[1].Split("demandsNotStarted")[0]);
 
-        var early = await Tool(mcp, "open_pull_request", new { taskId = await DoneTask(id, WorkItemState.Qa) });
+        var (_, earlyDemand) = await DoneTaskWithDemand(id, WorkItemState.Qa);
+        var early = await Tool(mcp, "open_demand_pull_request", new { demandId = earlyDemand });
         Assert.True(early.IsError);
         Assert.Contains("Done", early.Text);
     }

@@ -13,14 +13,13 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 
-namespace AgentForge.Tests;
+namespace AgentForge.Tests.Integration;
 
 /// <summary>
 /// Ambientes de execução (fase 10): uma "máquina remota" é um host agent de verdade, em processo, com a própria pasta
 /// de clones; o ambiente padrão é o processo da API. Só roda em Linux/macOS (o host agent do teste libera `sh`).
 /// </summary>
-[Collection(PostgresCollection.Name)]
-public sealed class EnvironmentTests(PostgresFixture pg) : IAsyncLifetime
+public sealed class EnvironmentTests(PostgresFixture pg) : IClassFixture<PostgresFixture>, IAsyncLifetime
 {
     private const string Token = "token-do-host-agent-com-mais-de-24-caracteres";
     private readonly string _temp = Path.Combine(Path.GetTempPath(), "af-env-" + Guid.NewGuid().ToString("N"));

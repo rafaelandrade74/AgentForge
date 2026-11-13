@@ -4,10 +4,9 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace AgentForge.Tests;
+namespace AgentForge.Tests.Integration;
 
-[Collection(PostgresCollection.Name)]
-public class CrudApiTests : IAsyncLifetime
+public class CrudApiTests : IClassFixture<PostgresFixture>, IAsyncLifetime
 {
     private readonly ApiFactory _factory;
     private HttpClient _http = null!;

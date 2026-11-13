@@ -3,7 +3,7 @@ using AgentForge.Orchestrator.Agents;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 
-namespace AgentForge.Tests;
+namespace AgentForge.Tests.Integration;
 
 public class ClaudeIntegrationFactAttribute : FactAttribute
 {

@@ -141,10 +141,14 @@ public class ApiFactory(string connectionString) : WebApplicationFactory<Program
 
 public static class Db
 {
+    private static readonly SemaphoreSlim MigrateLock = new(3, 3);
+
     public static async Task<AppDbContext> CreateAsync(string connectionString)
     {
         var db = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(connectionString).Options);
-        await db.Database.MigrateAsync();
+        await MigrateLock.WaitAsync();
+        try { await db.Database.MigrateAsync(); }
+        finally { MigrateLock.Release(); }
         return db;
     }
 }

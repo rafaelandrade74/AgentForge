@@ -11,6 +11,7 @@ using AgentForge.Infrastructure.Persistence;
 using AgentForge.Orchestrator;
 using AgentForge.Orchestrator.Agents;
 using AgentForge.Orchestrator.Workflow;
+using AgentForge.Orchestrator.Workspaces;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
@@ -128,6 +129,8 @@ using (var scope = app.Services.CreateScope())
     var promptsDir = app.Configuration["Prompts:Directory"] ?? Path.Combine(app.Environment.ContentRootPath, "prompts");
     await RoleConfigSeeder.SeedAsync(db, promptsDir);
     await StackProfileSeeder.SeedAsync(db);
+    var sshDir = app.Configuration.GetSection("Git")["SshDir"] ?? GitOptions.DefaultSshDir();
+    GitOptions.MigrateFromLegacyDir(sshDir);
 }
 
 if (app.Configuration.GetValue("Swagger:Enabled", true))

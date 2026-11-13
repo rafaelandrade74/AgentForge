@@ -18,6 +18,24 @@ public class GitOptions
         var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
         return Path.Combine(string.IsNullOrEmpty(home) ? Path.GetTempPath() : home, ".agentforge", "ssh");
     }
+
+    /// <summary>Move chaves do path antigo (~/.ssh) para o novo (~/.agentforge/ssh) se necessário.</summary>
+    public static void MigrateFromLegacyDir(string newDir)
+    {
+        if (File.Exists(Path.Combine(newDir, "id_ed25519"))) return;
+        var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        if (string.IsNullOrEmpty(home)) return;
+        var oldDir = Path.Combine(home, ".ssh");
+        var oldKey = Path.Combine(oldDir, "id_ed25519");
+        if (!File.Exists(oldKey)) return;
+
+        Directory.CreateDirectory(newDir);
+        foreach (var name in new[] { "id_ed25519", "id_ed25519.pub", "known_hosts" })
+        {
+            var src = Path.Combine(oldDir, name);
+            if (File.Exists(src)) File.Copy(src, Path.Combine(newDir, name), overwrite: false);
+        }
+    }
 }
 
 public record GitSshStatus(

@@ -3,7 +3,7 @@ namespace AgentForge.Tests;
 [Collection(PostgresCollection.Name)]
 public class HealthEndpointTests(PostgresFixture pg)
 {
-    [Fact]
+    [IntegrationFact]
     public async Task Get_health_returns_200_without_token()
     {
         await using var factory = new ApiFactory(pg.NewConnectionString());

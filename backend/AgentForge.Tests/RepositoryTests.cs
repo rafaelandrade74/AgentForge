@@ -6,7 +6,7 @@ namespace AgentForge.Tests;
 [Collection(PostgresCollection.Name)]
 public class RepositoryTests(PostgresFixture pg)
 {
-    [Fact]
+    [IntegrationFact]
     public async Task Persists_full_graph_and_reads_it_back()
     {
         var cs = pg.NewConnectionString();
@@ -30,7 +30,7 @@ public class RepositoryTests(PostgresFixture pg)
         Assert.Equal(3, (await read.ReviewFindings.SingleAsync()).Line);
     }
 
-    [Fact]
+    [IntegrationFact]
     public async Task Enums_are_stored_as_text()
     {
         await using var db = await Db.CreateAsync(pg.NewConnectionString());
@@ -44,7 +44,7 @@ public class RepositoryTests(PostgresFixture pg)
         Assert.Equal("InProgress", raw);
     }
 
-    [Fact]
+    [IntegrationFact]
     public async Task Deleting_project_cascades_to_demands_and_work_items()
     {
         await using var db = await Db.CreateAsync(pg.NewConnectionString());
@@ -59,7 +59,7 @@ public class RepositoryTests(PostgresFixture pg)
         Assert.Empty(await db.WorkItems.ToListAsync());
     }
 
-    [Fact]
+    [IntegrationFact]
     public async Task Role_config_role_is_unique()
     {
         await using var db = await Db.CreateAsync(pg.NewConnectionString());

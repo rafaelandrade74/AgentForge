@@ -87,7 +87,7 @@ public sealed class AgentCliServiceTests(PostgresFixture pg) : IAsyncLifetime
         Assert.True(info.SupportsLogin);
     }
 
-    [Fact]
+    [IntegrationFact]
     public async Task Missing_binary_is_reported_as_not_installed()
     {
         await using var provider = Build(new FakeAccountAdapter(State, executable: "binario-que-nao-existe-xyz"));
@@ -208,7 +208,7 @@ public sealed class AgentCliServiceTests(PostgresFixture pg) : IAsyncLifetime
         Assert.False(info.Authenticated);
     }
 
-    [Fact]
+    [IntegrationFact]
     public async Task Unknown_agent_is_rejected()
     {
         await Assert.ThrowsAsync<AgentNotFoundException>(() => Service.GetAsync("nao-existe", false, default));
@@ -288,7 +288,7 @@ public sealed class AgentEndpointsTests(PostgresFixture pg) : IAsyncLifetime
         return Task.CompletedTask;
     }
 
-    [Fact]
+    [IntegrationFact]
     public async Task Agent_endpoints_require_authentication()
     {
         var anonymous = _factory.CreateClient();
@@ -297,7 +297,7 @@ public sealed class AgentEndpointsTests(PostgresFixture pg) : IAsyncLifetime
         Assert.Equal(HttpStatusCode.Unauthorized, (await anonymous.PostAsync("/api/agents/claude-code/test", null)).StatusCode);
     }
 
-    [Fact]
+    [IntegrationFact]
     public async Task Lists_claude_code_with_the_roles_that_use_it()
     {
         var agents = await _http.GetFromJsonAsync<JsonElement>("/api/agents");
@@ -308,7 +308,7 @@ public sealed class AgentEndpointsTests(PostgresFixture pg) : IAsyncLifetime
         Assert.Equal(5, claude.GetProperty("usedByRoles").GetArrayLength());
     }
 
-    [Fact]
+    [IntegrationFact]
     public async Task Environment_tells_where_the_clis_run()
     {
         var env = await _http.GetFromJsonAsync<JsonElement>("/api/agents/environment");
@@ -317,7 +317,7 @@ public sealed class AgentEndpointsTests(PostgresFixture pg) : IAsyncLifetime
         Assert.NotEmpty(env.GetProperty("description").GetString()!);
     }
 
-    [Fact]
+    [IntegrationFact]
     public async Task Api_serves_the_built_frontend_when_configured_and_keeps_api_routes_404()
     {
         var dir = Path.Combine(Path.GetTempPath(), "af-spa-" + Guid.NewGuid().ToString("N"));
@@ -342,7 +342,7 @@ public sealed class AgentEndpointsTests(PostgresFixture pg) : IAsyncLifetime
         }
     }
 
-    [Fact]
+    [IntegrationFact]
     public async Task Unknown_agent_returns_404()
     {
         Assert.Equal(HttpStatusCode.NotFound, (await _http.GetAsync("/api/agents/nao-existe")).StatusCode);
@@ -351,7 +351,7 @@ public sealed class AgentEndpointsTests(PostgresFixture pg) : IAsyncLifetime
         Assert.Equal(HttpStatusCode.NotFound, (await _http.GetAsync("/api/agents/claude-code/login/sessao-inexistente")).StatusCode);
     }
 
-    [Fact]
+    [IntegrationFact]
     public async Task Role_config_only_accepts_registered_agents()
     {
         var configs = await _http.GetFromJsonAsync<JsonElement>("/api/role-configs");

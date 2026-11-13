@@ -140,7 +140,7 @@ public sealed class PullRequestTests(PostgresFixture pg) : IAsyncLifetime
 
     private async Task<JsonElement> Item(Guid task) => await _http.GetFromJsonAsync<JsonElement>($"/api/work-items/{task}");
 
-    [Fact]
+    [IntegrationFact]
     public async Task A_finished_task_has_its_branch_published_automatically_without_opening_a_pr_or_touching_the_base()
     {
         var project = await CreateProject(new { githubToken = FakeGitHub.Token });
@@ -170,7 +170,7 @@ public sealed class PullRequestTests(PostgresFixture pg) : IAsyncLifetime
         Assert.Equal(1, Pulls);
     }
 
-    [Fact]
+    [IntegrationFact]
     public async Task An_ssh_project_pushes_to_its_ssh_url_with_the_same_key_as_the_pull_and_needs_no_token()
     {
         var project = await CreateProject(url: "git@github.com:octo/privado.git");        // sem token do GitHub
@@ -194,7 +194,7 @@ public sealed class PullRequestTests(PostgresFixture pg) : IAsyncLifetime
         Assert.Equal(0, Pulls);
     }
 
-    [Fact]
+    [IntegrationFact]
     public async Task The_push_button_endpoint_publishes_a_done_task_and_recovers_from_an_earlier_failure()
     {
         var project = await CreateProject();                                 // sem token: a publicação automática registrou o erro
@@ -229,7 +229,7 @@ public sealed class PullRequestTests(PostgresFixture pg) : IAsyncLifetime
         Assert.DoesNotContain(FakeGitHub.Token, body.GetRawText());
     }
 
-    [Fact]
+    [IntegrationFact]
     public async Task The_push_button_endpoint_only_accepts_done_tasks_and_known_ids()
     {
         var project = await CreateProject(new { githubToken = FakeGitHub.Token });
@@ -240,7 +240,7 @@ public sealed class PullRequestTests(PostgresFixture pg) : IAsyncLifetime
         Assert.False(await GitOrigin.HasBranchAsync(Remote, $"agentforge/task-{waiting}"));
     }
 
-    [Fact]
+    [IntegrationFact]
     public async Task Without_a_github_token_the_branch_is_not_pushed_and_the_task_says_why()
     {
         var project = await CreateProject();                                 // sem token
@@ -255,7 +255,7 @@ public sealed class PullRequestTests(PostgresFixture pg) : IAsyncLifetime
         Assert.Equal("Done", item.GetProperty("state").GetString());          // continua concluída
     }
 
-    [Fact]
+    [IntegrationFact]
     public async Task A_failed_automatic_push_is_recorded_without_the_token_and_never_throws()
     {
         var project = await CreateProject(new { githubToken = FakeGitHub.Token });
@@ -270,7 +270,7 @@ public sealed class PullRequestTests(PostgresFixture pg) : IAsyncLifetime
         Assert.DoesNotContain(FakeGitHub.Token, error);
     }
 
-    [Fact]
+    [IntegrationFact]
     public async Task Only_a_done_task_is_ever_published()
     {
         var project = await CreateProject(new { githubToken = FakeGitHub.Token });
@@ -284,7 +284,7 @@ public sealed class PullRequestTests(PostgresFixture pg) : IAsyncLifetime
 
     // ------------------------------------------------------------------ fluxo feliz
 
-    [Fact]
+    [IntegrationFact]
     public async Task Pushes_only_the_task_branch_and_opens_the_pr_to_the_projects_target_branch()
     {
         var project = await CreateProject(new { githubToken = FakeGitHub.Token, pullRequestBaseBranch = "develop" });
@@ -325,7 +325,7 @@ public sealed class PullRequestTests(PostgresFixture pg) : IAsyncLifetime
         Assert.Equal(1, Pulls);
     }
 
-    [Fact]
+    [IntegrationFact]
     public async Task The_request_can_override_the_target_and_without_settings_the_base_branch_is_used()
     {
         var withTarget = await CreateProject(new { githubToken = FakeGitHub.Token, pullRequestBaseBranch = "develop" });
@@ -338,7 +338,7 @@ public sealed class PullRequestTests(PostgresFixture pg) : IAsyncLifetime
         Assert.Equal("main", fallback.GetProperty("baseBranch").GetString());
     }
 
-    [Fact]
+    [IntegrationFact]
     public async Task An_existing_open_pr_for_the_branch_is_returned_instead_of_failing()
     {
         var project = await CreateProject(new { githubToken = FakeGitHub.Token });
@@ -353,7 +353,7 @@ public sealed class PullRequestTests(PostgresFixture pg) : IAsyncLifetime
 
     // ------------------------------------------------------------------ recusas
 
-    [Fact]
+    [IntegrationFact]
     public async Task Only_finished_tasks_with_a_token_on_a_github_project_can_open_a_pr()
     {
         var withToken = await CreateProject(new { githubToken = FakeGitHub.Token });
@@ -378,7 +378,7 @@ public sealed class PullRequestTests(PostgresFixture pg) : IAsyncLifetime
         Assert.False(await GitOrigin.HasBranchAsync(Remote, "agentforge/*"));
     }
 
-    [Fact]
+    [IntegrationFact]
     public async Task When_github_refuses_the_pr_the_branch_stays_published_and_the_reason_is_shown()
     {
         var project = await CreateProject(new { githubToken = FakeGitHub.Token, pullRequestBaseBranch = "nao-existe" });
@@ -398,7 +398,7 @@ public sealed class PullRequestTests(PostgresFixture pg) : IAsyncLifetime
         Assert.Equal(HttpStatusCode.OK, (await OpenPr(task)).Status);
     }
 
-    [Fact]
+    [IntegrationFact]
     public async Task A_failed_push_never_leaks_the_token()
     {
         var project = await CreateProject(new { githubToken = FakeGitHub.Token });
@@ -420,7 +420,7 @@ public sealed class PullRequestTests(PostgresFixture pg) : IAsyncLifetime
 
     // ------------------------------------------------------------------ configuração do projeto
 
-    [Fact]
+    [IntegrationFact]
     public async Task The_token_is_stored_protected_never_returned_and_can_be_kept_replaced_or_cleared()
     {
         var project = await CreateProject(new { githubToken = FakeGitHub.Token, pullRequestBaseBranch = "develop" });
@@ -450,7 +450,7 @@ public sealed class PullRequestTests(PostgresFixture pg) : IAsyncLifetime
         Assert.Equal("", replaced.GetProperty("pullRequestBaseBranch").GetString());
     }
 
-    [Fact]
+    [IntegrationFact]
     public async Task Invalid_tokens_and_branch_names_are_rejected()
     {
         foreach (var bad in new object[]
@@ -483,7 +483,7 @@ public sealed class PullRequestTests(PostgresFixture pg) : IAsyncLifetime
         return mcp;
     }
 
-    [Fact]
+    [IntegrationFact]
     public async Task Through_mcp_the_target_branch_can_be_changed_and_the_pr_opened_but_the_token_cannot_be_set()
     {
         var mcp = await McpClient();
@@ -519,7 +519,7 @@ public sealed class PullRequestTests(PostgresFixture pg) : IAsyncLifetime
 
     // ------------------------------------------------------------------ git: o push é só do branch da tarefa
 
-    [Fact]
+    [IntegrationFact]
     public async Task Pushing_rejects_unsafe_urls_and_hides_the_credential_in_errors()
     {
         var project = await CreateProject(new { githubToken = FakeGitHub.Token });
@@ -537,7 +537,7 @@ public sealed class PullRequestTests(PostgresFixture pg) : IAsyncLifetime
         Assert.DoesNotContain("SEGREDO123456789012345", ex.Message);
     }
 
-    [Fact]
+    [IntegrationFact]
     public async Task IsBranchPublished_compara_o_sha_local_com_o_remoto_e_falha_sem_vazar()
     {
         var project = await CreateProject(new { githubToken = FakeGitHub.Token });

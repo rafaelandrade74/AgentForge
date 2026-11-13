@@ -7,32 +7,107 @@ using Testcontainers.PostgreSql;
 
 namespace AgentForge.Tests;
 
-/// <summary>Um único Postgres 16 para todos os testes; cada classe cria o próprio banco dentro dele.</summary>
+/// <summary>Detecção estática de Postgres: variável de ambiente ou Docker acessível.</summary>
+public static class PostgresAvailability
+{
+    public static readonly bool IsAvailable;
+    public static readonly string SkipReason = "Postgres não disponível (sem Docker e sem AGENTFORGE_TEST_PG).";
+
+    static PostgresAvailability()
+    {
+        if (Environment.GetEnvironmentVariable("AGENTFORGE_TEST_PG") is not null)
+        {
+            IsAvailable = true;
+            return;
+        }
+        try
+        {
+            using var proc = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = "docker", Arguments = "info",
+                RedirectStandardOutput = true, RedirectStandardError = true,
+                UseShellExecute = false, CreateNoWindow = true,
+            });
+            if (proc is not null)
+            {
+                proc.WaitForExit(5000);
+                IsAvailable = proc.ExitCode == 0;
+            }
+        }
+        catch
+        {
+            IsAvailable = false;
+        }
+    }
+}
+
+/// <summary>Um único Postgres 16 para todos os testes de integração; cada classe cria o próprio banco dentro dele.</summary>
 public class PostgresFixture : IAsyncLifetime
 {
-    // AGENTFORGE_TEST_PG (opcional): connection string de um Postgres já em execução, para ambientes sem Docker.
     private static readonly string? External = Environment.GetEnvironmentVariable("AGENTFORGE_TEST_PG");
 
-    private readonly PostgreSqlContainer? _container = External is null
-        ? new PostgreSqlBuilder().WithImage("postgres:16-alpine").WithCommand("-c", "max_connections=500").Build()
-        : null;
+    private PostgreSqlContainer? _container;
+    private string? _connectionString;
 
-    public Task InitializeAsync() => _container?.StartAsync() ?? Task.CompletedTask;
+    public bool Available => _connectionString is not null;
+
+    public async Task InitializeAsync()
+    {
+        if (!PostgresAvailability.IsAvailable) return;
+        if (External is not null)
+        {
+            _connectionString = External;
+            return;
+        }
+        try
+        {
+            _container = new PostgreSqlBuilder().WithImage("postgres:16-alpine").WithCommand("-c", "max_connections=500").Build();
+            await _container.StartAsync();
+            _connectionString = _container.GetConnectionString();
+        }
+        catch
+        {
+            _container = null;
+            _connectionString = null;
+        }
+    }
+
     public Task DisposeAsync() => _container?.DisposeAsync().AsTask() ?? Task.CompletedTask;
 
     public string NewConnectionString() =>
-        new NpgsqlConnectionStringBuilder(External ?? _container!.GetConnectionString())
-        {
-            Database = "t_" + Guid.NewGuid().ToString("N"),
-            // cada teste tem o seu banco (e o seu pool): pools pequenos e que se esvaziam rápido, para não estourar o servidor
-            MaxPoolSize = 6, ConnectionIdleLifetime = 5, ConnectionPruningInterval = 1,
-        }.ConnectionString;
+        _connectionString is null
+            ? throw new InvalidOperationException(PostgresAvailability.SkipReason)
+            : new NpgsqlConnectionStringBuilder(_connectionString)
+            {
+                Database = "t_" + Guid.NewGuid().ToString("N"),
+                MaxPoolSize = 6, ConnectionIdleLifetime = 5, ConnectionPruningInterval = 1,
+            }.ConnectionString;
 }
 
 [CollectionDefinition(Name)]
 public class PostgresCollection : ICollectionFixture<PostgresFixture>
 {
     public const string Name = "postgres";
+}
+
+/// <summary>Fact que skippa automaticamente quando Postgres não está disponível.</summary>
+public sealed class IntegrationFactAttribute : FactAttribute
+{
+    public IntegrationFactAttribute()
+    {
+        if (!PostgresAvailability.IsAvailable) Skip = PostgresAvailability.SkipReason;
+        else if (OperatingSystem.IsWindows()) Skip = "Requer Linux/macOS.";
+    }
+}
+
+/// <summary>Theory que skippa automaticamente quando Postgres não está disponível.</summary>
+public sealed class IntegrationTheoryAttribute : TheoryAttribute
+{
+    public IntegrationTheoryAttribute()
+    {
+        if (!PostgresAvailability.IsAvailable) Skip = PostgresAvailability.SkipReason;
+        else if (OperatingSystem.IsWindows()) Skip = "Requer Linux/macOS.";
+    }
 }
 
 public class ApiFactory(string connectionString) : WebApplicationFactory<Program>

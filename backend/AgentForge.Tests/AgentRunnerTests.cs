@@ -11,7 +11,8 @@ public sealed class PosixFactAttribute : FactAttribute
 {
     public PosixFactAttribute()
     {
-        if (OperatingSystem.IsWindows()) Skip = "Requer sh (Linux/macOS).";
+        if (!PostgresAvailability.IsAvailable) Skip = PostgresAvailability.SkipReason;
+        else if (OperatingSystem.IsWindows()) Skip = "Requer sh (Linux/macOS).";
     }
 }
 
@@ -161,7 +162,7 @@ public class AgentRunnerTests(PostgresFixture pg)
         Assert.Equal("key=[ausente] url=[https://exemplo.local]", events.Events.Single().Text);
     }
 
-    [Fact]
+    [IntegrationFact]
     public async Task Missing_executable_fails_instead_of_throwing()
     {
         var (runner, _, _) = await Create(new FakeCliAgentAdapter("", "executavel-que-nao-existe"));
@@ -172,7 +173,7 @@ public class AgentRunnerTests(PostgresFixture pg)
         Assert.Contains("executavel-que-nao-existe", result.Output);
     }
 
-    [Fact]
+    [IntegrationFact]
     public void Registry_rejects_unknown_adapter()
     {
         var registry = new AgentAdapterRegistry([new FakeCliAgentAdapter("")]);

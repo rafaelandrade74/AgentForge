@@ -126,7 +126,7 @@ public sealed class ProjectUrlCredentialTests(PostgresFixture pg) : IAsyncLifeti
         return JsonSerializer.Deserialize<JsonElement>(text).GetProperty("id").GetGuid();
     }
 
-    [Fact]
+    [IntegrationFact]
     public async Task The_api_never_returns_the_token_of_the_url_but_the_database_keeps_it()
     {
         var id = await CreateWithTokenAsync();
@@ -139,7 +139,7 @@ public sealed class ProjectUrlCredentialTests(PostgresFixture pg) : IAsyncLifeti
         Assert.Equal(WithToken, await StoredUrlAsync(id));
     }
 
-    [Fact]
+    [IntegrationFact]
     public async Task Saving_the_masked_url_back_keeps_the_stored_credential()
     {
         var id = await CreateWithTokenAsync();
@@ -151,7 +151,7 @@ public sealed class ProjectUrlCredentialTests(PostgresFixture pg) : IAsyncLifeti
         Assert.Equal("Renomeado", (await put.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("name").GetString());
     }
 
-    [Fact]
+    [IntegrationFact]
     public async Task A_new_url_replaces_it_and_a_masked_url_that_does_not_match_is_refused()
     {
         var id = await CreateWithTokenAsync();
@@ -172,7 +172,7 @@ public sealed class ProjectUrlCredentialTests(PostgresFixture pg) : IAsyncLifeti
 [Collection(PostgresCollection.Name)]
 public sealed class LoginRateLimitTests(PostgresFixture pg)
 {
-    [Fact]
+    [IntegrationFact]
     public async Task Too_many_login_attempts_from_the_same_address_get_429_even_with_the_right_password()
     {
         await using var factory = new ApiFactory(pg.NewConnectionString()).WithWebHostBuilder(b => b.UseSetting("Auth:LoginAttemptsPerMinute", "3"));
@@ -186,7 +186,7 @@ public sealed class LoginRateLimitTests(PostgresFixture pg)
         Assert.Equal(HttpStatusCode.TooManyRequests, blocked.StatusCode);
     }
 
-    [Fact]
+    [IntegrationFact]
     public async Task The_limit_can_be_turned_off_and_does_not_touch_other_routes()
     {
         await using var factory = new ApiFactory(pg.NewConnectionString()).WithWebHostBuilder(b => b.UseSetting("Auth:LoginAttemptsPerMinute", "0"));

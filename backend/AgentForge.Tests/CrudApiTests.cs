@@ -37,7 +37,7 @@ public class CrudApiTests : IAsyncLifetime
 
     private Task<Guid> NewProject() => CreateAsync("/api/projects", new { name = "P", repositoryUrl = "https://git/x.git" });
 
-    [Theory]
+    [IntegrationTheory]
     [InlineData("/api/projects")]
     [InlineData("/api/demands")]
     [InlineData("/api/work-items")]
@@ -51,7 +51,7 @@ public class CrudApiTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.Unauthorized, res.StatusCode);
     }
 
-    [Fact]
+    [IntegrationFact]
     public async Task Approvals_lists_only_deliveries_awaiting_approval_from_every_project()
     {
         var p1 = await CreateAsync("/api/projects", new { name = "Alfa", repositoryUrl = "https://git/a.git" });
@@ -75,13 +75,13 @@ public class CrudApiTests : IAsyncLifetime
         Assert.Equal("Beta", items.Single(i => i.GetProperty("id").GetGuid() == pendingB).GetProperty("project").GetString());
     }
 
-    [Fact]
+    [IntegrationFact]
     public async Task Approvals_is_empty_when_nothing_waits()
     {
         Assert.Empty((await _http.GetFromJsonAsync<JsonElement>("/api/approvals")).EnumerateArray());
     }
 
-    [Fact]
+    [IntegrationFact]
     public async Task Project_crud_roundtrip()
     {
         var id = await NewProject();
@@ -98,21 +98,21 @@ public class CrudApiTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.NotFound, after.StatusCode);
     }
 
-    [Fact]
+    [IntegrationFact]
     public async Task Project_without_name_returns_400()
     {
         var res = await _http.PostAsJsonAsync("/api/projects", new { name = "", repositoryUrl = "x" });
         Assert.Equal(HttpStatusCode.BadRequest, res.StatusCode);
     }
 
-    [Fact]
+    [IntegrationFact]
     public async Task Demand_for_unknown_project_returns_400()
     {
         var res = await _http.PostAsJsonAsync("/api/demands", new { projectId = Guid.NewGuid(), title = "x" });
         Assert.Equal(HttpStatusCode.BadRequest, res.StatusCode);
     }
 
-    [Fact]
+    [IntegrationFact]
     public async Task WorkItem_dependencies_and_enum_as_string()
     {
         var project = await NewProject();
@@ -132,7 +132,7 @@ public class CrudApiTests : IAsyncLifetime
         Assert.Equal(0, afterDel.GetProperty("dependsOnIds").GetArrayLength());
     }
 
-    [Fact]
+    [IntegrationFact]
     public async Task WorkItems_can_be_listed_by_project()
     {
         var p1 = await NewProject();
@@ -148,7 +148,7 @@ public class CrudApiTests : IAsyncLifetime
         Assert.Equal("do projeto 1", list[0].GetProperty("title").GetString());
     }
 
-    [Fact]
+    [IntegrationFact]
     public async Task Agent_run_list_is_lightweight_and_full_run_is_by_id()
     {
         var project = await NewProject();
@@ -173,7 +173,7 @@ public class CrudApiTests : IAsyncLifetime
         Assert.Equal("SAIDA", full.GetProperty("output").GetString());
     }
 
-    [Fact]
+    [IntegrationFact]
     public async Task Work_item_diff_endpoint_returns_text_or_404()
     {
         var project = await NewProject();
@@ -189,7 +189,7 @@ public class CrudApiTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.NotFound, missing.StatusCode);
     }
 
-    [Fact]
+    [IntegrationFact]
     public async Task Deleting_a_project_removes_the_whole_graph_even_with_dependencies_runs_and_findings()
     {
         var project = await NewProject();
@@ -212,7 +212,7 @@ public class CrudApiTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.NotFound, (await _http.GetAsync($"/api/demands/{demand}")).StatusCode);
     }
 
-    [Fact]
+    [IntegrationFact]
     public async Task Review_finding_crud()
     {
         var project = await NewProject();
@@ -228,7 +228,7 @@ public class CrudApiTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.NoContent, (await _http.DeleteAsync($"/api/review-findings/{id}")).StatusCode);
     }
 
-    [Fact]
+    [IntegrationFact]
     public async Task Role_configs_are_seeded_and_unique_per_role()
     {
         var list = await _http.GetFromJsonAsync<JsonElement>("/api/role-configs");
@@ -239,7 +239,7 @@ public class CrudApiTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.Conflict, dup.StatusCode);
     }
 
-    [Fact]
+    [IntegrationFact]
     public async Task Swagger_can_be_turned_off_by_configuration()
     {
         await using var off = _factory.WithWebHostBuilder(b => b.UseSetting("Swagger:Enabled", "false"));
@@ -249,7 +249,7 @@ public class CrudApiTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/health")).StatusCode);
     }
 
-    [Fact]
+    [IntegrationFact]
     public async Task Swagger_documents_the_endpoints()
     {
         var doc = await _factory.CreateClient().GetStringAsync("/swagger/v1/swagger.json");

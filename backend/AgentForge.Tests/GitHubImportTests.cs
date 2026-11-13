@@ -127,7 +127,7 @@ public sealed class GitHubImportTests(PostgresFixture pg) : IAsyncLifetime
 
     private Task<HttpResponseMessage> Import(object body) => _http.PostAsJsonAsync("/api/github/import", body);
 
-    [Fact]
+    [IntegrationFact]
     public async Task Requires_the_login_and_rejects_mcp_access_tokens()
     {
         Assert.Equal(HttpStatusCode.Unauthorized, (await _factory.CreateClient().PostAsJsonAsync("/api/github/repos", new { token = FakeGitHub.Token })).StatusCode);
@@ -139,7 +139,7 @@ public sealed class GitHubImportTests(PostgresFixture pg) : IAsyncLifetime
         Assert.Equal(HttpStatusCode.Unauthorized, (await mcp.PostAsJsonAsync("/api/github/import", new { repository = "octo/publico" })).StatusCode);
     }
 
-    [Fact]
+    [IntegrationFact]
     public async Task Lists_the_repositories_of_the_token_without_echoing_it()
     {
         var response = await _http.PostAsJsonAsync("/api/github/repos", new { token = FakeGitHub.Token });
@@ -153,7 +153,7 @@ public sealed class GitHubImportTests(PostgresFixture pg) : IAsyncLifetime
         Assert.Contains(_github.Requests, r => r.Path.StartsWith("user/repos") && r.Authorization == $"Bearer {FakeGitHub.Token}");
     }
 
-    [Fact]
+    [IntegrationFact]
     public async Task Bad_or_missing_tokens_are_reported_clearly()
     {
         Assert.Equal(HttpStatusCode.BadRequest, (await _http.PostAsJsonAsync("/api/github/repos", new { token = "" })).StatusCode);
@@ -166,7 +166,7 @@ public sealed class GitHubImportTests(PostgresFixture pg) : IAsyncLifetime
         Assert.DoesNotContain("ghp_token_errado", text);
     }
 
-    [Fact]
+    [IntegrationFact]
     public async Task Importing_a_public_repo_creates_the_project_and_already_clones_it()
     {
         var response = await Import(new { repository = "https://github.com/octo/publico.git", buildCommand = "dotnet build", testCommand = "dotnet test" });
@@ -232,7 +232,7 @@ public sealed class GitHubImportTests(PostgresFixture pg) : IAsyncLifetime
         Assert.DoesNotContain(_github.Requests, r => r.Path.EndsWith("/keys"));
     }
 
-    [Fact]
+    [IntegrationFact]
     public async Task Importing_the_same_repository_twice_is_refused()
     {
         Assert.Equal(HttpStatusCode.OK, (await Import(new { repository = "octo/publico" })).StatusCode);
@@ -243,7 +243,7 @@ public sealed class GitHubImportTests(PostgresFixture pg) : IAsyncLifetime
         Assert.Contains("já está cadastrado", await again.Content.ReadAsStringAsync());
     }
 
-    [Fact]
+    [IntegrationFact]
     public async Task Failed_clone_rolls_back_the_project()
     {
         await using var broken = _factory.WithWebHostBuilder(b => b.ConfigureServices(s =>
@@ -258,7 +258,7 @@ public sealed class GitHubImportTests(PostgresFixture pg) : IAsyncLifetime
         Assert.Empty((await _http.GetFromJsonAsync<JsonElement>("/api/projects")).EnumerateArray());
     }
 
-    [Fact]
+    [IntegrationFact]
     public async Task Invalid_input_and_missing_repositories_are_reported()
     {
         Assert.Equal(HttpStatusCode.BadRequest, (await Import(new { repository = "isto não é repo" })).StatusCode);

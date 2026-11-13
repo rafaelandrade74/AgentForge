@@ -13,7 +13,8 @@ public sealed class SshFactAttribute : FactAttribute
 {
     public SshFactAttribute()
     {
-        if (OperatingSystem.IsWindows() || !HasSshKeygen()) Skip = "Requer ssh-keygen (Linux/macOS com openssh-client).";
+        if (!PostgresAvailability.IsAvailable) Skip = PostgresAvailability.SkipReason;
+        else if (OperatingSystem.IsWindows() || !HasSshKeygen()) Skip = "Requer ssh-keygen (Linux/macOS com openssh-client).";
     }
 
     private static bool HasSshKeygen()
@@ -181,7 +182,7 @@ public sealed class GitEndpointsTests(PostgresFixture pg) : IAsyncLifetime
         return Task.CompletedTask;
     }
 
-    [Fact]
+    [IntegrationFact]
     public async Task Requires_the_login_and_rejects_mcp_access_tokens()
     {
         Assert.Equal(HttpStatusCode.Unauthorized, (await _factory.CreateClient().GetAsync("/api/git/ssh")).StatusCode);
@@ -194,7 +195,7 @@ public sealed class GitEndpointsTests(PostgresFixture pg) : IAsyncLifetime
         Assert.Equal(HttpStatusCode.Unauthorized, (await mcp.PostAsync("/api/git/ssh/generate", null)).StatusCode);
     }
 
-    [Fact]
+    [IntegrationFact]
     public async Task Status_starts_without_key_and_validates_the_access_test_input()
     {
         var status = await _http.GetFromJsonAsync<JsonElement>("/api/git/ssh");
@@ -226,7 +227,7 @@ public sealed class GitEndpointsTests(PostgresFixture pg) : IAsyncLifetime
         Assert.False((await deleted.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("hasKey").GetBoolean());
     }
 
-    [Fact]
+    [IntegrationFact]
     public async Task Host_agent_mode_reports_unsupported()
     {
         await using var host = _factory.WithWebHostBuilder(b =>

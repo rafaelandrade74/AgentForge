@@ -55,7 +55,7 @@ public sealed class EnvironmentRolesApiTests(PostgresFixture pg) : IAsyncLifetim
 
     private Task<HttpResponseMessage> PostProject(object body) => _http.PostAsJsonAsync("/api/projects", body);
 
-    [Fact]
+    [IntegrationFact]
     public async Task The_concurrency_limit_defaults_to_one_is_validated_and_can_be_changed()
     {
         var created = await (await PostEnvironment("a")).Content.ReadFromJsonAsync<JsonElement>();
@@ -73,7 +73,7 @@ public sealed class EnvironmentRolesApiTests(PostgresFixture pg) : IAsyncLifetim
         Assert.Equal(4, (await again.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("maxConcurrency").GetInt32());
     }
 
-    [Fact]
+    [IntegrationFact]
     public async Task Only_tech_lead_and_security_can_move_to_another_environment()
     {
         var light = await Environment("leve");
@@ -88,7 +88,7 @@ public sealed class EnvironmentRolesApiTests(PostgresFixture pg) : IAsyncLifetim
         Assert.Equal(HttpStatusCode.BadRequest, ghost.StatusCode);
     }
 
-    [Fact]
+    [IntegrationFact]
     public async Task Role_environments_are_saved_returned_kept_when_omitted_and_cleared_when_empty()
     {
         var light = await Environment("leve");
@@ -118,7 +118,7 @@ public sealed class EnvironmentRolesApiTests(PostgresFixture pg) : IAsyncLifetim
         Assert.True(cleared.GetProperty("roleEnvironments").ValueKind == JsonValueKind.Null);
     }
 
-    [Fact]
+    [IntegrationFact]
     public async Task An_environment_that_runs_a_role_of_a_project_cannot_be_deleted()
     {
         var light = await Environment("leve");
@@ -134,7 +134,7 @@ public sealed class EnvironmentRolesApiTests(PostgresFixture pg) : IAsyncLifetim
         Assert.Equal(HttpStatusCode.NoContent, (await _http.DeleteAsync($"/api/environments/{light}")).StatusCode);
     }
 
-    [Fact]
+    [IntegrationFact]
     public async Task The_load_panel_lists_every_environment_requires_login_and_rejects_mcp_tokens()
     {
         var a = await Environment("a", 3);

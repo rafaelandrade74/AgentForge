@@ -27,21 +27,21 @@ public class AuthTests : IDisposable
         return (await res.Content.ReadFromJsonAsync<Tokens>())!;
     }
 
-    [Fact]
+    [IntegrationFact]
     public async Task Protected_route_without_token_returns_401()
     {
         var res = await _client.GetAsync("/api/auth/me");
         Assert.Equal(HttpStatusCode.Unauthorized, res.StatusCode);
     }
 
-    [Fact]
+    [IntegrationFact]
     public async Task Login_with_wrong_password_returns_401()
     {
         var res = await _client.PostAsJsonAsync("/api/auth/login", new { username = "admin", password = "errada" });
         Assert.Equal(HttpStatusCode.Unauthorized, res.StatusCode);
     }
 
-    [Fact]
+    [IntegrationFact]
     public async Task Login_then_access_protected_route()
     {
         var tokens = await LoginAsync();
@@ -53,7 +53,7 @@ public class AuthTests : IDisposable
         Assert.Equal(HttpStatusCode.OK, res.StatusCode);
     }
 
-    [Fact]
+    [IntegrationFact]
     public async Task Refresh_rotates_token_and_old_one_is_rejected()
     {
         var tokens = await LoginAsync();

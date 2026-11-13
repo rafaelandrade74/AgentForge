@@ -81,7 +81,7 @@ public sealed class McpTests(PostgresFixture pg) : IAsyncLifetime
 
     // ---------------------------------------------------------------------------- autenticação
 
-    [Fact]
+    [IntegrationFact]
     public async Task Endpoint_requires_a_valid_token()
     {
         var anonymous = _factory.CreateClient();
@@ -96,7 +96,7 @@ public sealed class McpTests(PostgresFixture pg) : IAsyncLifetime
         Assert.Equal(HttpStatusCode.OK, (await _mcp.PostAsync("/mcp", Rpc(new { jsonrpc = "2.0", id = 1, method = "ping" }))).StatusCode);
     }
 
-    [Fact]
+    [IntegrationFact]
     public async Task Access_token_only_works_on_mcp_and_cannot_manage_tokens()
     {
         Assert.Equal(HttpStatusCode.Unauthorized, (await _mcp.GetAsync("/api/projects")).StatusCode);
@@ -105,7 +105,7 @@ public sealed class McpTests(PostgresFixture pg) : IAsyncLifetime
         Assert.Equal(HttpStatusCode.Unauthorized, (await _mcp.GetAsync("/api/agents")).StatusCode);
     }
 
-    [Fact]
+    [IntegrationFact]
     public async Task Tokens_show_the_secret_once_and_can_be_revoked()
     {
         var list = await _jwt.GetFromJsonAsync<JsonElement>("/api/tokens");
@@ -135,7 +135,7 @@ public sealed class McpTests(PostgresFixture pg) : IAsyncLifetime
 
     // ---------------------------------------------------------------------------- protocolo
 
-    [Fact]
+    [IntegrationFact]
     public async Task Initialize_negotiates_the_protocol_version_and_describes_the_server()
     {
         var known = (await CallAsync("initialize", new { protocolVersion = "2025-03-26", capabilities = new { }, clientInfo = new { name = "t", version = "1" } })).GetProperty("result");
@@ -148,7 +148,7 @@ public sealed class McpTests(PostgresFixture pg) : IAsyncLifetime
         Assert.Equal("2025-06-18", unknown.GetProperty("protocolVersion").GetString());
     }
 
-    [Fact]
+    [IntegrationFact]
     public async Task Notifications_get_202_without_a_body_and_get_is_not_allowed()
     {
         var response = await _mcp.PostAsync("/mcp", Rpc(new { jsonrpc = "2.0", method = "notifications/initialized" }));
@@ -158,7 +158,7 @@ public sealed class McpTests(PostgresFixture pg) : IAsyncLifetime
         Assert.Equal(HttpStatusCode.MethodNotAllowed, (await _mcp.GetAsync("/mcp")).StatusCode);
     }
 
-    [Fact]
+    [IntegrationFact]
     public async Task Protocol_errors_use_json_rpc_error_codes()
     {
         var parse = await _mcp.PostAsync("/mcp", new StringContent("{isto não é json", Encoding.UTF8, "application/json"));
@@ -173,7 +173,7 @@ public sealed class McpTests(PostgresFixture pg) : IAsyncLifetime
         Assert.Equal(-32600, (await invalid.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("error").GetProperty("code").GetInt32());
     }
 
-    [Fact]
+    [IntegrationFact]
     public async Task Batches_return_an_array_and_skip_notifications()
     {
         var response = await _mcp.PostAsync("/mcp", Rpc(new object[]
@@ -188,7 +188,7 @@ public sealed class McpTests(PostgresFixture pg) : IAsyncLifetime
         Assert.Equal([1, 2], replies.EnumerateArray().Select(r => r.GetProperty("id").GetInt32()));
     }
 
-    [Fact]
+    [IntegrationFact]
     public async Task Oversized_bodies_are_rejected()
     {
         var huge = new StringContent("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"ping\",\"params\":{\"x\":\"" + new string('a', 600_000) + "\"}}",
@@ -200,7 +200,7 @@ public sealed class McpTests(PostgresFixture pg) : IAsyncLifetime
     // ---------------------------------------------------------------------------- catálogo
 
 
-    [Fact]
+    [IntegrationFact]
     public async Task Environment_load_tool_reports_every_environment_read_only()
     {
         var (isError, text) = await ToolAsync("get_environment_load");
@@ -213,7 +213,7 @@ public sealed class McpTests(PostgresFixture pg) : IAsyncLifetime
         Assert.Equal(0, report.GetProperty("waiting").GetArrayLength());
     }
 
-    [Fact]
+    [IntegrationFact]
     public async Task Tool_catalog_is_complete_and_well_described()
     {
         var tools = (await CallAsync("tools/list")).GetProperty("result").GetProperty("tools");
@@ -241,7 +241,7 @@ public sealed class McpTests(PostgresFixture pg) : IAsyncLifetime
 
     // ---------------------------------------------------------------------------- ferramentas
 
-    [Fact]
+    [IntegrationFact]
     public async Task Project_and_demand_tools_roundtrip_with_input_validation()
     {
         var created = await ToolJsonAsync("create_project", new { name = "API de tarefas", repositoryUrl = "/repos/x.git", buildCommand = "dotnet build", autoMode = true });
@@ -269,7 +269,7 @@ public sealed class McpTests(PostgresFixture pg) : IAsyncLifetime
         Assert.True((await ToolAsync("list_tasks", new { state = "Inexistente" })).IsError);
     }
 
-    [Fact]
+    [IntegrationFact]
     public async Task Task_tools_show_state_findings_next_action_and_empty_diff()
     {
         var (projectId, demandId, itemId) = await SeedAsync(WorkItemState.AwaitingApproval);
@@ -302,7 +302,7 @@ public sealed class McpTests(PostgresFixture pg) : IAsyncLifetime
         Assert.Empty((await ToolJsonAsync("list_tasks", new { demandId, state = "Done" })).EnumerateArray());
     }
 
-    [Fact]
+    [IntegrationFact]
     public async Task Human_actions_respect_the_workflow_and_report_clear_errors()
     {
         var (_, _, backlog) = await SeedAsync(WorkItemState.Backlog);
@@ -320,7 +320,7 @@ public sealed class McpTests(PostgresFixture pg) : IAsyncLifetime
         Assert.Contains("não vale para o estado atual", (await ToolAsync("cancel_task", new { taskId = backlog })).Text);
     }
 
-    [Fact]
+    [IntegrationFact]
     public async Task Pending_actions_gather_everything_that_waits_for_a_human()
     {
         var (_, demand1, _) = await SeedAsync(WorkItemState.Backlog);
@@ -340,7 +340,7 @@ public sealed class McpTests(PostgresFixture pg) : IAsyncLifetime
         Assert.Equal("voltou 3 vezes", pending.GetProperty("blocked")[0].GetProperty("reason").GetString());
     }
 
-    [Fact]
+    [IntegrationFact]
     public async Task Agent_tools_list_the_clis_and_reject_unknown_names()
     {
         var agents = await ToolJsonAsync("list_agents");

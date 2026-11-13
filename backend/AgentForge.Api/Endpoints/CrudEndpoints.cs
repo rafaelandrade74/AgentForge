@@ -331,7 +331,7 @@ public static class CrudEndpoints
 
     // ---------- AgentRoleConfigs ----------
     internal static RoleConfigDto ToDto(AgentRoleConfig c) =>
-        new(c.Id, c.Role, c.AdapterName, c.SystemPrompt, c.AllowedTools, c.Model, c.MaxTurns);
+        new(c.Id, c.Role, c.AdapterName, c.SystemPrompt, c.AllowedTools, c.Model, c.MaxTurns, c.ReasoningEffort);
 
     private static IResult? Validate(RoleConfigInput i, AgentAdapterRegistry registry) =>
         string.IsNullOrWhiteSpace(i.AdapterName) ? Invalid(nameof(i.AdapterName), "Informe o adapter.")
@@ -343,6 +343,7 @@ public static class CrudEndpoints
     {
         c.Role = i.Role; c.AdapterName = i.AdapterName.Trim(); c.SystemPrompt = i.SystemPrompt;
         c.AllowedTools = i.AllowedTools; c.Model = i.Model; c.MaxTurns = i.MaxTurns;
+        c.ReasoningEffort = i.ReasoningEffort;
     }
 
     private static void MapRoleConfigs(RouteGroupBuilder g)

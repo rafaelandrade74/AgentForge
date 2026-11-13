@@ -120,5 +120,6 @@ export class ApiService {
     this.http.put<RoleConfig>(`/api/role-configs/${c.id}`, {
       role: c.role, adapterName: c.adapterName, systemPrompt: c.systemPrompt,
       allowedTools: c.allowedTools, model: c.model, maxTurns: c.maxTurns,
+      reasoningEffort: c.reasoningEffort,
     });
 }

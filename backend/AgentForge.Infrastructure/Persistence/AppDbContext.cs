@@ -121,6 +121,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.HasIndex(x => x.Role).IsUnique();
             e.Property(x => x.AdapterName).HasMaxLength(100);
             e.Property(x => x.Model).HasMaxLength(100);
+            e.Property(x => x.ReasoningEffort).HasMaxLength(20);
         });
 
         b.Entity<ApiToken>(e =>

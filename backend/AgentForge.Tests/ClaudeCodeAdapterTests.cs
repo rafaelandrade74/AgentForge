@@ -30,10 +30,20 @@ public class ClaudeCodeAdapterTests
     }
 
     [Fact]
+    public void Includes_reasoning_effort_when_set()
+    {
+        var args = _adapter.BuildArguments(new AgentRequest(AgentRole.Dev, "x", ".", ReasoningEffort: "high", MaxTurns: 5));
+        var list = args.ToList();
+        Assert.Contains("--reasoning-effort", list);
+        Assert.Equal("high", list[list.IndexOf("--reasoning-effort") + 1]);
+    }
+
+    [Fact]
     public void Omits_optional_arguments_when_empty()
     {
         var args = _adapter.BuildArguments(new AgentRequest(AgentRole.Dev, "x", ".", MaxTurns: 0));
         Assert.Equal(["-p", "--output-format", "stream-json", "--verbose"], args);
+        Assert.DoesNotContain("--reasoning-effort", args);
     }
 
     [Fact]

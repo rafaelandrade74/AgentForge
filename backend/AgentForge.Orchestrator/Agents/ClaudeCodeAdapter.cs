@@ -55,6 +55,7 @@ public class ClaudeCodeAdapter : ICliAgentAdapter, ICliAgentAccount
         if (request.MaxTurns > 0) args.AddRange(["--max-turns", request.MaxTurns.ToString()]);
         if (!string.IsNullOrWhiteSpace(request.ResumeSessionId)) args.AddRange(["--resume", request.ResumeSessionId]);
         if (!string.IsNullOrWhiteSpace(request.Model)) args.AddRange(["--model", request.Model]);
+        if (!string.IsNullOrWhiteSpace(request.ReasoningEffort)) args.AddRange(["--reasoning-effort", request.ReasoningEffort]);
         return args;
     }
 

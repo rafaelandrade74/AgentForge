@@ -131,6 +131,7 @@ public class AgentRoleConfig
     public string AllowedTools { get; set; } = "";
     public string Model { get; set; } = "";
     public int MaxTurns { get; set; } = 20;
+    public string ReasoningEffort { get; set; } = "";
 }
 
 /// <summary>Token de acesso de longa duração (ex.: para um cliente MCP). Guardamos só o hash; vale apenas em /mcp.</summary>

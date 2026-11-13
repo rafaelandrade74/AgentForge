@@ -41,6 +41,6 @@ public record ReviewFindingDto(Guid Id, Guid WorkItemId, Guid? AgentRunId, Agent
     string? File, int? Line, string Message, bool Resolved);
 
 public record RoleConfigInput(AgentRole Role, string AdapterName, string SystemPrompt, string AllowedTools,
-    string Model, int MaxTurns);
+    string Model, int MaxTurns, string ReasoningEffort = "");
 public record RoleConfigDto(Guid Id, AgentRole Role, string AdapterName, string SystemPrompt, string AllowedTools,
-    string Model, int MaxTurns);
+    string Model, int MaxTurns, string ReasoningEffort = "");

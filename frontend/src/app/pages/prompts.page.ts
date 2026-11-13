@@ -4,6 +4,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatExpansionModule } from '@angular/material/expansion';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
+import { MatSelectModule } from '@angular/material/select';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { ApiService } from '../core/api.service';
 import { ROLE_LABEL } from '../core/labels';
@@ -12,7 +13,7 @@ import { RoleConfig } from '../core/models';
 @Component({
   selector: 'app-prompts-page',
   standalone: true,
-  imports: [FormsModule, MatButtonModule, MatExpansionModule, MatFormFieldModule, MatInputModule],
+  imports: [FormsModule, MatButtonModule, MatExpansionModule, MatFormFieldModule, MatInputModule, MatSelectModule],
   template: `
     <div class="page">
       <h1>Prompts dos papéis</h1>
@@ -36,6 +37,15 @@ import { RoleConfig } from '../core/models';
                 <mat-form-field appearance="outline">
                   <mat-label>Limite de turnos</mat-label>
                   <input matInput type="number" min="1" [name]="'turns-' + c.id" [(ngModel)]="c.maxTurns" required />
+                </mat-form-field>
+                <mat-form-field appearance="outline">
+                  <mat-label>Reasoning effort</mat-label>
+                  <mat-select [name]="'effort-' + c.id" [(ngModel)]="c.reasoningEffort">
+                    <mat-option value="">Padrão do modelo</mat-option>
+                    <mat-option value="low">Low</mat-option>
+                    <mat-option value="medium">Medium</mat-option>
+                    <mat-option value="high">High</mat-option>
+                  </mat-select>
                 </mat-form-field>
                 <mat-form-field appearance="outline">
                   <mat-label>Ferramentas permitidas</mat-label>

@@ -12,6 +12,7 @@ public record AgentRequest(
     string AllowedTools = "",
     string Model = "",
     int MaxTurns = 20,
+    string ReasoningEffort = "",
     Guid? DemandId = null,
     Guid? WorkItemId = null,
     TimeSpan? Timeout = null,
@@ -33,8 +34,8 @@ public record AgentRequest(
         Guid? demandId = null, Guid? workItemId = null, TimeSpan? timeout = null, Guid? projectId = null,
         Guid? environmentId = null, bool environmentOverride = false) =>
         new(config.Role, prompt, workingDirectory, config.AdapterName, config.SystemPrompt, config.AllowedTools,
-            config.Model, config.MaxTurns, demandId, workItemId, timeout, projectId, EnvironmentId: environmentId,
-            EnvironmentOverride: environmentOverride);
+            config.Model, config.MaxTurns, config.ReasoningEffort, demandId, workItemId, timeout, projectId,
+            EnvironmentId: environmentId, EnvironmentOverride: environmentOverride);
 }
 
 /// <summary>Evento interpretado de uma linha de saída do CLI (ex.: "assistant", "tool", "result").</summary>

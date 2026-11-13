@@ -98,6 +98,7 @@ export interface RoleConfig {
   allowedTools: string;
   model: string;
   maxTurns: number;
+  reasoningEffort: string;
 }
 
 // ---- eventos do hub /hubs/runs

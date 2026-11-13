@@ -61,8 +61,7 @@ public partial class WorkItemProcessor(
     /// </summary>
     private async Task<Workspace> OpenWorkspaceAsync(WorkItem item, Project project, CancellationToken ct)
     {
-        var dependencyIds = item.Dependencies.Select(d => d.Id).ToList();
-        var ws = await workspaces.CreateWorktreeAsync(project, item.Id, ct, dependencyIds, item.BaseCommit);
+        var ws = await workspaces.CreateWorktreeAsync(project, item.Id, item.DemandId, ct, item.BaseCommit);
         if (item.BaseCommit != ws.BaseCommit)
         {
             item.BaseCommit = ws.BaseCommit;
@@ -260,7 +259,14 @@ public partial class WorkItemProcessor(
         {
             case WorkItemState.Done:
                 await workspaces.RemoveWorktreeAsync(project, item.Id, deleteBranch: false, CancellationToken.None);
-                await PublishBranchAsync(item, project);
+                try
+                {
+                    await workspaces.MergeTaskIntoDemandAsync(project, item.DemandId, item.Id, CancellationToken.None);
+                }
+                catch (WorkspaceException ex)
+                {
+                    logger.LogWarning(ex, "Merge da tarefa {TaskId} no branch da demanda falhou", item.Id);
+                }
                 var dependents = await db.WorkItems
                     .Where(w => w.State == WorkItemState.Todo && w.Dependencies.Any(d => d.Id == item.Id))
                     .Select(w => w.Id).ToListAsync();
@@ -273,22 +279,6 @@ public partial class WorkItemProcessor(
                 await ReassessDependentsAsync(item, project);
                 await CompleteDemandIfFinishedAsync(item.DemandId);
                 break;
-        }
-    }
-
-    /// <summary>Tarefa concluída: publica o branch dela no GitHub (se o projeto tem token). Falha nunca desfaz o Done.</summary>
-    private async Task PublishBranchAsync(WorkItem item, Project project)
-    {
-        if (publisher is null) return;
-        try
-        {
-            await publisher.PublishAsync(item.Id, CancellationToken.None);
-            await db.Entry(item).ReloadAsync(CancellationToken.None);
-            await events.PublishChangeAsync(project.Id, item);
-        }
-        catch (Exception ex)
-        {
-            logger.LogWarning(ex, "Não foi possível publicar o branch da tarefa {Id}; ela continua Done.", item.Id);
         }
     }
 
@@ -360,7 +350,26 @@ public partial class WorkItemProcessor(
         var updated = await db.Demands.Where(d => d.Id == demandId && d.Status == DemandStatus.InProgress)
             .ExecuteUpdateAsync(s => s.SetProperty(d => d.Status, DemandStatus.Done));
         if (updated > 0)
-            await events.PublishChangeAsync(await db.Demands.AsNoTracking().FirstAsync(d => d.Id == demandId));
+        {
+            var demand = await db.Demands.FirstAsync(d => d.Id == demandId);
+            await events.PublishChangeAsync(demand);
+            await PublishDemandBranchAsync(demand);
+        }
+    }
+
+    private async Task PublishDemandBranchAsync(Demand demand)
+    {
+        if (publisher is null) return;
+        try
+        {
+            await publisher.PublishDemandAsync(demand.Id, CancellationToken.None);
+            await db.Entry(demand).ReloadAsync(CancellationToken.None);
+            await events.PublishChangeAsync(demand);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Não foi possível publicar o branch da demanda {Id}", demand.Id);
+        }
     }
 
     /// <summary>Evento vindo de uma pessoa (aprovar, rejeitar, retomar, cancelar).</summary>

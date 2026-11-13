@@ -46,6 +46,7 @@ public class DemandProcessor(
 
         db.WorkItems.AddRange(byKey.Values);
         demand.Status = DemandStatus.InProgress;
+        demand.BranchName = await workspaces.EnsureDemandBranchAsync(project, demand.Id, CancellationToken.None);
         await db.SaveChangesAsync(CancellationToken.None);
 
         await events.PublishChangeAsync(demand);

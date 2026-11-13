@@ -11,6 +11,7 @@ public sealed class WorkspaceManagerTests : IAsyncLifetime
     private string _origin = "";
     private WorkspaceManager _manager = null!;
     private Project _project = null!;
+    private readonly Guid _demandId = Guid.NewGuid();
 
     private static Task<string> Git(string dir, params string[] args) =>
         GitCli.RunAsync(dir, args, CancellationToken.None);
@@ -50,6 +51,9 @@ public sealed class WorkspaceManagerTests : IAsyncLifetime
         await Git(ws.Path, "add", ".");
         await Git(ws.Path, "commit", "-m", $"add {file}");
     }
+
+    private async Task<string> EnsureDemandBranch() =>
+        await _manager.EnsureDemandBranchAsync(_project, _demandId, default);
 
     [Fact]
     public async Task Clones_once_and_only_fetches_afterwards()
@@ -94,33 +98,39 @@ public sealed class WorkspaceManagerTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Pre_push_hook_allows_only_task_branches_even_from_a_worktree()
+    public async Task Pre_push_hook_allows_task_and_demand_branches()
     {
         if (OperatingSystem.IsWindows()) return;
-        var ws = await _manager.CreateWorktreeAsync(_project, Guid.NewGuid(), default);
+        await EnsureDemandBranch();
+        var ws = await _manager.CreateWorktreeAsync(_project, Guid.NewGuid(), _demandId, default);
         await CommitAsync(ws, "a.txt", "a");
         await Git(ws.Path, "tag", "v1");
 
+        // task branch allowed
         Assert.Equal(0, (await TryGitAsync(ws.Path, "push", _origin, $"{ws.Branch}:refs/heads/{ws.Branch}")).Code);
 
+        // demand branch allowed
+        var demandBranch = WorkspaceManager.DemandBranchName(_demandId);
+        Assert.Equal(0, (await TryGitAsync(ws.Path, "push", _origin, $"HEAD:refs/heads/{demandBranch}")).Code);
+
+        // protected branches rejected
         foreach (var target in new[] { "refs/heads/main", "refs/heads/develop", "refs/heads/outro", "refs/tags/v1" })
         {
             var r = await TryGitAsync(ws.Path, "push", _origin, $"HEAD:{target}");
             Assert.NotEqual(0, r.Code);
-            Assert.Contains("agentforge/task-", r.Err);
         }
         var del = await TryGitAsync(ws.Path, "push", _origin, $":refs/heads/{ws.Branch}");
         Assert.NotEqual(0, del.Code);
         Assert.Contains("deleção", del.Err);
-        Assert.Contains(ws.Branch, await Git(_origin, "branch", "--list", ws.Branch));
     }
 
     [Fact]
     public async Task Two_tasks_do_not_see_each_others_changes()
     {
+        await EnsureDemandBranch();
         var (a, b) = (Guid.NewGuid(), Guid.NewGuid());
-        var wsA = await _manager.CreateWorktreeAsync(_project, a, default);
-        var wsB = await _manager.CreateWorktreeAsync(_project, b, default);
+        var wsA = await _manager.CreateWorktreeAsync(_project, a, _demandId, default);
+        var wsB = await _manager.CreateWorktreeAsync(_project, b, _demandId, default);
 
         await CommitAsync(wsA, "so-da-a.txt", "A");
         await File.WriteAllTextAsync(Path.Combine(wsA.Path, "sujo-da-a.txt"), "não commitado");
@@ -140,8 +150,9 @@ public sealed class WorkspaceManagerTests : IAsyncLifetime
     [Fact]
     public async Task Nothing_reaches_the_base_branch_and_push_is_blocked()
     {
+        await EnsureDemandBranch();
         var before = await OriginHead();
-        var ws = await _manager.CreateWorktreeAsync(_project, Guid.NewGuid(), default);
+        var ws = await _manager.CreateWorktreeAsync(_project, Guid.NewGuid(), _demandId, default);
         await CommitAsync(ws, "x.txt", "x");
 
         await Assert.ThrowsAsync<GitException>(() => Git(ws.Path, "push", "origin", "HEAD:main"));
@@ -154,11 +165,12 @@ public sealed class WorkspaceManagerTests : IAsyncLifetime
     [Fact]
     public async Task Existing_worktree_is_reused_keeping_commits()
     {
+        await EnsureDemandBranch();
         var id = Guid.NewGuid();
-        var first = await _manager.CreateWorktreeAsync(_project, id, default);
+        var first = await _manager.CreateWorktreeAsync(_project, id, _demandId, default);
         await CommitAsync(first, "a.txt", "a");
 
-        var again = await _manager.CreateWorktreeAsync(_project, id, default);
+        var again = await _manager.CreateWorktreeAsync(_project, id, _demandId, default);
 
         Assert.Equal(first, again);
         Assert.True(File.Exists(Path.Combine(again.Path, "a.txt")));
@@ -167,8 +179,9 @@ public sealed class WorkspaceManagerTests : IAsyncLifetime
     [Fact]
     public async Task Removing_keeps_the_branch_unless_asked_and_allows_recreating()
     {
+        await EnsureDemandBranch();
         var id = Guid.NewGuid();
-        var ws = await _manager.CreateWorktreeAsync(_project, id, default);
+        var ws = await _manager.CreateWorktreeAsync(_project, id, _demandId, default);
         await CommitAsync(ws, "a.txt", "a");
         var repo = await _manager.EnsureRepositoryAsync(_project, default);
 
@@ -178,7 +191,7 @@ public sealed class WorkspaceManagerTests : IAsyncLifetime
         Assert.DoesNotContain(ws.Path.Replace('\\', '/'), (await Git(repo, "worktree", "list")).Replace('\\', '/'));
         Assert.Contains(ws.Branch, await Git(repo, "branch", "--list", ws.Branch));
 
-        var recreated = await _manager.CreateWorktreeAsync(_project, id, default);
+        var recreated = await _manager.CreateWorktreeAsync(_project, id, _demandId, default);
         Assert.True(File.Exists(Path.Combine(recreated.Path, "a.txt")), "o branch preservou o trabalho");
 
         await _manager.RemoveWorktreeAsync(_project, id, deleteBranch: true, default);
@@ -188,10 +201,11 @@ public sealed class WorkspaceManagerTests : IAsyncLifetime
     [Fact]
     public async Task Diff_shows_the_task_branch_against_base_even_after_the_worktree_is_removed()
     {
+        await EnsureDemandBranch();
         var id = Guid.NewGuid();
         Assert.Equal("", await _manager.GetDiffAsync(_project, id, default));   // sem clone ainda
 
-        var ws = await _manager.CreateWorktreeAsync(_project, id, default);
+        var ws = await _manager.CreateWorktreeAsync(_project, id, _demandId, default);
         Assert.Equal("", await _manager.GetDiffAsync(_project, id, default));   // branch sem mudanças
         await CommitAsync(ws, "novo.txt", "conteudo novo\n");
 
@@ -204,88 +218,136 @@ public sealed class WorkspaceManagerTests : IAsyncLifetime
         Assert.Equal("", await _manager.GetDiffAsync(_project, Guid.NewGuid(), default));
     }
 
+    // ------------------------------------------------------------------ demand branch tests
+
     [Fact]
-    public async Task Dependent_task_starts_from_the_work_of_its_dependency_and_its_diff_is_only_its_own()
+    public async Task EnsureDemandBranch_creates_branch_from_base()
     {
-        var (a, b, c) = (Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid());
-        var wsA = await _manager.CreateWorktreeAsync(_project, a, default);
+        var branch = await _manager.EnsureDemandBranchAsync(_project, _demandId, default);
+        Assert.Equal($"agentforge/demand-{_demandId}", branch);
+
+        var repo = await _manager.EnsureRepositoryAsync(_project, default);
+        var sha = (await Git(repo, "rev-parse", branch)).Trim();
+        Assert.Equal(await OriginHead(), sha);
+    }
+
+    [Fact]
+    public async Task EnsureDemandBranch_is_idempotent()
+    {
+        var first = await _manager.EnsureDemandBranchAsync(_project, _demandId, default);
+        var second = await _manager.EnsureDemandBranchAsync(_project, _demandId, default);
+        Assert.Equal(first, second);
+    }
+
+    [Fact]
+    public async Task CreateWorktree_branches_from_demand_branch()
+    {
+        await EnsureDemandBranch();
+        var ws = await _manager.CreateWorktreeAsync(_project, Guid.NewGuid(), _demandId, default);
+        Assert.True(File.Exists(Path.Combine(ws.Path, "README.md")));
+    }
+
+    [Fact]
+    public async Task MergeTaskIntoDemand_incorporates_task_work()
+    {
+        await EnsureDemandBranch();
+        var taskId = Guid.NewGuid();
+        var ws = await _manager.CreateWorktreeAsync(_project, taskId, _demandId, default);
+        await CommitAsync(ws, "feature.txt", "nova feature\n");
+        await _manager.RemoveWorktreeAsync(_project, taskId, deleteBranch: false, default);
+
+        await _manager.MergeTaskIntoDemandAsync(_project, _demandId, taskId, default);
+
+        // verify demand branch has the file
+        var repo = await _manager.EnsureRepositoryAsync(_project, default);
+        var demandBranch = WorkspaceManager.DemandBranchName(_demandId);
+        var content = await Git(repo, "show", $"{demandBranch}:feature.txt");
+        Assert.Equal("nova feature\n", content);
+    }
+
+    [Fact]
+    public async Task Second_task_sees_first_tasks_work_via_demand_branch()
+    {
+        await EnsureDemandBranch();
+        var (a, b) = (Guid.NewGuid(), Guid.NewGuid());
+
+        // task A: create file, finish, merge into demand
+        var wsA = await _manager.CreateWorktreeAsync(_project, a, _demandId, default);
         await CommitAsync(wsA, "da-a.txt", "A\n");
+        await _manager.RemoveWorktreeAsync(_project, a, deleteBranch: false, default);
+        await _manager.MergeTaskIntoDemandAsync(_project, _demandId, a, default);
 
-        var wsB = await _manager.CreateWorktreeAsync(_project, b, default, [a]);
-
-        Assert.True(File.Exists(Path.Combine(wsB.Path, "da-a.txt")), "B deve enxergar o código de A");
-        Assert.Equal((await Git(wsB.Path, "rev-parse", "HEAD")).Trim(), wsB.BaseCommit);
-        Assert.NotEqual(await OriginHead(), wsB.BaseCommit);
+        // task B: branches from demand, already has A's work
+        var wsB = await _manager.CreateWorktreeAsync(_project, b, _demandId, default);
+        Assert.True(File.Exists(Path.Combine(wsB.Path, "da-a.txt")), "B deve enxergar o código de A via demand branch");
 
         await CommitAsync(wsB, "da-b.txt", "B\n");
         var own = await _manager.GetDiffAsync(_project, b, default, wsB.BaseCommit);
-        var all = await _manager.GetDiffAsync(_project, b, default);
         Assert.Contains("da-b.txt", own);
-        Assert.DoesNotContain("da-a.txt", own);                       // só o trabalho próprio
-        Assert.Contains("da-a.txt", all);                             // contra o base, aparece tudo
-        Assert.False(File.Exists(Path.Combine(wsA.Path, "da-b.txt")), "A não é afetada");
-
-        // cadeia: C depende de B, que já traz o trabalho de A
-        var wsC = await _manager.CreateWorktreeAsync(_project, c, default, [b]);
-        Assert.True(File.Exists(Path.Combine(wsC.Path, "da-a.txt")));
-        Assert.True(File.Exists(Path.Combine(wsC.Path, "da-b.txt")));
+        Assert.DoesNotContain("da-a.txt", own);  // só o trabalho próprio
     }
 
     [Fact]
-    public async Task Task_with_two_dependencies_gets_both()
+    public async Task MergeTaskIntoDemand_conflict_throws_WorkspaceException()
     {
-        var (a, b, c) = (Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid());
-        await CommitAsync(await _manager.CreateWorktreeAsync(_project, a, default), "x.txt", "x\n");
-        await CommitAsync(await _manager.CreateWorktreeAsync(_project, b, default), "y.txt", "y\n");
+        await EnsureDemandBranch();
+        var (a, b) = (Guid.NewGuid(), Guid.NewGuid());
 
-        var wsC = await _manager.CreateWorktreeAsync(_project, c, default, [a, b]);
+        // both tasks start from the SAME demand branch (before either is merged)
+        var wsA = await _manager.CreateWorktreeAsync(_project, a, _demandId, default);
+        var wsB = await _manager.CreateWorktreeAsync(_project, b, _demandId, default);
 
-        Assert.True(File.Exists(Path.Combine(wsC.Path, "x.txt")));
-        Assert.True(File.Exists(Path.Combine(wsC.Path, "y.txt")));
-    }
+        await CommitAsync(wsA, "mesmo.txt", "versão da A\n");
+        await CommitAsync(wsB, "mesmo.txt", "versão da B\n");
 
-    [Fact]
-    public async Task Conflicting_dependencies_fail_cleanly_and_leave_nothing_behind()
-    {
-        var (a, b, c) = (Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid());
-        await CommitAsync(await _manager.CreateWorktreeAsync(_project, a, default), "mesmo.txt", "versão da A\n");
-        await CommitAsync(await _manager.CreateWorktreeAsync(_project, b, default), "mesmo.txt", "versão da B\n");
-        var repo = await _manager.EnsureRepositoryAsync(_project, default);
+        await _manager.RemoveWorktreeAsync(_project, a, deleteBranch: false, default);
+        await _manager.RemoveWorktreeAsync(_project, b, deleteBranch: false, default);
 
-        var ex = await Assert.ThrowsAsync<WorkspaceException>(() => _manager.CreateWorktreeAsync(_project, c, default, [a, b]));
+        // A merges fine
+        await _manager.MergeTaskIntoDemandAsync(_project, _demandId, a, default);
 
+        // B conflicts with A's version already in demand
+        var ex = await Assert.ThrowsAsync<WorkspaceException>(
+            () => _manager.MergeTaskIntoDemandAsync(_project, _demandId, b, default));
         Assert.Contains("Conflito", ex.Message);
-        Assert.False(Directory.Exists(Path.Combine(_temp, "repos", _project.Id.ToString(), "worktrees", c.ToString())));
-        Assert.Equal("", (await Git(repo, "branch", "--list", $"agentforge/task-{c}")).Trim());
-        // sem lixo: criar de novo só com a dependência que não conflita funciona
-        var again = await _manager.CreateWorktreeAsync(_project, c, default, [a]);
-        Assert.True(File.Exists(Path.Combine(again.Path, "mesmo.txt")));
     }
 
     [Fact]
-    public async Task Missing_dependency_branch_is_reported_and_cleaned_up()
+    public async Task PushDemandBranch_pushes_to_remote()
     {
-        var c = Guid.NewGuid();
+        await EnsureDemandBranch();
+        var taskId = Guid.NewGuid();
+        var ws = await _manager.CreateWorktreeAsync(_project, taskId, _demandId, default);
+        await CommitAsync(ws, "f.txt", "f\n");
+        await _manager.RemoveWorktreeAsync(_project, taskId, deleteBranch: false, default);
+        await _manager.MergeTaskIntoDemandAsync(_project, _demandId, taskId, default);
 
-        var ex = await Assert.ThrowsAsync<WorkspaceException>(() => _manager.CreateWorktreeAsync(_project, c, default, [Guid.NewGuid()]));
+        await _manager.PushDemandBranchAsync(_project, _demandId, "file://" + _origin, default);
 
-        Assert.Contains("não existe mais", ex.Message);
-        Assert.False(Directory.Exists(Path.Combine(_temp, "repos", _project.Id.ToString(), "worktrees", c.ToString())));
+        var demandBranch = WorkspaceManager.DemandBranchName(_demandId);
+        var remote = (await Git(_origin, "rev-parse", demandBranch)).Trim();
+        var repo = await _manager.EnsureRepositoryAsync(_project, default);
+        var local = (await Git(repo, "rev-parse", demandBranch)).Trim();
+        Assert.Equal(local, remote);
     }
 
     [Fact]
     public async Task Existing_worktree_keeps_the_recorded_base_commit_and_legacy_ones_fall_back_to_the_merge_base()
     {
+        await EnsureDemandBranch();
         var (a, b) = (Guid.NewGuid(), Guid.NewGuid());
-        await CommitAsync(await _manager.CreateWorktreeAsync(_project, a, default), "a.txt", "a\n");
-        var wsB = await _manager.CreateWorktreeAsync(_project, b, default, [a]);
+        await CommitAsync(await _manager.CreateWorktreeAsync(_project, a, _demandId, default), "a.txt", "a\n");
+        await _manager.RemoveWorktreeAsync(_project, a, deleteBranch: false, default);
+        await _manager.MergeTaskIntoDemandAsync(_project, _demandId, a, default);
+        var wsB = await _manager.CreateWorktreeAsync(_project, b, _demandId, default);
 
-        var again = await _manager.CreateWorktreeAsync(_project, b, default, [a], wsB.BaseCommit);
-        var legacy = await _manager.CreateWorktreeAsync(_project, b, default);   // sem BaseCommit conhecido
+        var again = await _manager.CreateWorktreeAsync(_project, b, _demandId, default, wsB.BaseCommit);
+        var legacy = await _manager.CreateWorktreeAsync(_project, b, _demandId, default);   // sem BaseCommit conhecido
 
         Assert.Equal(wsB.BaseCommit, again.BaseCommit);
         Assert.Equal(await OriginHead(), legacy.BaseCommit);                      // volta ao comportamento antigo
     }
+
     [Fact]
     public async Task Removing_something_that_does_not_exist_is_a_noop()
     {
@@ -297,9 +359,10 @@ public sealed class WorkspaceManagerTests : IAsyncLifetime
     [Fact]
     public async Task Parallel_creation_works()
     {
+        await EnsureDemandBranch();
         var ids = Enumerable.Range(0, 6).Select(_ => Guid.NewGuid()).ToList();
 
-        var results = await Task.WhenAll(ids.Select(id => _manager.CreateWorktreeAsync(_project, id, default)));
+        var results = await Task.WhenAll(ids.Select(id => _manager.CreateWorktreeAsync(_project, id, _demandId, default)));
 
         Assert.Equal(6, results.Select(r => r.Path).Distinct().Count());
         Assert.All(results, r => Assert.True(File.Exists(Path.Combine(r.Path, "README.md"))));
@@ -309,7 +372,7 @@ public sealed class WorkspaceManagerTests : IAsyncLifetime
     public async Task Unknown_base_branch_fails_with_clear_error()
     {
         var project = new Project { Name = "P", RepositoryUrl = _origin, BaseBranch = "nao-existe" };
-        var ex = await Assert.ThrowsAsync<GitException>(() => _manager.CreateWorktreeAsync(project, Guid.NewGuid(), default));
+        var ex = await Assert.ThrowsAsync<GitException>(() => _manager.EnsureDemandBranchAsync(project, Guid.NewGuid(), default));
         Assert.Contains("origin/nao-existe", ex.Message);
     }
 

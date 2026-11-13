@@ -8,9 +8,11 @@ namespace AgentForge.Orchestrator.Workflow;
 public interface IBranchPublisher
 {
     Task PublishAsync(Guid workItemId, CancellationToken ct);
+    Task PublishDemandAsync(Guid demandId, CancellationToken ct);
 }
 
 public sealed class NullBranchPublisher : IBranchPublisher
 {
     public Task PublishAsync(Guid workItemId, CancellationToken ct) => Task.CompletedTask;
+    public Task PublishDemandAsync(Guid demandId, CancellationToken ct) => Task.CompletedTask;
 }

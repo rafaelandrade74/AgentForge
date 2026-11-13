@@ -220,8 +220,9 @@ public sealed class HostAgentTests(PostgresFixture pg) : IAsyncLifetime
         var manager = new WorkspaceManager(Options.Create(new WorkspaceOptions { Root = Root }), _launcher);
         var project = new Project { Name = "P", RepositoryUrl = origin, BaseBranch = "main" };
         var taskId = Guid.NewGuid();
-
-        var ws = await manager.CreateWorktreeAsync(project, taskId, default);
+        var demandId = Guid.NewGuid();
+        await manager.EnsureDemandBranchAsync(project, demandId, default);
+        var ws = await manager.CreateWorktreeAsync(project, taskId, demandId, default);
         await File.WriteAllTextAsync(Path.Combine(ws.Path, "novo.txt"), "do host\n");
         await GitCli.RunAsync(_launcher, ws.Path, ["add", "."], default);
         await GitCli.RunAsync(_launcher, ws.Path, ["commit", "-m", "feat"], default);

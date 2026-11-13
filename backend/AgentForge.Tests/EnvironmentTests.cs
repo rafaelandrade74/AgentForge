@@ -224,7 +224,9 @@ public sealed class EnvironmentTests(PostgresFixture pg) : IAsyncLifetime
 
         // worktree e diff também acontecem na máquina do projeto
         var task = Guid.NewGuid();
-        var ws = await workspaces.CreateWorktreeAsync(inA, task, default);
+        var demandId = Guid.NewGuid();
+        await workspaces.EnsureDemandBranchAsync(inA, demandId, default);
+        var ws = await workspaces.CreateWorktreeAsync(inA, task, demandId, default);
         Assert.Equal($"{RemoteRoot}/a/{inA.Id}/worktrees/{task}", ws.Path);
         Assert.True(Directory.Exists(ws.Path));
     }

@@ -144,6 +144,110 @@ public sealed partial class PullRequestService(
         logger.LogInformation("Branch da tarefa {Task} publicado no GitHub", item.Id);
     }
 
+    // ------------------------------------------------------------------ demanda
+
+    public async Task<Demand> PushDemandAsync(Guid demandId, CancellationToken ct)
+    {
+        var demand = await db.Demands.FirstOrDefaultAsync(d => d.Id == demandId, ct)
+                     ?? throw new PullRequestException("Demanda não encontrada.", StatusCodes.Status404NotFound);
+        if (demand.Status != DemandStatus.Done)
+            throw new PullRequestException("O branch só é publicado depois que todas as tarefas da demanda foram concluídas (Done).");
+        var project = await db.Projects.FirstAsync(p => p.Id == demand.ProjectId, ct);
+        await PushDemandBranchAsync(demand, project, ct);
+        return demand;
+    }
+
+    public async Task PushDemandBranchAsync(Demand demand, Project project, CancellationToken ct)
+    {
+        var resolved = await pushUrls.ResolveAsync(project, ct);
+        var pushUrl = resolved.Url ?? throw new PullRequestException(resolved.Reason ?? "Não há URL de push para o projeto.");
+        var alreadyPublished = false;
+        try { alreadyPublished = await workspaces.IsDemandBranchPublishedAsync(project, demand.Id, pushUrl, ct); }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger.LogDebug("Checagem do branch remoto da demanda {Demand} falhou; seguindo para o push", demand.Id);
+        }
+        try
+        {
+            if (!alreadyPublished)
+                await workspaces.PushDemandBranchAsync(project, demand.Id, pushUrl, ct);
+        }
+        catch (WorkspaceException ex) { throw new PullRequestException(ex.Message); }
+        catch (GitException ex)
+        {
+            logger.LogWarning("Push do branch da demanda {Demand} falhou", demand.Id);
+            throw new PullRequestException(ExplainPushFailure(ex.Message), StatusCodes.Status502BadGateway);
+        }
+        catch (Exception ex) when (ex is ProcessStartException or EnvironmentUnavailableException)
+        {
+            throw new PullRequestException(ex.Message, StatusCodes.Status502BadGateway);
+        }
+        demand.PushedAt = DateTime.UtcNow;
+        demand.PushError = null;
+        await db.SaveChangesAsync(CancellationToken.None);
+        logger.LogInformation("Branch da demanda {Demand} publicado no GitHub", demand.Id);
+    }
+
+    public async Task<PullRequestResult> OpenDemandPrAsync(Guid demandId, string? requestedBase, CancellationToken ct)
+    {
+        var demand = await db.Demands.FirstOrDefaultAsync(d => d.Id == demandId, ct)
+                     ?? throw new PullRequestException("Demanda não encontrada.", StatusCodes.Status404NotFound);
+        if (demand.Status != DemandStatus.Done)
+            throw new PullRequestException("O PR só pode ser aberto depois que todas as tarefas da demanda foram concluídas (Done).");
+        var project = await db.Projects.FirstAsync(p => p.Id == demand.ProjectId, ct);
+        var branch = WorkspaceManager.DemandBranchName(demand.Id);
+
+        var target = TargetBranch(project, requestedBase);
+        if (!IsValidBranchName(target)) throw new PullRequestException("Branch de destino inválida.");
+        if (target == branch) throw new PullRequestException("A branch de destino não pode ser a da própria demanda.");
+
+        if (demand.PullRequestUrl is { Length: > 0 } existingUrl && demand.PullRequestNumber is { } existingNumber)
+            return new PullRequestResult(existingUrl, existingNumber, branch, target, AlreadyExisted: true);
+
+        var fullName = GitHubClient.ParseFullName(project.RepositoryUrl)
+                       ?? throw new PullRequestException("Só é possível abrir PR de projetos hospedados no GitHub (github.com).");
+        var resolved = await pushUrls.ResolveAsync(project, ct);
+        var token = resolved.Token ?? throw new PullRequestException(resolved.Reason ?? "Cadastre o token do GitHub no projeto para abrir pull requests.");
+
+        await PushDemandBranchAsync(demand, project, ct);
+
+        var tasks = await db.WorkItems.Where(w => w.DemandId == demandId && w.State == WorkItemState.Done)
+            .Select(w => w.Title).ToListAsync(ct);
+        var body = DemandBody(demand, tasks, project);
+
+        PullRequestInfo pr;
+        try
+        {
+            pr = await github.CreatePullRequestAsync(token, fullName, demand.Title, branch, target, body, ct);
+        }
+        catch (GitHubException ex)
+        {
+            throw new PullRequestException(
+                $"O branch foi publicado, mas o GitHub recusou o PR: {ex.Message} (ajuste e tente de novo: o push não se repete à toa).",
+                StatusCodes.Status502BadGateway);
+        }
+
+        demand.PullRequestUrl = pr.Url;
+        demand.PullRequestNumber = pr.Number;
+        await db.SaveChangesAsync(CancellationToken.None);
+        logger.LogInformation("PR #{Number} da demanda {Demand} aberto para {Base}", pr.Number, demand.Id, target);
+        return new PullRequestResult(pr.Url, pr.Number, branch, target, pr.AlreadyExisted);
+    }
+
+    private static string DemandBody(Demand demand, List<string> taskTitles, Project project)
+    {
+        var sb = new StringBuilder();
+        if (!string.IsNullOrWhiteSpace(demand.Description)) sb.AppendLine(demand.Description.Trim()).AppendLine();
+        if (taskTitles.Count > 0)
+        {
+            sb.AppendLine("**Tarefas concluídas**");
+            foreach (var t in taskTitles) sb.AppendLine($"- {t}");
+            sb.AppendLine();
+        }
+        sb.AppendLine($"Passou por Dev, Tech Lead, Security e QA e foi aprovada por uma pessoa no AgentForge (projeto {project.Name}).");
+        return sb.ToString().TrimEnd();
+    }
+
     private static string ExplainPushFailure(string gitMessage) =>
         gitMessage.Contains("read only", StringComparison.OrdinalIgnoreCase) || gitMessage.Contains("read-only", StringComparison.OrdinalIgnoreCase)
             ? "A chave SSH só tem permissão de leitura neste repositório. No GitHub (Settings → Deploy keys), apague a chave e adicione de novo marcando \"Allow write access\", ou use uma chave da sua conta."

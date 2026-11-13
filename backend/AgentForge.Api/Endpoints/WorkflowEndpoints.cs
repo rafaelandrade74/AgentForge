@@ -20,6 +20,31 @@ public static class WorkflowEndpoints
             .WithSummary("Inicia o refinamento da demanda pelo Scrum Master.");
         demands.MapPost("/{id:guid}/approve-plan", async (Guid id, WorkflowActions a) => Reply(await a.ApprovePlanAsync(id)))
             .WithSummary("Aprovação humana do plano: libera as tarefas em Backlog.");
+        demands.MapPost("/{id:guid}/push", async (Guid id, PullRequestService prs, CancellationToken ct) =>
+            {
+                try
+                {
+                    var demand = await prs.PushDemandAsync(id, ct);
+                    return Results.Ok(new { demand.BranchName, demand.PushedAt });
+                }
+                catch (PullRequestException ex)
+                {
+                    return Results.Json(new { error = ex.Message }, statusCode: ex.Status);
+                }
+            })
+            .WithSummary("Faz o git push do branch da demanda concluída para o GitHub.");
+        demands.MapPost("/{id:guid}/pull-request", async (Guid id, PullRequestRequest? body, PullRequestService prs, CancellationToken ct) =>
+            {
+                try
+                {
+                    return Results.Ok(await prs.OpenDemandPrAsync(id, body?.BaseBranch, ct));
+                }
+                catch (PullRequestException ex)
+                {
+                    return Results.Json(new { error = ex.Message }, statusCode: ex.Status);
+                }
+            })
+            .WithSummary("Publica o branch da demanda concluída e abre o pull request no GitHub.");
 
         var items = api.MapGroup("/work-items").WithTags("Workflow");
         items.MapGet("/{id:guid}/diff", async (Guid id, AppDbContext db, IWorkspaceManager workspaces, CancellationToken ct) =>

@@ -305,10 +305,17 @@ public sealed class EnvironmentQueueTests(PostgresFixture pg) : IAsyncLifetime
     private sealed class RecordingPublisher(bool fail = false) : IBranchPublisher
     {
         public System.Collections.Concurrent.ConcurrentQueue<Guid> Published { get; } = new();
+        public System.Collections.Concurrent.ConcurrentQueue<Guid> PublishedDemands { get; } = new();
 
         public Task PublishAsync(Guid workItemId, CancellationToken ct)
         {
             Published.Enqueue(workItemId);
+            return fail ? throw new InvalidOperationException("rede caiu") : Task.CompletedTask;
+        }
+
+        public Task PublishDemandAsync(Guid demandId, CancellationToken ct)
+        {
+            PublishedDemands.Enqueue(demandId);
             return fail ? throw new InvalidOperationException("rede caiu") : Task.CompletedTask;
         }
     }

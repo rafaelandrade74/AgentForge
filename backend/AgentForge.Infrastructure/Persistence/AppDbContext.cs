@@ -83,6 +83,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         {
             e.HasOne<Project>().WithMany().HasForeignKey(x => x.ProjectId).OnDelete(DeleteBehavior.Cascade);
             e.Property(x => x.Title).HasMaxLength(300);
+            e.Property(x => x.BranchName).HasMaxLength(200);
+            e.Property(x => x.PullRequestUrl).HasMaxLength(500);
+            e.Property(x => x.PushError).HasMaxLength(500);
         });
 
         b.Entity<WorkItem>(e =>

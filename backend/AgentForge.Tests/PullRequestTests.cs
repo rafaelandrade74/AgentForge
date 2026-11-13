@@ -96,7 +96,8 @@ public sealed class PullRequestTests(PostgresFixture pg) : IAsyncLifetime
         db.AddRange(demand, item);
         await db.SaveChangesAsync();
 
-        var ws = await workspaces.CreateWorktreeAsync(project, item.Id, default);
+        await workspaces.EnsureDemandBranchAsync(project, demand.Id, default);
+        var ws = await workspaces.CreateWorktreeAsync(project, item.Id, demand.Id, default);
         await File.WriteAllTextAsync(Path.Combine(ws.Path, "feature.txt"), "feito\n");
         await GitCli.RunAsync(ws.Path, ["add", "."], default);
         await GitCli.RunAsync(ws.Path, ["-c", "user.name=t", "-c", "user.email=t@t", "commit", "-m", "feature"], default);

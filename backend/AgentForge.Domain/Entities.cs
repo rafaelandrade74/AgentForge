@@ -53,6 +53,11 @@ public class Demand
     public string Title { get; set; } = "";
     public string Description { get; set; } = "";
     public DemandStatus Status { get; set; } = DemandStatus.New;
+    public string? BranchName { get; set; }
+    public DateTime? PushedAt { get; set; }
+    public string? PushError { get; set; }
+    public string? PullRequestUrl { get; set; }
+    public int? PullRequestNumber { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }
 

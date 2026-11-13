@@ -35,9 +35,13 @@ public sealed class PushUrlProviderTests
             throw new WorkspaceException("parou aqui");   // evita tocar o banco: só queremos ver a URL usada
         }
         public Task<string> EnsureRepositoryAsync(Project project, CancellationToken ct) => throw new NotSupportedException();
-        public Task<Workspace> CreateWorktreeAsync(Project project, Guid workItemId, CancellationToken ct, IReadOnlyList<Guid>? dependsOn = null, string? baseCommit = null) => throw new NotSupportedException();
+        public Task<string> EnsureDemandBranchAsync(Project project, Guid demandId, CancellationToken ct) => throw new NotSupportedException();
+        public Task<Workspace> CreateWorktreeAsync(Project project, Guid workItemId, Guid demandId, CancellationToken ct, string? baseCommit = null) => throw new NotSupportedException();
+        public Task<string> MergeTaskIntoDemandAsync(Project project, Guid demandId, Guid workItemId, CancellationToken ct) => throw new NotSupportedException();
         public Task RemoveWorktreeAsync(Project project, Guid workItemId, bool deleteBranch, CancellationToken ct) => throw new NotSupportedException();
         public Task<string> GetDiffAsync(Project project, Guid workItemId, CancellationToken ct, string? baseCommit = null) => throw new NotSupportedException();
+        public Task PushDemandBranchAsync(Project project, Guid demandId, string pushUrl, CancellationToken ct) => throw new NotSupportedException();
+        public Task<bool> IsDemandBranchPublishedAsync(Project project, Guid demandId, string pushUrl, CancellationToken ct) => throw new NotSupportedException();
     }
 
     private static PushUrlProvider Provider() => new(new FakeProtector());

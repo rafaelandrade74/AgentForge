@@ -11,9 +11,9 @@ public static class PromptBuilder
         {"tasks":[{"key":"t1","title":"...","description":"...","acceptanceCriteria":["..."],"dependsOn":[],"estimate":3}]}
         - "key" é um identificador curto e único; "dependsOn" lista as keys das tarefas que precisam estar prontas antes.
         - Tarefas pequenas e independentes sempre que possível; sem ciclos de dependência; no máximo 30 tarefas.
-        - Declare em "dependsOn" TODA tarefa cujo trabalho usa, testa ou documenta o código de outra: o branch da tarefa dependente
-          já nasce com o trabalho das dependências, então ela não deve reimplementar o que a outra entrega. Duas tarefas que
-          alteram as mesmas linhas não devem ser independentes.
+        - Declare em "dependsOn" TODA tarefa cujo trabalho usa, testa ou documenta o código de outra: as tarefas anteriores são
+          mergeadas no branch da demanda ao concluir, e a próxima tarefa já nasce com esse trabalho; ela não deve reimplementar
+          o que a outra entrega. Duas tarefas que alteram as mesmas linhas não devem ser independentes.
         """;
 
     private const string DevFormat = """
@@ -50,7 +50,7 @@ public static class PromptBuilder
         var sb = new StringBuilder();
         sb.AppendLine($"Tarefa: {item.Title}").AppendLine().AppendLine(item.Description).AppendLine();
         sb.AppendLine("Critérios de aceite:").AppendLine(item.AcceptanceCriteria).AppendLine();
-        sb.AppendLine($"Você está no worktree do branch da tarefa (base: {project.BaseBranch}). Escreva também os testes unitários.");
+        sb.AppendLine($"Você está no worktree do branch da tarefa (criado a partir do branch da demanda, que acumula o trabalho das tarefas anteriores). Escreva também os testes unitários.");
         if (!string.IsNullOrWhiteSpace(project.BuildCommand)) sb.AppendLine($"Build: {project.BuildCommand}");
         if (!string.IsNullOrWhiteSpace(project.TestCommand)) sb.AppendLine($"Testes: {project.TestCommand}");
         var deps = dependencyTitles.ToList();

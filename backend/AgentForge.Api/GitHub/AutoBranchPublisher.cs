@@ -29,4 +29,22 @@ public sealed class AutoBranchPublisher(AppDbContext db, PullRequestService pull
             await db.SaveChangesAsync(CancellationToken.None);
         }
     }
+
+    public async Task PublishDemandAsync(Guid demandId, CancellationToken ct)
+    {
+        var demand = await db.Demands.FirstOrDefaultAsync(d => d.Id == demandId, ct);
+        if (demand is null || demand.Status != DemandStatus.Done || demand.PushedAt is not null) return;
+
+        var project = await db.Projects.FirstAsync(p => p.Id == demand.ProjectId, ct);
+        try
+        {
+            await pullRequests.PushDemandBranchAsync(demand, project, ct);
+        }
+        catch (PullRequestException ex)
+        {
+            logger.LogWarning("Publicação automática do branch da demanda {Demand} falhou", demandId);
+            demand.PushError = ex.Message.Length > 480 ? ex.Message[..480] : ex.Message;
+            await db.SaveChangesAsync(CancellationToken.None);
+        }
+    }
 }

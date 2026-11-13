@@ -17,7 +17,7 @@ namespace AgentForge.Infrastructure.Persistence.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "8.0.33")
+                .HasAnnotation("ProductVersion", "8.0.34")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
@@ -239,6 +239,10 @@ namespace AgentForge.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<string>("BranchName")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -248,6 +252,20 @@ namespace AgentForge.Infrastructure.Persistence.Migrations
 
                     b.Property<Guid>("ProjectId")
                         .HasColumnType("uuid");
+
+                    b.Property<int?>("PullRequestNumber")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("PullRequestUrl")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("PushError")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateTime?>("PushedAt")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("Status")
                         .IsRequired()

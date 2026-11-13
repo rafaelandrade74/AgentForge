@@ -296,6 +296,26 @@ public sealed class McpToolRegistry
                 }
             });
 
+        Add("open_demand_pull_request", "Abrir pull request da demanda",
+            "Para uma demanda JÁ CONCLUÍDA (Done: todas as tarefas passaram por Dev, Tech Lead, Security, QA e foram aprovadas): publica o branch agentforge/demand-<id> no GitHub e abre o pull request " +
+            "para a branch de destino do projeto (ou a informada). Usa o token do GitHub cadastrado no projeto.",
+            Schema(Id("demandId", "UUID da demanda concluída", req: true),
+                Text("baseBranch", "Branch de destino deste PR (padrão: a do projeto, ex.: develop; senão a base)")),
+            readOnly: false, destructive: false,
+            async c =>
+            {
+                var branch = c.Text("baseBranch", required: false, max: 200).Trim();
+                if (branch.Length > 0 && !PullRequestService.IsValidBranchName(branch)) throw new ToolInputException("Nome de branch inválido.");
+                try
+                {
+                    return await c.Get<PullRequestService>().OpenDemandPrAsync(c.Id("demandId"), branch.Length > 0 ? branch : null, c.Ct);
+                }
+                catch (PullRequestException ex)
+                {
+                    throw new ToolInputException(ex.Message);
+                }
+            });
+
         Add("list_pending_actions", "O que depende de mim", "Tudo que espera uma decisão humana: planos a aprovar, entregas a revisar, tarefas bloqueadas e demandas que falharam.",
             Schema(), readOnly: true,
             async c =>
@@ -315,10 +335,9 @@ public sealed class McpToolRegistry
                         .Select(w => new { taskId = w.Id, w.Title, w.Demand, action = "get_task, get_task_diff → approve_task ou reject_task" }),
                     blocked = waiting.Where(w => w.State == WorkItemState.Blocked)
                         .Select(w => new { taskId = w.Id, w.Title, w.Demand, reason = w.BlockedReason, action = "retry_task ou cancel_task" }),
-                    readyForPullRequest = await db.WorkItems.AsNoTracking().Where(w => w.State == WorkItemState.Done && w.PullRequestUrl == null)
-                        .Join(db.Demands, w => w.DemandId, d => d.Id, (w, d) => new { w.Id, w.Title, d.ProjectId })
-                        .Join(db.Projects.Where(p => p.ProtectedGitHubToken != ""), x => x.ProjectId, p => p.Id,
-                            (x, p) => new { taskId = x.Id, x.Title, project = p.Name, targetBranch = p.PullRequestBaseBranch != "" ? p.PullRequestBaseBranch : p.BaseBranch, action = "open_pull_request" })
+                    readyForPullRequest = await db.Demands.AsNoTracking().Where(d => d.Status == DemandStatus.Done && d.PullRequestUrl == null)
+                        .Join(db.Projects.Where(p => p.ProtectedGitHubToken != ""), d => d.ProjectId, p => p.Id,
+                            (d, p) => new { demandId = d.Id, d.Title, project = p.Name, targetBranch = p.PullRequestBaseBranch != "" ? p.PullRequestBaseBranch : p.BaseBranch, action = "open_demand_pull_request" })
                         .ToListAsync(c.Ct),
                     demandsNotStarted = failed.Select(d => new { demandId = d.Id, d.Title, d.Status, action = "start_demand" }),
                 };

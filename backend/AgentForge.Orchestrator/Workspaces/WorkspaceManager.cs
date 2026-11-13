@@ -29,13 +29,18 @@ public interface IWorkspaceManager
     /// <summary>Clona o repositório do projeto na primeira vez; nas seguintes, só atualiza (fetch).</summary>
     Task<string> EnsureRepositoryAsync(Project project, CancellationToken ct);
 
+    /// <summary>Cria (ou garante a existência do) branch agentforge/demand-&lt;id&gt; a partir de origin/{baseBranch}. Idempotente.</summary>
+    Task<string> EnsureDemandBranchAsync(Project project, Guid demandId, CancellationToken ct);
+
     /// <summary>
-    /// Cria (ou reaproveita, em retrabalho) o worktree da tarefa no branch agentforge/task-&lt;id&gt;. Uma tarefa nova nasce
-    /// do branch base e **combina o trabalho das dependências** (os branches delas, já concluídas), para enxergar o código
-    /// que depende; conflito aborta a criação (nada fica para trás) com <see cref="WorkspaceException"/>.
+    /// Cria (ou reaproveita, em retrabalho) o worktree da tarefa no branch agentforge/task-&lt;id&gt;, partindo do branch
+    /// da demanda (que acumula o trabalho das tarefas anteriores).
     /// </summary>
-    Task<Workspace> CreateWorktreeAsync(Project project, Guid workItemId, CancellationToken ct,
-        IReadOnlyList<Guid>? dependsOn = null, string? baseCommit = null);
+    Task<Workspace> CreateWorktreeAsync(Project project, Guid workItemId, Guid demandId, CancellationToken ct,
+        string? baseCommit = null);
+
+    /// <summary>Merge o branch da tarefa concluída no branch da demanda. Retorna o novo HEAD da demanda.</summary>
+    Task<string> MergeTaskIntoDemandAsync(Project project, Guid demandId, Guid workItemId, CancellationToken ct);
 
     /// <summary>Remove o worktree. O branch é mantido (guarda o trabalho para o merge), salvo se deleteBranch.</summary>
     Task RemoveWorktreeAsync(Project project, Guid workItemId, bool deleteBranch, CancellationToken ct);
@@ -53,12 +58,18 @@ public interface IWorkspaceManager
     /// </summary>
     Task PushTaskBranchAsync(Project project, Guid workItemId, string pushUrl, CancellationToken ct);
 
+    /// <summary>Publica o branch agentforge/demand-&lt;id&gt; no remoto.</summary>
+    Task PushDemandBranchAsync(Project project, Guid demandId, string pushUrl, CancellationToken ct);
+
     /// <summary>
     /// true se o remoto (<paramref name="pushUrl"/>) já tem o branch da tarefa exatamente no commit local (o agente já publicou).
     /// Qualquer falha na checagem (remoto fora, sem acesso, URL inválida) devolve false — o chamador segue para o push normal.
     /// Nunca lança por falha de git, então não expõe URL/token.
     /// </summary>
     Task<bool> IsBranchPublishedAsync(Project project, Guid workItemId, string pushUrl, CancellationToken ct);
+
+    /// <summary>true se o remoto já tem o branch da demanda no mesmo commit local.</summary>
+    Task<bool> IsDemandBranchPublishedAsync(Project project, Guid demandId, string pushUrl, CancellationToken ct);
 }
 
 /// <summary>
@@ -77,6 +88,7 @@ public class WorkspaceManager(IOptions<WorkspaceOptions> options, IEnvironmentLa
     private readonly ConcurrentDictionary<Guid, SemaphoreSlim> _locks = new();
 
     public static string BranchName(Guid workItemId) => $"agentforge/task-{workItemId}";
+    public static string DemandBranchName(Guid demandId) => $"agentforge/demand-{demandId}";
 
     // barras normais funcionam também no Windows, e deixam o caminho igual quando a API (Linux) fala com um host Windows
     private string Root(EnvironmentTarget t) =>
@@ -142,7 +154,7 @@ public class WorkspaceManager(IOptions<WorkspaceOptions> options, IEnvironmentLa
     /// </summary>
     public const string PrePushHook = """
         #!/bin/sh
-        # AgentForge: só é permitido publicar branches agentforge/task-*.
+        # AgentForge: só é permitido publicar branches agentforge/task-* e agentforge/demand-*.
         zero=0000000000000000000000000000000000000000
         while read -r local_ref local_sha remote_ref remote_sha; do
             if [ "$local_sha" = "$zero" ]; then
@@ -151,14 +163,15 @@ public class WorkspaceManager(IOptions<WorkspaceOptions> options, IEnvironmentLa
             fi
             case "$remote_ref" in
                 refs/heads/agentforge/task-?*) ;;
+                refs/heads/agentforge/demand-?*) ;;
                 refs/heads/main|refs/heads/develop)
-                    echo "AgentForge: push rejeitado - o branch $remote_ref é protegido; só refs/heads/agentforge/task-* podem ser enviados." >&2
+                    echo "AgentForge: push rejeitado - o branch $remote_ref é protegido; só refs/heads/agentforge/{task,demand}-* podem ser enviados." >&2
                     exit 1 ;;
                 refs/tags/*)
-                    echo "AgentForge: push rejeitado - tags ($remote_ref) não são permitidas; só refs/heads/agentforge/task-* podem ser enviados." >&2
+                    echo "AgentForge: push rejeitado - tags ($remote_ref) não são permitidas; só refs/heads/agentforge/{task,demand}-* podem ser enviados." >&2
                     exit 1 ;;
                 *)
-                    echo "AgentForge: push rejeitado - $remote_ref não casa com refs/heads/agentforge/task-*; só esses branches podem ser enviados." >&2
+                    echo "AgentForge: push rejeitado - $remote_ref não casa com refs/heads/agentforge/{task,demand}-*; só esses branches podem ser enviados." >&2
                     exit 1 ;;
             esac
         done
@@ -178,15 +191,25 @@ public class WorkspaceManager(IOptions<WorkspaceOptions> options, IEnvironmentLa
         }
     }
 
-    public Task<Workspace> CreateWorktreeAsync(Project project, Guid workItemId, CancellationToken ct,
-        IReadOnlyList<Guid>? dependsOn = null, string? baseCommit = null) =>
+    public Task<string> EnsureDemandBranchAsync(Project project, Guid demandId, CancellationToken ct) =>
+        LockedAsync(project, ct, async t =>
+        {
+            var repo = await EnsureCoreAsync(t, project, ct);
+            var branch = DemandBranchName(demandId);
+            if (!await BranchExistsAsync(t, repo, branch, ct))
+                await Git(t, repo, ["branch", branch, $"origin/{project.BaseBranch}"], ct);
+            return branch;
+        });
+
+    public Task<Workspace> CreateWorktreeAsync(Project project, Guid workItemId, Guid demandId, CancellationToken ct,
+        string? baseCommit = null) =>
         LockedAsync(project, ct, async t =>
         {
             var repo = await EnsureCoreAsync(t, project, ct);
             var branch = BranchName(workItemId);
+            var demandBranch = DemandBranchName(demandId);
             var dir = WorktreePath(t, project, workItemId);
 
-            // retrabalho / retomada: o worktree (ou o branch) já existe com o trabalho feito
             if (await t.Launcher.DirectoryExistsAsync(dir, ct))
                 return new Workspace(dir, branch, baseCommit ?? await MergeBaseAsync(t, repo, project, branch, ct));
 
@@ -198,39 +221,41 @@ public class WorkspaceManager(IOptions<WorkspaceOptions> options, IEnvironmentLa
                 return new Workspace(dir, branch, baseCommit ?? await MergeBaseAsync(t, repo, project, branch, ct));
             }
 
-            await Git(t, repo, ["worktree", "add", "-b", branch, dir, $"origin/{project.BaseBranch}"], ct);
-            try
-            {
-                foreach (var dependency in dependsOn ?? [])
-                    await MergeDependencyAsync(t, repo, dir, dependency, ct);
-            }
-            catch (WorkspaceException)
-            {
-                // não deixa worktree nem branch pela metade: a próxima tentativa começa limpa
-                await Git(t, repo, ["worktree", "remove", "--force", dir], CancellationToken.None);
-                await Git(t, repo, ["branch", "-D", branch], CancellationToken.None);
-                throw;
-            }
-
+            await Git(t, repo, ["worktree", "add", "-b", branch, dir, demandBranch], ct);
             return new Workspace(dir, branch, (await Git(t, dir, ["rev-parse", "HEAD"], ct)).Trim());
         });
 
-    private async Task MergeDependencyAsync(EnvironmentTarget t, string repo, string dir, Guid dependencyId, CancellationToken ct)
-    {
-        var dependencyBranch = BranchName(dependencyId);
-        if (!await BranchExistsAsync(t, repo, dependencyBranch, ct))
-            throw new WorkspaceException($"O branch da dependência ({dependencyBranch}) não existe mais; não dá para partir do trabalho dela.");
-        try
+    public Task<string> MergeTaskIntoDemandAsync(Project project, Guid demandId, Guid workItemId, CancellationToken ct) =>
+        LockedAsync(project, ct, async t =>
         {
-            await Git(t, dir, ["merge", "--no-edit", dependencyBranch], ct);
-        }
-        catch (GitException)
-        {
-            try { await Git(t, dir, ["merge", "--abort"], CancellationToken.None); } catch (GitException) { }
-            throw new WorkspaceException(
-                $"Conflito ao combinar o trabalho da dependência ({dependencyBranch}) com o branch base: resolva manualmente ou ajuste o plano.");
-        }
-    }
+            var repo = await EnsureCoreAsync(t, project, ct);
+            var demandBranch = DemandBranchName(demandId);
+            var taskBranch = BranchName(workItemId);
+            var mergeDir = $"{Root(t)}/{project.Id}/worktrees/_demand-merge-{demandId}";
+
+            await Git(t, repo, ["worktree", "prune"], ct);
+            if (await t.Launcher.DirectoryExistsAsync(mergeDir, ct))
+                await Git(t, repo, ["worktree", "remove", "--force", mergeDir], CancellationToken.None);
+
+            await t.Launcher.CreateDirectoryAsync(Parent(mergeDir), ct);
+            await Git(t, repo, ["worktree", "add", mergeDir, demandBranch], ct);
+            try
+            {
+                await Git(t, mergeDir, ["merge", "--no-edit", taskBranch], ct);
+                var head = (await Git(t, mergeDir, ["rev-parse", "HEAD"], ct)).Trim();
+                return head;
+            }
+            catch (GitException)
+            {
+                try { await Git(t, mergeDir, ["merge", "--abort"], CancellationToken.None); } catch (GitException) { }
+                throw new WorkspaceException(
+                    $"Conflito ao fazer merge da tarefa ({taskBranch}) no branch da demanda ({demandBranch}): resolva manualmente.");
+            }
+            finally
+            {
+                try { await Git(t, repo, ["worktree", "remove", "--force", mergeDir], CancellationToken.None); } catch { }
+            }
+        });
 
     /// <summary>Ponto de partida de um branch criado antes do BaseCommit existir: onde ele se separa do branch base.</summary>
     private static async Task<string> MergeBaseAsync(EnvironmentTarget t, string repo, Project project, string branch, CancellationToken ct) =>
@@ -272,6 +297,42 @@ public class WorkspaceManager(IOptions<WorkspaceOptions> options, IEnvironmentLa
             await Git(t, RepoPath(t, project), ["push", pushUrl, $"refs/heads/{branch}:refs/heads/{branch}"], ct);
             return 0;
         });
+    }
+
+    public Task PushDemandBranchAsync(Project project, Guid demandId, string pushUrl, CancellationToken ct)
+    {
+        if (!IsSafePushUrl(pushUrl))
+            throw new WorkspaceException("URL de push inválida (use https ou a URL SSH do repositório, sem espaços).");
+        return LockedAsync(project, ct, async t =>
+        {
+            var branch = DemandBranchName(demandId);
+            await Git(t, RepoPath(t, project), ["push", pushUrl, $"refs/heads/{branch}:refs/heads/{branch}"], ct);
+            return 0;
+        });
+    }
+
+    public async Task<bool> IsDemandBranchPublishedAsync(Project project, Guid demandId, string pushUrl, CancellationToken ct)
+    {
+        if (!IsSafePushUrl(pushUrl)) return false;
+        try
+        {
+            return await LockedAsync(project, ct, async t =>
+            {
+                var repo = RepoPath(t, project);
+                var branch = $"refs/heads/{DemandBranchName(demandId)}";
+                var local = (await Git(t, repo, ["rev-parse", "--verify", "--quiet", branch], ct)).Trim();
+                if (local.Length == 0) return false;
+                var remote = await Git(t, repo, ["ls-remote", pushUrl, branch], ct);
+                var line = remote.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                    .FirstOrDefault(l => l.EndsWith(branch, StringComparison.Ordinal));
+                var sha = line?.Split('\t', ' ')[0];
+                return sha is not null && string.Equals(sha, local, StringComparison.OrdinalIgnoreCase);
+            });
+        }
+        catch (Exception ex) when (ex is GitException or WorkspaceException or ProcessStartException or EnvironmentUnavailableException)
+        {
+            return false;
+        }
     }
 
     public async Task<bool> IsBranchPublishedAsync(Project project, Guid workItemId, string pushUrl, CancellationToken ct)

@@ -19,7 +19,7 @@ public record DemandDto(Guid Id, Guid ProjectId, string Title, string Descriptio
 public record WorkItemInput(Guid DemandId, string Title, string Description = "", string AcceptanceCriteria = "",
     int Estimate = 0, WorkItemState State = WorkItemState.Backlog, List<Guid>? DependsOnIds = null);
 public record WorkItemDto(Guid Id, Guid DemandId, string Title, string Description, string AcceptanceCriteria,
-    int Estimate, WorkItemState State, int ReworkCount, string? BranchName, string? BlockedReason,
+    int Estimate, WorkItemState State, int ReworkCount, string? BranchName, string? BlockedReason, WorkItemState? BlockedFromState,
     List<Guid> DependsOnIds, DateTime CreatedAt, string? WaitingReason = null, string? PullRequestUrl = null, int? PullRequestNumber = null,
     DateTime? PushedAt = null, string? PushError = null);
 

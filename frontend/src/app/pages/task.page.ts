@@ -97,7 +97,11 @@ const MAX_DIFF_LINES = 4000;
           </section>
         }
         @if (w.state === 'Blocked' && w.blockedReason) {
-          <div class="alert bad" role="alert"><strong>Bloqueada:</strong> {{ w.blockedReason }}</div>
+          <div class="alert bad" role="alert"><strong>Bloqueada:</strong> {{ w.blockedReason }}
+            @if (w.blockedFromState) {
+              <br><small>Retry retoma de: <strong>{{ w.blockedFromState }}</strong></small>
+            }
+          </div>
         }
         @if (w.state === 'AwaitingApproval') {
           <div class="alert warn">QA concluído. Revise o diff abaixo e aprove ou rejeite a entrega.</div>
@@ -228,7 +232,7 @@ export class TaskPage {
       if (e.workItemId !== this.id()) return;
       const previous = this.item()?.state;
       this.item.update((w) => (w
-        ? { ...w, state: e.state, reworkCount: e.reworkCount, blockedReason: e.blockedReason, waitingReason: e.waitingReason, branchName: e.branchName }
+        ? { ...w, state: e.state, reworkCount: e.reworkCount, blockedReason: e.blockedReason, blockedFromState: e.blockedFromState, waitingReason: e.waitingReason, branchName: e.branchName }
         : w));
       this.loadFindings();
       this.loadRuns();

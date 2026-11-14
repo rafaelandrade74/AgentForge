@@ -50,6 +50,7 @@ export interface WorkItem {
   reworkCount: number;
   branchName: string | null;
   blockedReason: string | null;
+  blockedFromState: WorkItemState | null;
   /** A máquina do ambiente está fora do ar: a tarefa continua no estado atual e retoma sozinha quando ela voltar. */
   waitingReason?: string | null;
   /** Pull request aberto no GitHub com o branch desta tarefa. */
@@ -119,6 +120,7 @@ export interface WorkItemChanged {
   state: WorkItemState;
   reworkCount: number;
   blockedReason: string | null;
+  blockedFromState: WorkItemState | null;
   waitingReason?: string | null;
   branchName: string | null;
   at: string;

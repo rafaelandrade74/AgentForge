@@ -241,9 +241,15 @@ public partial class WorkItemProcessor(
 
         var next = WorkflowDefinition.Next(expected, evt)
                    ?? throw new InvalidOperationException($"Transição inválida: {expected} + {evt}.");
+        if (evt == WorkflowEvent.Retry)
+            next = WorkflowDefinition.RetryTarget(item.BlockedFromState);
         mutate?.Invoke(item);
         item.State = next;
         item.BlockedReason = next == WorkItemState.Blocked ? reason : null;
+        if (next == WorkItemState.Blocked)
+            item.BlockedFromState = expected;
+        else
+            item.BlockedFromState = null;
         item.WaitingReason = null;
         await db.SaveChangesAsync(CancellationToken.None);
         logger.LogInformation("WorkItem {Id}: {From} --{Event}--> {To}", item.Id, expected, evt, next);

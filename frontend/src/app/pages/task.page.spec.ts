@@ -10,7 +10,7 @@ import { TaskPage } from './task.page';
 
 const task = (over: Partial<WorkItem> = {}): WorkItem => ({
   id: 'w1', demandId: 'd1', title: 'Criar API', description: 'd', acceptanceCriteria: 'c', estimate: 1, state: 'Done',
-  reworkCount: 0, branchName: 'agentforge/task-w1', blockedReason: null, dependsOnIds: [], createdAt: '2026-01-01T00:00:00Z', ...over,
+  reworkCount: 0, branchName: 'agentforge/task-w1', blockedReason: null, blockedFromState: null, dependsOnIds: [], createdAt: '2026-01-01T00:00:00Z', ...over,
 });
 const project = (over: Partial<Project> = {}): Project => ({
   id: 'p1', name: 'Loja', repositoryUrl: 'https://github.com/o/r.git', baseBranch: 'main', buildCommand: '', testCommand: '', autoMode: false,

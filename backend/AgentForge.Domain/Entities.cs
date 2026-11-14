@@ -77,6 +77,8 @@ public class WorkItem
     public string? BaseCommit { get; set; }
     /// <summary>Por que a tarefa está em Blocked (falha do agente, limite de retrabalho...).</summary>
     public string? BlockedReason { get; set; }
+    /// <summary>Estado em que a tarefa estava antes de ir para Blocked; o Retry retoma daqui em vez de recomeçar do Dev.</summary>
+    public WorkItemState? BlockedFromState { get; set; }
     /// <summary>A máquina do ambiente está fora do ar: a tarefa continua no estado atual e será retomada quando ela voltar (não é Blocked).</summary>
     public string? WaitingReason { get; set; }
     /// <summary>Pull request aberto no GitHub com o branch desta tarefa (depois de concluída e aprovada).</summary>

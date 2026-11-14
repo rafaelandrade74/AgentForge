@@ -118,7 +118,7 @@ export class ProjectPage {
       if (!known) return this.loadItems();
       this.items.update((list) =>
         list.map((i) => (i.id === e.workItemId
-          ? { ...i, state: e.state, reworkCount: e.reworkCount, blockedReason: e.blockedReason, waitingReason: e.waitingReason, branchName: e.branchName }
+          ? { ...i, state: e.state, reworkCount: e.reworkCount, blockedReason: e.blockedReason, blockedFromState: e.blockedFromState, waitingReason: e.waitingReason, branchName: e.branchName }
           : i)));
     });
     this.realtime.demandChanged$.pipe(takeUntilDestroyed()).subscribe((e) => {

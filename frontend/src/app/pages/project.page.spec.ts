@@ -10,7 +10,7 @@ import { ProjectPage } from './project.page';
 
 const item = (over: Partial<WorkItem>): WorkItem => ({
   id: 'w1', demandId: 'd1', title: 'Tarefa 1', description: '', acceptanceCriteria: '', estimate: 0, state: 'Todo',
-  reworkCount: 0, branchName: null, blockedReason: null, dependsOnIds: [], createdAt: '2026-01-01T00:00:00Z', ...over,
+  reworkCount: 0, branchName: null, blockedReason: null, blockedFromState: null, dependsOnIds: [], createdAt: '2026-01-01T00:00:00Z', ...over,
 });
 
 describe('ProjectPage (quadro)', () => {
@@ -68,7 +68,7 @@ describe('ProjectPage (quadro)', () => {
   it('move o cartão quando chega uma mudança de estado pelo tempo real', () => {
     workItemChanged$.next({
       projectId: 'p1', demandId: 'd1', workItemId: 'w1', state: 'InDevelopment', reworkCount: 0,
-      blockedReason: null, branchName: 'agentforge/task-w1', at: '',
+      blockedReason: null, blockedFromState: null, branchName: 'agentforge/task-w1', at: '',
     });
     fixture.detectChanges();
 
@@ -77,13 +77,13 @@ describe('ProjectPage (quadro)', () => {
 
   it('ignora eventos de outros projetos e recarrega quando a tarefa é desconhecida', () => {
     workItemChanged$.next({
-      projectId: 'outro', demandId: 'd9', workItemId: 'w1', state: 'Done', reworkCount: 0, blockedReason: null, branchName: null, at: '',
+      projectId: 'outro', demandId: 'd9', workItemId: 'w1', state: 'Done', reworkCount: 0, blockedReason: null, blockedFromState: null, branchName: null, at: '',
     });
     fixture.detectChanges();
     expect(columnOf('Criar filtro')).toBe('A fazer');
 
     workItemChanged$.next({
-      projectId: 'p1', demandId: 'd1', workItemId: 'nova', state: 'Backlog', reworkCount: 0, blockedReason: null, branchName: null, at: '',
+      projectId: 'p1', demandId: 'd1', workItemId: 'nova', state: 'Backlog', reworkCount: 0, blockedReason: null, blockedFromState: null, branchName: null, at: '',
     });
     http.expectOne((r) => r.url === '/api/work-items').flush([item({ id: 'nova', title: 'Tarefa nova', state: 'Backlog' })]);
     fixture.detectChanges();

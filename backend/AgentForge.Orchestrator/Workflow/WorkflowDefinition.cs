@@ -61,7 +61,7 @@ public static class WorkflowDefinition
             [(WorkItemState.AwaitingApproval, WorkflowEvent.HumanApproved)] = WorkItemState.Done,
             [(WorkItemState.AwaitingApproval, WorkflowEvent.HumanRejected)] = WorkItemState.InDevelopment,
 
-            [(WorkItemState.Blocked, WorkflowEvent.Retry)] = WorkItemState.InDevelopment,
+            [(WorkItemState.Blocked, WorkflowEvent.Retry)] = WorkItemState.InDevelopment, // fallback; o destino real vem de RetryTarget
         };
 
         foreach (var state in Enum.GetValues<WorkItemState>().Where(s => !IsTerminal(s)))
@@ -73,6 +73,16 @@ public static class WorkflowDefinition
         Table.TryGetValue((state, evt), out var next) ? next : null;
 
     public static bool IsTerminal(WorkItemState s) => s is WorkItemState.Done or WorkItemState.Cancelled;
+
+    /// <summary>
+    /// Determina o destino de um Retry: retoma do estado salvo em BlockedFromState (se for um estado retomável),
+    /// ou cai no fallback InDevelopment.
+    /// </summary>
+    public static WorkItemState RetryTarget(WorkItemState? blockedFromState) =>
+        blockedFromState is WorkItemState.InDevelopment or WorkItemState.TechLeadReview
+            or WorkItemState.SecurityReview or WorkItemState.Qa or WorkItemState.Todo
+            ? blockedFromState.Value
+            : WorkItemState.InDevelopment;
 
     /// <summary>Estados que o orquestrador precisa retomar depois de um restart.</summary>
     public static readonly WorkItemState[] Resumable =

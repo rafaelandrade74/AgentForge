@@ -35,6 +35,16 @@ public class WorkflowDefinitionTests
     public void Failed_reviews_go_back_to_the_dev(WorkItemState from, WorkflowEvent evt) =>
         Assert.Equal(WorkItemState.InDevelopment, WorkflowDefinition.Next(from, evt));
 
+    [Theory]
+    [InlineData(WorkItemState.TechLeadReview, WorkItemState.TechLeadReview)]
+    [InlineData(WorkItemState.SecurityReview, WorkItemState.SecurityReview)]
+    [InlineData(WorkItemState.Qa, WorkItemState.Qa)]
+    [InlineData(WorkItemState.InDevelopment, WorkItemState.InDevelopment)]
+    [InlineData(WorkItemState.Todo, WorkItemState.Todo)]
+    [InlineData(null, WorkItemState.InDevelopment)]
+    public void Retry_target_resumes_from_blocked_state(WorkItemState? blockedFrom, WorkItemState expected) =>
+        Assert.Equal(expected, WorkflowDefinition.RetryTarget(blockedFrom));
+
     [Fact]
     public void Terminal_states_accept_nothing_and_everything_else_can_be_cancelled()
     {

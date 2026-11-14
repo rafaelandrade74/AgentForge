@@ -556,6 +556,10 @@ namespace AgentForge.Infrastructure.Persistence.Migrations
                     b.Property<string>("BaseCommit")
                         .HasColumnType("text");
 
+                    b.Property<string>("BlockedFromState")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
                     b.Property<string>("BlockedReason")
                         .HasColumnType("text");
 

@@ -39,8 +39,9 @@ public class AuthService(IOptions<AuthOptions> options, AdminCredentials admin, 
         // Remoção atômica: um refresh token só pode ser usado uma vez, mesmo com requisições concorrentes.
         var entry = await db.RefreshTokens.Where(t => t.TokenHash == hash).FirstOrDefaultAsync(ct);
         if (entry is null) return null;
-        var deleted = await db.RefreshTokens.Where(t => t.Id == entry.Id).ExecuteDeleteAsync(ct);
-        if (deleted == 0 || entry.ExpiresAtUtc <= now) return null;
+        db.RefreshTokens.Remove(entry);
+        await db.SaveChangesAsync(ct);
+        if (entry.ExpiresAtUtc <= now) return null;
         return await IssueAsync(entry.Username, ct);
     }
 
@@ -68,7 +69,8 @@ public class AuthService(IOptions<AuthOptions> options, AdminCredentials admin, 
             ExpiresAtUtc = now.AddDays(_options.RefreshTokenDays),
         });
         // Aproveita para limpar tokens vencidos.
-        await db.RefreshTokens.Where(t => t.ExpiresAtUtc <= now).ExecuteDeleteAsync(ct);
+        var expired = await db.RefreshTokens.Where(t => t.ExpiresAtUtc <= now).ToListAsync(ct);
+        db.RefreshTokens.RemoveRange(expired);
         await db.SaveChangesAsync(ct);
 
         return new TokenPair(new JwtSecurityTokenHandler().WriteToken(jwt), refresh, expires);

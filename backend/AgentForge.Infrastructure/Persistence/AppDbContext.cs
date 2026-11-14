@@ -5,19 +5,19 @@ namespace AgentForge.Infrastructure.Persistence;
 
 public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(options)
 {
-    public DbSet<Project> Projects => Set<Project>();
-    public DbSet<Demand> Demands => Set<Demand>();
-    public DbSet<WorkItem> WorkItems => Set<WorkItem>();
-    public DbSet<AgentRun> AgentRuns => Set<AgentRun>();
-    public DbSet<ReviewFinding> ReviewFindings => Set<ReviewFinding>();
-    public DbSet<AgentRoleConfig> AgentRoleConfigs => Set<AgentRoleConfig>();
-    public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
-    public DbSet<ApiToken> ApiTokens => Set<ApiToken>();
-    public DbSet<ExecutionEnvironment> ExecutionEnvironments => Set<ExecutionEnvironment>();
-    public DbSet<StackProfile> StackProfiles => Set<StackProfile>();
-    public DbSet<ProjectRoleEnvironment> ProjectRoleEnvironments => Set<ProjectRoleEnvironment>();
-    public DbSet<ChatSession> ChatSessions => Set<ChatSession>();
-    public DbSet<ChatMessage> ChatMessages => Set<ChatMessage>();
+    public virtual DbSet<Project> Projects { get; set; } = null!;
+    public virtual DbSet<Demand> Demands { get; set; } = null!;
+    public virtual DbSet<WorkItem> WorkItems { get; set; } = null!;
+    public virtual DbSet<AgentRun> AgentRuns { get; set; } = null!;
+    public virtual DbSet<ReviewFinding> ReviewFindings { get; set; } = null!;
+    public virtual DbSet<AgentRoleConfig> AgentRoleConfigs { get; set; } = null!;
+    public virtual DbSet<RefreshToken> RefreshTokens { get; set; } = null!;
+    public virtual DbSet<ApiToken> ApiTokens { get; set; } = null!;
+    public virtual DbSet<ExecutionEnvironment> ExecutionEnvironments { get; set; } = null!;
+    public virtual DbSet<StackProfile> StackProfiles { get; set; } = null!;
+    public virtual DbSet<ProjectRoleEnvironment> ProjectRoleEnvironments { get; set; } = null!;
+    public virtual DbSet<ChatSession> ChatSessions { get; set; } = null!;
+    public virtual DbSet<ChatMessage> ChatMessages { get; set; } = null!;
 
     protected override void ConfigureConventions(ModelConfigurationBuilder b) =>
         b.Properties<Enum>().HaveConversion<string>().HaveMaxLength(32);

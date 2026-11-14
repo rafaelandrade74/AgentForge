@@ -174,7 +174,7 @@ public sealed class McpToolRegistry
                 var demand = await c.Db.Demands.AsNoTracking().FirstOrDefaultAsync(d => d.Id == id, c.Ct) ?? throw NotFound("Demanda");
                 var items = await c.Db.WorkItems.AsNoTracking().Include(w => w.Dependencies).Where(w => w.DemandId == id).OrderBy(w => w.CreatedAt).ToListAsync(c.Ct);
                 var titles = items.ToDictionary(i => i.Id, i => i.Title);
-                var cost = await c.Db.AgentRuns.Where(r => r.DemandId == id).SumAsync(r => (decimal?)r.CostUsd, c.Ct) ?? 0m;
+                var cost = (await c.Db.AgentRuns.Where(r => r.DemandId == id).Select(r => r.CostUsd).ToListAsync(c.Ct)).Sum();
                 return new
                 {
                     demand = CrudEndpoints.ToDto(demand),

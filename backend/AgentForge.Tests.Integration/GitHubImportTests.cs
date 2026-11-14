@@ -85,7 +85,8 @@ public class GitHubParsingTests
     public void Parses_repository_references(string input, string? expected) => Assert.Equal(expected, GitHubClient.ParseFullName(input));
 }
 
-public sealed class GitHubImportTests(PostgresFixture pg) : IClassFixture<PostgresFixture>, IAsyncLifetime
+[Collection(PostgresCollection.Name)]
+public sealed class GitHubImportTests(PostgresFixture pg) : IAsyncLifetime
 {
     private readonly string _temp = Path.Combine(Path.GetTempPath(), "af-gh-" + Guid.NewGuid().ToString("N"));
     private string _origin = "";

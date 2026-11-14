@@ -17,7 +17,8 @@ namespace AgentForge.Tests.Integration;
 /// Pull request da tarefa concluída: o servidor publica SÓ o branch da tarefa e abre o PR no GitHub (simulado) para a branch de destino
 /// do projeto. O "GitHub" do git é um repositório bare local: um `insteadOf` redireciona https://github.com/ (e a URL com o token) para ele.
 /// </summary>
-public sealed class PullRequestTests(PostgresFixture pg) : IClassFixture<PostgresFixture>, IAsyncLifetime
+[Collection(PostgresCollection.Name)]
+public sealed class PullRequestTests(PostgresFixture pg) : IAsyncLifetime
 {
     private readonly string _temp = Path.Combine(Path.GetTempPath(), "af-pr-" + Guid.NewGuid().ToString("N"));
     private string Remote => Path.Combine(_temp, "gitserver", "octo", "privado.git");

@@ -9,7 +9,8 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace AgentForge.Tests.Integration;
 
-public sealed class McpTests(PostgresFixture pg) : IClassFixture<PostgresFixture>, IAsyncLifetime
+[Collection(PostgresCollection.Name)]
+public sealed class McpTests(PostgresFixture pg) : IAsyncLifetime
 {
     private ApiFactory _factory = null!;
     private HttpClient _jwt = null!;       // logado (JWT)

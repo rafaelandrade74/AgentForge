@@ -19,7 +19,8 @@ namespace AgentForge.Tests.Integration;
 /// Ambientes de execução (fase 10): uma "máquina remota" é um host agent de verdade, em processo, com a própria pasta
 /// de clones; o ambiente padrão é o processo da API. Só roda em Linux/macOS (o host agent do teste libera `sh`).
 /// </summary>
-public sealed class EnvironmentTests(PostgresFixture pg) : IClassFixture<PostgresFixture>, IAsyncLifetime
+[Collection(PostgresCollection.Name)]
+public sealed class EnvironmentTests(PostgresFixture pg) : IAsyncLifetime
 {
     private const string Token = "token-do-host-agent-com-mais-de-24-caracteres";
     private readonly string _temp = Path.Combine(Path.GetTempPath(), "af-env-" + Guid.NewGuid().ToString("N"));

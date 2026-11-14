@@ -129,7 +129,8 @@ public sealed class TestEnvironments(string temp) : IEnvironmentLaunchers
     public EnvironmentTarget ForEnvironment(ExecutionEnvironment environment) => ResolveAsync(environment.Id, default).Result;
 }
 
-public sealed class EnvironmentQueueTests(PostgresFixture pg) : IClassFixture<PostgresFixture>, IAsyncLifetime
+[Collection(PostgresCollection.Name)]
+public sealed class EnvironmentQueueTests(PostgresFixture pg) : IAsyncLifetime
 {
     private readonly string _temp = Path.Combine(Path.GetTempPath(), "af-queue-" + Guid.NewGuid().ToString("N"));
     private string _origin = "";

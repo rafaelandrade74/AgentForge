@@ -150,7 +150,8 @@ public sealed class GitCredentialServiceTests : IDisposable
     }
 }
 
-public sealed class GitEndpointsTests(PostgresFixture pg) : IClassFixture<PostgresFixture>, IAsyncLifetime
+[Collection(PostgresCollection.Name)]
+public sealed class GitEndpointsTests(PostgresFixture pg) : IAsyncLifetime
 {
     private readonly string _dir = Path.Combine(Path.GetTempPath(), "af-ssh-api-" + Guid.NewGuid().ToString("N"));
     private ApiFactory _factory = null!;

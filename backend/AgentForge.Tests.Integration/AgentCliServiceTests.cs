@@ -37,7 +37,8 @@ public sealed class FakeAccountAdapter(string stateFile, string executable = "sh
         new(stdoutLines.LastOrDefault(l => l.StartsWith("result:"))?[7..] ?? "", null, 0.01m, exitCode != 0);
 }
 
-public sealed class AgentCliServiceTests(PostgresFixture pg) : IClassFixture<PostgresFixture>, IAsyncLifetime
+[Collection(PostgresCollection.Name)]
+public sealed class AgentCliServiceTests(PostgresFixture pg) : IAsyncLifetime
 {
     private readonly string _temp = Path.Combine(Path.GetTempPath(), "af-agent-" + Guid.NewGuid().ToString("N"));
     private string State => Path.Combine(_temp, "logado");
@@ -266,7 +267,8 @@ public class ClaudeCodeAccountParsingTests
     }
 }
 
-public sealed class AgentEndpointsTests(PostgresFixture pg) : IClassFixture<PostgresFixture>, IAsyncLifetime
+[Collection(PostgresCollection.Name)]
+public sealed class AgentEndpointsTests(PostgresFixture pg) : IAsyncLifetime
 {
     private ApiFactory _factory = null!;
     private HttpClient _http = null!;

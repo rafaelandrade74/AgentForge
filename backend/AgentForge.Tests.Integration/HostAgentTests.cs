@@ -15,7 +15,8 @@ namespace AgentForge.Tests.Integration;
 /// O host agent de verdade (Kestrel em porta aleatória) com o RemoteProcessLauncher falando HTTP com ele: é o que a
 /// API no Docker faz com o claude/git do computador. Só roda em Linux/macOS (usa `sh`).
 /// </summary>
-public sealed class HostAgentTests(PostgresFixture pg) : IClassFixture<PostgresFixture>, IAsyncLifetime
+[Collection(PostgresCollection.Name)]
+public sealed class HostAgentTests(PostgresFixture pg) : IAsyncLifetime
 {
     private const string Token = "token-de-teste-com-mais-de-24-caracteres";
     private readonly string _temp = Path.Combine(Path.GetTempPath(), "af-host-" + Guid.NewGuid().ToString("N"));

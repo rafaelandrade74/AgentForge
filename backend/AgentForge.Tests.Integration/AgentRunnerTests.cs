@@ -50,7 +50,8 @@ public class CollectingPublisher : IAgentEventPublisher
     }
 }
 
-public class AgentRunnerTests(PostgresFixture pg) : IClassFixture<PostgresFixture>
+[Collection(PostgresCollection.Name)]
+public class AgentRunnerTests(PostgresFixture pg)
 {
     private static AgentRequest Request(string prompt = "oi", TimeSpan? timeout = null) =>
         new(AgentRole.Dev, prompt, Path.GetTempPath(), "fake", Timeout: timeout);

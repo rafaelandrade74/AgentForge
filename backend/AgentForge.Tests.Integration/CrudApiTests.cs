@@ -6,7 +6,8 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace AgentForge.Tests.Integration;
 
-public class CrudApiTests : IClassFixture<PostgresFixture>, IAsyncLifetime
+[Collection(PostgresCollection.Name)]
+public class CrudApiTests : IAsyncLifetime
 {
     private readonly ApiFactory _factory;
     private HttpClient _http = null!;

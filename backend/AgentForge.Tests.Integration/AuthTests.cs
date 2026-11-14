@@ -4,7 +4,8 @@ using System.Net.Http.Json;
 
 namespace AgentForge.Tests.Integration;
 
-public class AuthTests : IClassFixture<PostgresFixture>, IDisposable
+[Collection(PostgresCollection.Name)]
+public class AuthTests : IDisposable
 {
     private record Tokens(string AccessToken, string RefreshToken);
 

@@ -6,7 +6,8 @@ using Microsoft.EntityFrameworkCore;
 namespace AgentForge.Tests.Integration;
 
 /// <summary>Fluxo completo com Postgres real, git real e um CLI falso (sh). Só roda em Linux/macOS.</summary>
-public sealed class OrchestratorTests(PostgresFixture pg) : IClassFixture<PostgresFixture>, IAsyncLifetime
+[Collection(PostgresCollection.Name)]
+public sealed class OrchestratorTests(PostgresFixture pg) : IAsyncLifetime
 {
     private readonly string _temp = Path.Combine(Path.GetTempPath(), "af-orch-" + Guid.NewGuid().ToString("N"));
     private string _origin = "";

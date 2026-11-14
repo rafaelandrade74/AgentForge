@@ -16,7 +16,8 @@ namespace AgentForge.Tests.Integration;
 /// própria pasta de chave SSH; o ambiente padrão é o servidor, com a pasta Git:SshDir. Os testes de chave precisam do
 /// ssh-keygen (imagem backend/Dockerfile.tests) e, como todo teste de host agent, de Linux/macOS.
 /// </summary>
-public sealed class EnvironmentCredentialTests(PostgresFixture pg) : IClassFixture<PostgresFixture>, IAsyncLifetime
+[Collection(PostgresCollection.Name)]
+public sealed class EnvironmentCredentialTests(PostgresFixture pg) : IAsyncLifetime
 {
     private const string TokenA = "token-da-maquina-a-com-mais-de-24-caracteres";
     private const string TokenB = "token-da-maquina-b-com-mais-de-24-caracteres";

@@ -41,68 +41,53 @@ public static class PostgresAvailability
     }
 }
 
-/// <summary>Singleton: um único Postgres 16 para todos os testes; cada classe cria o próprio banco.</summary>
-public static class SharedPostgres
+/// <summary>Um único Postgres 16 para todos os testes de integração; cada classe cria o próprio banco dentro dele.</summary>
+public class PostgresFixture : IAsyncLifetime
 {
-    private static readonly SemaphoreSlim Lock = new(1, 1);
-    private static PostgreSqlContainer? _container;
-    private static string? _connectionString;
-    private static bool _initialized;
+    private static readonly string? External = Environment.GetEnvironmentVariable("AGENTFORGE_TEST_PG");
 
-    public static async Task<string> GetConnectionStringAsync()
+    private PostgreSqlContainer? _container;
+    private string? _connectionString;
+
+    public bool Available => _connectionString is not null;
+
+    public async Task InitializeAsync()
     {
-        if (_initialized) return _connectionString ?? throw new InvalidOperationException(PostgresAvailability.SkipReason);
-
-        await Lock.WaitAsync();
+        if (!PostgresAvailability.IsAvailable) return;
+        if (External is not null)
+        {
+            _connectionString = External;
+            return;
+        }
         try
         {
-            if (_initialized) return _connectionString ?? throw new InvalidOperationException(PostgresAvailability.SkipReason);
-
-            var external = Environment.GetEnvironmentVariable("AGENTFORGE_TEST_PG");
-            if (external is not null)
-            {
-                _connectionString = external;
-                _initialized = true;
-                return _connectionString;
-            }
-
             _container = new PostgreSqlBuilder().WithImage("postgres:16-alpine").WithCommand("-c", "max_connections=500").Build();
             await _container.StartAsync();
             _connectionString = _container.GetConnectionString();
-            _initialized = true;
-
-            AppDomain.CurrentDomain.ProcessExit += (_, _) =>
-            {
-                try { _container?.DisposeAsync().AsTask().GetAwaiter().GetResult(); } catch { }
-            };
-
-            return _connectionString;
         }
-        finally
+        catch
         {
-            Lock.Release();
+            _container = null;
+            _connectionString = null;
         }
     }
 
-    public static async Task<string> NewConnectionStringAsync()
-    {
-        var cs = await GetConnectionStringAsync();
-        return new NpgsqlConnectionStringBuilder(cs)
-        {
-            Database = "t_" + Guid.NewGuid().ToString("N"),
-            MaxPoolSize = 6, ConnectionIdleLifetime = 5, ConnectionPruningInterval = 1,
-        }.ConnectionString;
-    }
-}
-
-/// <summary>Wrapper por classe — delega ao singleton SharedPostgres; permite IClassFixture injeção.</summary>
-public class PostgresFixture : IAsyncLifetime
-{
-    public Task InitializeAsync() => PostgresAvailability.IsAvailable ? SharedPostgres.GetConnectionStringAsync() : Task.CompletedTask;
-    public Task DisposeAsync() => Task.CompletedTask;
+    public Task DisposeAsync() => _container?.DisposeAsync().AsTask() ?? Task.CompletedTask;
 
     public string NewConnectionString() =>
-        SharedPostgres.NewConnectionStringAsync().GetAwaiter().GetResult();
+        _connectionString is null
+            ? throw new InvalidOperationException(PostgresAvailability.SkipReason)
+            : new NpgsqlConnectionStringBuilder(_connectionString)
+            {
+                Database = "t_" + Guid.NewGuid().ToString("N"),
+                MaxPoolSize = 6, ConnectionIdleLifetime = 5, ConnectionPruningInterval = 1,
+            }.ConnectionString;
+}
+
+[CollectionDefinition(Name)]
+public class PostgresCollection : ICollectionFixture<PostgresFixture>
+{
+    public const string Name = "postgres";
 }
 
 /// <summary>Fact que skippa automaticamente quando Postgres não está disponível.</summary>
@@ -141,14 +126,10 @@ public class ApiFactory(string connectionString) : WebApplicationFactory<Program
 
 public static class Db
 {
-    private static readonly SemaphoreSlim MigrateLock = new(3, 3);
-
     public static async Task<AppDbContext> CreateAsync(string connectionString)
     {
         var db = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(connectionString).Options);
-        await MigrateLock.WaitAsync();
-        try { await db.Database.MigrateAsync(); }
-        finally { MigrateLock.Release(); }
+        await db.Database.MigrateAsync();
         return db;
     }
 }

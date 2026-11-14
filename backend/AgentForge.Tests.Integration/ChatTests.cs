@@ -74,7 +74,8 @@ public class ChatReplyTests
 /// Chat com o agente: um "claude" falso (script) responde no lugar do CLI. Confere a retomada da sessão (--resume), o acesso só de leitura
 /// ao código, as propostas de demanda, a criação por clique e o painel de agentes ao vivo.
 /// </summary>
-public sealed class ChatTests(PostgresFixture pg) : IClassFixture<PostgresFixture>, IAsyncLifetime
+[Collection(PostgresCollection.Name)]
+public sealed class ChatTests(PostgresFixture pg) : IAsyncLifetime
 {
     private readonly string _temp = Path.Combine(Path.GetTempPath(), "af-chat-" + Guid.NewGuid().ToString("N"));
     private string _log = "";

@@ -18,7 +18,8 @@ namespace AgentForge.Tests.Integration;
 /// Perfis de stack e container por tarefa (fase 12). O host agent é de verdade (em processo); o "docker" é um script que
 /// registra os argumentos recebidos, então o que se verifica é o que o AgentForge pede ao Docker, sem precisar de Docker.
 /// </summary>
-public sealed class ContainerTests(PostgresFixture pg) : IClassFixture<PostgresFixture>, IAsyncLifetime
+[Collection(PostgresCollection.Name)]
+public sealed class ContainerTests(PostgresFixture pg) : IAsyncLifetime
 {
     private const string Token = "token-do-host-agent-com-mais-de-24-caracteres";
     private readonly string _temp = Path.Combine(Path.GetTempPath(), "af-ctr-" + Guid.NewGuid().ToString("N"));

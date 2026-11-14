@@ -40,6 +40,9 @@ Tela **Git**: gera uma chave SSH ed25519 no servidor (modo 2; a privada nunca sa
 ## Regras
 Siga as fases em ordem; não pule critérios de aceite; código simples e testável; registre decisões em `docs/adr/`; pergunte antes de adicionar dependências fora da stack.
 
+## Imagens Docker (regra obrigatória)
+Toda imagem Docker DEVE ser Alpine (`-alpine` ou `-alpine3.x`). É proibido usar imagens Debian (bookworm, bullseye, slim) ou Ubuntu. Toda tag deve ser específica (ex: `8.0-alpine`, `20-alpine`, `16-alpine`). Antes de adicionar ou atualizar qualquer imagem, verifique vulnerabilidades com `scripts/scan-images.sh` (requer Trivy). Imagens com vulnerabilidades HIGH ou CRITICAL são proibidas — procure uma versão patch mais recente ou reporte.
+
 ## Comandos
 - Testes unitários (sem Docker, rápido): `cd backend && dotnet test AgentForge.Tests`. Usam Moq para mockar banco e integrações externas.
 - Testes de integração (precisam de Docker para Postgres via Testcontainers): `cd backend && dotnet test AgentForge.Tests.Integration`. Para rodar tudo: `cd backend && dotnet test`. No SDK 10 use `DOTNET_ROLL_FORWARD=Major`.

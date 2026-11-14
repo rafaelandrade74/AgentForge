@@ -39,5 +39,8 @@ public class WorkflowActions(AppDbContext db, WorkItemProcessor processor, IWork
     /// <summary>Tira a tarefa de Blocked e devolve ao Dev (zera o contador de retrabalho).</summary>
     public Task<ActionOutcome> RetryAsync(Guid id) => processor.ApplyHumanEventAsync(id, WorkflowEvent.Retry, null);
 
+    /// <summary>Avança a tarefa para o próximo estágio sem rodar o agente atual.</summary>
+    public Task<ActionOutcome> SkipAsync(Guid id) => processor.ApplyHumanEventAsync(id, WorkflowEvent.Skip, null);
+
     public Task<ActionOutcome> CancelAsync(Guid id) => processor.ApplyHumanEventAsync(id, WorkflowEvent.Cancel, null);
 }

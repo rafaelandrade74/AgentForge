@@ -74,6 +74,24 @@ public class WorkflowDefinitionTests
     {
         Assert.Equal(WorkItemState.Blocked, WorkflowDefinition.Next(WorkItemState.Todo, WorkflowEvent.AgentFailed));
     }
+
+    [Theory]
+    [InlineData(WorkItemState.InDevelopment, WorkItemState.TechLeadReview)]
+    [InlineData(WorkItemState.TechLeadReview, WorkItemState.SecurityReview)]
+    [InlineData(WorkItemState.SecurityReview, WorkItemState.Qa)]
+    [InlineData(WorkItemState.Qa, WorkItemState.AwaitingApproval)]
+    public void Skip_advances_to_next_stage(WorkItemState from, WorkItemState expected) =>
+        Assert.Equal(expected, WorkflowDefinition.Next(from, WorkflowEvent.Skip));
+
+    [Theory]
+    [InlineData(WorkItemState.Backlog)]
+    [InlineData(WorkItemState.Todo)]
+    [InlineData(WorkItemState.AwaitingApproval)]
+    [InlineData(WorkItemState.Blocked)]
+    [InlineData(WorkItemState.Done)]
+    [InlineData(WorkItemState.Cancelled)]
+    public void Skip_is_not_valid_from_non_execution_states(WorkItemState from) =>
+        Assert.Null(WorkflowDefinition.Next(from, WorkflowEvent.Skip));
 }
 
 public class OutputParsersTests

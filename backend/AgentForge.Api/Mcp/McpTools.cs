@@ -272,6 +272,10 @@ public sealed class McpToolRegistry
             Schema(Id("taskId", "UUID da tarefa", req: true)), readOnly: false, destructive: false,
             async c => Outcome(await c.Get<WorkflowActions>().RetryAsync(c.Id("taskId")), "Tarefa", "Devolvida ao Dev."));
 
+        Add("skip_task", "Pular etapa da tarefa", "Avança a tarefa para o próximo estágio, pulando o agente atual (InDevelopment→TechLead, TechLead→Security, Security→QA, QA→Aprovação).",
+            Schema(Id("taskId", "UUID da tarefa", req: true)), readOnly: false, destructive: false,
+            async c => Outcome(await c.Get<WorkflowActions>().SkipAsync(c.Id("taskId")), "Tarefa", "Avançada para o próximo estágio."));
+
         Add("cancel_task", "Cancelar tarefa", "Cancela a tarefa: interrompe o agente em execução e apaga o worktree e o branch dela.",
             Schema(Id("taskId", "UUID da tarefa", req: true)), readOnly: false, destructive: true,
             async c => Outcome(await c.Get<WorkflowActions>().CancelAsync(c.Id("taskId")), "Tarefa", "Cancelada."));

@@ -48,6 +48,9 @@ const MAX_DIFF_LINES = 4000;
           @if (w.state === 'Blocked') {
             <button mat-flat-button type="button" (click)="retry()">Reexecutar</button>
           }
+          @if (skippable()) {
+            <button mat-stroked-button type="button" (click)="skip()">Pular etapa</button>
+          }
           @if (!terminal()) {
             <button mat-button type="button" (click)="cancel()">Cancelar tarefa</button>
           }
@@ -217,6 +220,8 @@ export class TaskPage {
   readonly usd = formatUsd;
   readonly totalCost = computed(() => this.runs().reduce((sum, r) => sum + r.costUsd, 0));
   readonly terminal = computed(() => { const s = this.item()?.state; return !s || isTerminal(s); });
+  private static readonly SKIPPABLE: Set<string> = new Set(['InDevelopment', 'TechLeadReview', 'SecurityReview', 'Qa']);
+  readonly skippable = computed(() => { const s = this.item()?.state; return !!s && TaskPage.SKIPPABLE.has(s); });
   readonly stats = computed(() => (this.diffLines().length ? diffStats(this.diffLines()) : null));
   readonly shownDiff = computed(() => this.diffLines().slice(0, MAX_DIFF_LINES));
 
@@ -307,7 +312,11 @@ export class TaskPage {
   }
 
   retry(): void {
-    this.act(this.api.retry(this.id()), 'Tarefa devolvida ao Dev.');
+    this.act(this.api.retry(this.id()), 'Tarefa retomada.');
+  }
+
+  skip(): void {
+    this.act(this.api.skip(this.id()), 'Etapa pulada.');
   }
 
   cancel(): void {

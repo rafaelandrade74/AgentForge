@@ -17,6 +17,7 @@ public enum WorkflowEvent
     ReworkLimitReached,
     AgentFailed,
     Retry,
+    Skip,
     Cancel,
 }
 
@@ -62,6 +63,11 @@ public static class WorkflowDefinition
             [(WorkItemState.AwaitingApproval, WorkflowEvent.HumanRejected)] = WorkItemState.InDevelopment,
 
             [(WorkItemState.Blocked, WorkflowEvent.Retry)] = WorkItemState.InDevelopment, // fallback; o destino real vem de RetryTarget
+
+            [(WorkItemState.InDevelopment, WorkflowEvent.Skip)] = WorkItemState.TechLeadReview,
+            [(WorkItemState.TechLeadReview, WorkflowEvent.Skip)] = WorkItemState.SecurityReview,
+            [(WorkItemState.SecurityReview, WorkflowEvent.Skip)] = WorkItemState.Qa,
+            [(WorkItemState.Qa, WorkflowEvent.Skip)] = WorkItemState.AwaitingApproval,
         };
 
         foreach (var state in Enum.GetValues<WorkItemState>().Where(s => !IsTerminal(s)))

@@ -85,7 +85,9 @@ public static class WorkflowEndpoints
             })
             .WithSummary("Publica o branch da tarefa concluída e abre o pull request no GitHub (token do projeto; destino: o informado, o do projeto ou a base).");
         items.MapPost("/{id:guid}/retry", async (Guid id, WorkflowActions a) => Reply(await a.RetryAsync(id)))
-            .WithSummary("Tira a tarefa de Blocked e devolve ao Dev.");
+            .WithSummary("Tira a tarefa de Blocked e retoma do estado que falhou.");
+        items.MapPost("/{id:guid}/skip", async (Guid id, WorkflowActions a) => Reply(await a.SkipAsync(id)))
+            .WithSummary("Avança a tarefa para o próximo estágio, pulando o agente atual.");
         items.MapPost("/{id:guid}/cancel", async (Guid id, WorkflowActions a) => Reply(await a.CancelAsync(id)))
             .WithSummary("Cancela a tarefa (mata o agente em execução e remove o worktree e o branch).");
     }

@@ -211,7 +211,7 @@ public sealed class McpApiTests : IAsyncLifetime
         string[] expected =
         [
             "list_projects", "get_project", "create_project", "create_demand", "start_demand", "approve_plan", "get_demand",
-            "list_tasks", "get_task", "get_task_diff", "get_run_output", "approve_task", "reject_task", "retry_task",
+            "list_tasks", "get_task", "get_task_diff", "get_run_output", "approve_task", "reject_task", "retry_task", "skip_task",
             "cancel_task", "list_pending_actions", "list_agents", "test_agent", "get_environment_load", "open_demand_pull_request", "open_pull_request", "update_project",
         ];
         Assert.Equal(expected.Order(), byName.Keys.Order());

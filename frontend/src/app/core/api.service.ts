@@ -50,6 +50,7 @@ export class ApiService {
   approve = (id: string) => this.http.post<void>(`/api/work-items/${id}/approve`, null);
   reject = (id: string, comment: string) => this.http.post<void>(`/api/work-items/${id}/reject`, { comment });
   retry = (id: string) => this.http.post<void>(`/api/work-items/${id}/retry`, null);
+  skip = (id: string) => this.http.post<void>(`/api/work-items/${id}/skip`, null);
   cancel = (id: string) => this.http.post<void>(`/api/work-items/${id}/cancel`, null);
 
   // execuções e apontamentos

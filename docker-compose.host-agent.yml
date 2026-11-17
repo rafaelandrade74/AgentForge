@@ -10,7 +10,7 @@ services:
     build:
       args:
         # o container só orquestra: não precisa do SDK .NET nem do CLI do Claude (imagem bem menor)
-        API_BASE_IMAGE: ${API_BASE_IMAGE:-mcr.microsoft.com/dotnet/aspnet:8.0}
+        API_BASE_IMAGE: ${API_BASE_IMAGE:-mcr.microsoft.com/dotnet/aspnet:8.0-alpine}
     environment:
       Agents__Launcher: host
       Agents__HostAgent__Url: ${HOST_AGENT_URL:-http://host.docker.internal:8787}

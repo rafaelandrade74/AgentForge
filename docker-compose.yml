@@ -24,7 +24,7 @@ services:
       context: ./backend
       args:
         CLAUDE_CODE_VERSION: ${CLAUDE_CODE_VERSION:-2.1.316}
-        API_BASE_IMAGE: ${API_BASE_IMAGE:-mcr.microsoft.com/dotnet/sdk:8.0}
+        API_BASE_IMAGE: ${API_BASE_IMAGE:-mcr.microsoft.com/dotnet/sdk:8.0-alpine}
         AGENT_SUDO: ${AGENT_SUDO:-true}
     restart: unless-stopped
     environment:

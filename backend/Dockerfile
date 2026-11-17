@@ -16,6 +16,7 @@ COPY AgentForge.Orchestrator/*.csproj AgentForge.Orchestrator/
 COPY AgentForge.Execution/*.csproj AgentForge.Execution/
 COPY AgentForge.HostAgent/*.csproj AgentForge.HostAgent/
 COPY AgentForge.Tests/*.csproj AgentForge.Tests/
+COPY AgentForge.Tests.Integration/*.csproj AgentForge.Tests.Integration/
 RUN dotnet restore
 COPY . .
 RUN dotnet publish AgentForge.Api -c Release -o /app --no-restore

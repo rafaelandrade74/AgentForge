@@ -87,3 +87,6 @@ Tarefa `Done` → `IBranchPublisher` (`AutoBranchPublisher`, Api) faz o push do 
 
 ## Pull request da tarefa concluída (ADR 0023)
 Tarefa `Done` → botão *Abrir PR* / MCP `open_pull_request` (ação humana). `PullRequestService` (`AgentForge.Api/GitHub`): push do branch da tarefa pela máquina do ambiente (`IWorkspaceManager.PushTaskBranchAsync`, refspec fixo, URL https com o token, erros mascarados) e PR via `GitHubClient.CreatePullRequestAsync`; idempotente (`WorkItem.PullRequestUrl/Number`). `Project.PullRequestBaseBranch` (vazio = base) e `Project.ProtectedGitHubToken` (Data Protection; escrita só pela tela, nunca pelo MCP). MCP `update_project` altera o destino.
+
+## Migração de ambiente (ADR 0028)
+`POST /api/projects/{id}/migrate-environment` transfere o projeto de um host agent para outro: empurra branches ativos (demand + task) para o origin, atualiza `Project.EnvironmentId`, clona/fetch no destino e cria branches locais. Exige push URL válida e nenhum agente rodando. `EnvironmentMigrationService` em `AgentForge.Orchestrator.Environments`; botão *Migrar ambiente* na página do projeto.

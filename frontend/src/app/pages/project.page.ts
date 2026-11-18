@@ -1,19 +1,24 @@
 import { Component, computed, effect, inject, input, signal, untracked } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
+import { HttpErrorResponse } from '@angular/common/http';
 import { MatButtonModule } from '@angular/material/button';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatSelectModule } from '@angular/material/select';
+import { MatSnackBar } from '@angular/material/snack-bar';
 import { ApiService } from '../core/api.service';
 import {
   BOARD_STATES, DEMAND_LABEL, DEMAND_TONE, STATE_LABEL, STATE_TONE, groupByState,
 } from '../core/labels';
-import { Demand, Project, WorkItem } from '../core/models';
+import { Demand, ExecutionEnvironment, MigrationResult, Project, WorkItem } from '../core/models';
 import { RealtimeService } from '../core/realtime.service';
 import { BadgeComponent } from '../shared/shared';
 
 @Component({
   selector: 'app-project-page',
   standalone: true,
-  imports: [RouterLink, MatButtonModule, BadgeComponent],
+  imports: [RouterLink, FormsModule, MatButtonModule, MatFormFieldModule, MatSelectModule, BadgeComponent],
   template: `
     <div class="page">
       @if (project(); as p) {
@@ -24,8 +29,40 @@ import { BadgeComponent } from '../shared/shared';
           </div>
           <span class="spacer"></span>
           <app-badge [label]="p.autoMode ? 'modo automático' : 'com aprovações humanas'" [tone]="p.autoMode ? 'warn' : 'ok'" />
+          @if (environments().length > 0) {
+            <button mat-stroked-button type="button" (click)="toggleMigrate()">Migrar ambiente</button>
+          }
           <a mat-flat-button [routerLink]="['demands', 'new']">Nova demanda</a>
         </div>
+
+        @if (showMigrate()) {
+          <div class="migrate-panel card-surface">
+            <h3>Migrar para outro ambiente</h3>
+            <p class="muted small">Todos os branches ativos serão publicados no origin e o projeto passará a rodar no novo ambiente.</p>
+            <div class="row">
+              <mat-form-field appearance="outline">
+                <mat-label>Ambiente de destino</mat-label>
+                <mat-select [(ngModel)]="migrateTarget">
+                  <mat-option [value]="null">Padrão do servidor</mat-option>
+                  @for (e of environments(); track e.id) {
+                    <mat-option [value]="e.id" [disabled]="e.id === project()?.environmentId">{{ e.name }}</mat-option>
+                  }
+                </mat-select>
+              </mat-form-field>
+              <button mat-flat-button type="button" [disabled]="migrating() || migrateTarget === project()?.environmentId" (click)="migrate()">
+                @if (migrating()) { Migrando… } @else { Confirmar migração }
+              </button>
+              <button mat-button type="button" (click)="showMigrate.set(false)">Cancelar</button>
+            </div>
+            @if (migrateResult(); as r) {
+              <div class="migrate-result">
+                <span class="badge ok">{{ r.branchesPushed }} branch(es) transferido(s)</span>
+                @if (r.branchesSkipped > 0) { <span class="badge warn">{{ r.branchesSkipped }} ignorado(s)</span> }
+                @for (w of r.warnings; track w) { <div class="muted small">⚠ {{ w }}</div> }
+              </div>
+            }
+          </div>
+        }
 
         <h2>Demandas</h2>
         <div class="demands">
@@ -90,17 +127,26 @@ import { BadgeComponent } from '../shared/shared';
     .card:hover, .card:focus-visible { border-color: var(--accent); outline: none; }
     .title { font-weight: 500; margin-bottom: .2rem; }
     .small { font-size: .8rem; margin-top: .3rem; }
+    .migrate-panel { margin: 1rem 0; }
+    .migrate-panel h3 { margin: 0 0 .25rem; }
+    .migrate-result { margin-top: .5rem; display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; }
     @media (max-width: 639px) { .board { gap: .5rem; } .col { flex: 0 0 85vw; } }
   `,
 })
 export class ProjectPage {
   private readonly api = inject(ApiService);
   private readonly realtime = inject(RealtimeService);
+  private readonly snack = inject(MatSnackBar);
 
   readonly id = input.required<string>();
   readonly project = signal<Project | null>(null);
   readonly demands = signal<Demand[]>([]);
   readonly items = signal<WorkItem[]>([]);
+  readonly environments = signal<ExecutionEnvironment[]>([]);
+  readonly showMigrate = signal(false);
+  readonly migrating = signal(false);
+  readonly migrateResult = signal<MigrationResult | null>(null);
+  migrateTarget: string | null = null;
 
   readonly states = BOARD_STATES;
   readonly stateLabel = STATE_LABEL;
@@ -127,9 +173,35 @@ export class ProjectPage {
     });
     this.realtime.reconnected$.pipe(takeUntilDestroyed()).subscribe(() => this.loadAll());
 
+    this.api.environments().subscribe(list => this.environments.set(list.items));
+
     effect(() => {
       this.id();
       untracked(() => this.loadAll());
+    });
+  }
+
+  toggleMigrate(): void {
+    this.showMigrate.update(v => !v);
+    this.migrateResult.set(null);
+    this.migrateTarget = null;
+  }
+
+  migrate(): void {
+    this.migrating.set(true);
+    this.migrateResult.set(null);
+    this.api.migrateEnvironment(this.id(), this.migrateTarget).subscribe({
+      next: (r) => {
+        this.migrating.set(false);
+        this.migrateResult.set(r);
+        this.loadAll();
+        this.snack.open('Migração concluída.', 'OK', { duration: 4000 });
+      },
+      error: (e: HttpErrorResponse) => {
+        this.migrating.set(false);
+        const msg = (e.error as { error?: string })?.error ?? 'Não foi possível migrar o ambiente.';
+        this.snack.open(msg, 'OK', { duration: 6000 });
+      },
     });
   }
 

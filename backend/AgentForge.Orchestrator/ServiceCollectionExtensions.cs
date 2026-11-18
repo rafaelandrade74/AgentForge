@@ -54,6 +54,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<WorkItemProcessor>();
         services.AddScoped<DemandProcessor>();
         services.AddScoped<WorkflowActions>();
+        services.AddScoped<EnvironmentMigrationService>();
         return services;
     }
 

@@ -428,3 +428,9 @@ export interface PullRequestResult {
   baseBranch: string;
   alreadyExisted: boolean;
 }
+
+export interface MigrationResult {
+  branchesPushed: number;
+  branchesSkipped: number;
+  warnings: string[];
+}

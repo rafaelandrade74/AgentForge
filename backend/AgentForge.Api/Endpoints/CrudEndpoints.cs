@@ -3,6 +3,7 @@ using AgentForge.Execution;
 using AgentForge.Infrastructure.Persistence;
 using AgentForge.Orchestrator.Agents;
 using AgentForge.Orchestrator.Environments;
+using AgentForge.Orchestrator.Workspaces;
 using Microsoft.EntityFrameworkCore;
 
 namespace AgentForge.Api.Endpoints;
@@ -165,6 +166,17 @@ public static class CrudEndpoints
         });
         g.MapDelete("/{id:guid}", async (Guid id, AppDbContext db) =>
             await db.Projects.Where(p => p.Id == id).ExecuteDeleteAsync() > 0 ? Results.NoContent() : Results.NotFound());
+
+        g.MapPost("/{id:guid}/migrate-environment", async (Guid id, MigrateEnvironmentInput input,
+            EnvironmentMigrationService migration, CancellationToken ct) =>
+        {
+            try
+            {
+                var result = await migration.MigrateAsync(id, input.TargetEnvironmentId, ct);
+                return Results.Ok(new MigrationResultDto(result.BranchesPushed, result.BranchesSkipped, result.Warnings));
+            }
+            catch (MigrationException ex) { return Results.Conflict(new { error = ex.Message }); }
+        }).WithSummary("Migra o projeto para outro ambiente, transferindo os branches ativos via origin.");
     }
 
     // ---------- Demands ----------

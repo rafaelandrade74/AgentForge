@@ -44,3 +44,6 @@ public record RoleConfigInput(AgentRole Role, string AdapterName, string SystemP
     string Model, int MaxTurns, string ReasoningEffort = "");
 public record RoleConfigDto(Guid Id, AgentRole Role, string AdapterName, string SystemPrompt, string AllowedTools,
     string Model, int MaxTurns, string ReasoningEffort = "");
+
+public record MigrateEnvironmentInput(Guid? TargetEnvironmentId);
+public record MigrationResultDto(int BranchesPushed, int BranchesSkipped, List<string> Warnings);

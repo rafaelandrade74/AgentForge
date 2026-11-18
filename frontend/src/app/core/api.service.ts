@@ -2,7 +2,7 @@ import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 import {
-  AgentInfo, AgentTestResult, Approval, ApiTokenInfo, CreatedApiToken, Demand, EnvironmentInput, EnvironmentList, EnvironmentLoadReport, EnvironmentTest, ExecutionEnvironment, Finding, GitAccessResult, GitHubImportRequest, GitHubImportResult, GitHubRepo, GitSshStatus, LoginSession, McpToolInfo, BuildImageResult, PullRequestResult, PushResult, LiveAgents, ChatSession, ChatDetail, ChatMessage, ProposalCreated, Project, ProjectInput, RoleConfig, Run, RunSummary, StackProfile, StackProfileInput, UsageLimitInfo, WorkItem,
+  AgentInfo, AgentTestResult, Approval, ApiTokenInfo, CreatedApiToken, Demand, EnvironmentInput, EnvironmentList, EnvironmentLoadReport, EnvironmentTest, ExecutionEnvironment, Finding, GitAccessResult, GitHubImportRequest, GitHubImportResult, GitHubRepo, GitSshStatus, LoginSession, McpToolInfo, MigrationResult, BuildImageResult, PullRequestResult, PushResult, LiveAgents, ChatSession, ChatDetail, ChatMessage, ProposalCreated, Project, ProjectInput, RoleConfig, Run, RunSummary, StackProfile, StackProfileInput, UsageLimitInfo, WorkItem,
 } from './models';
 
 /** Parâmetros de query com o ambiente escolhido; sem ambiente (padrão do servidor) a URL fica exatamente como antes. */
@@ -21,6 +21,8 @@ export class ApiService {
   createProject = (p: ProjectInput) => this.http.post<Project>('/api/projects', p);
   updateProject = (id: string, p: ProjectInput) => this.http.put<Project>(`/api/projects/${id}`, p);
   deleteProject = (id: string) => this.http.delete<void>(`/api/projects/${id}`);
+  migrateEnvironment = (id: string, targetEnvironmentId: string | null) =>
+    this.http.post<MigrationResult>(`/api/projects/${id}/migrate-environment`, { targetEnvironmentId });
 
   // demandas
   demands = (projectId: string) => this.http.get<Demand[]>('/api/demands', { params: { projectId } });

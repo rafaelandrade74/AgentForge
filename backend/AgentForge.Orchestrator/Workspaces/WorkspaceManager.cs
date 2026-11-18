@@ -70,6 +70,12 @@ public interface IWorkspaceManager
 
     /// <summary>true se o remoto já tem o branch da demanda no mesmo commit local.</summary>
     Task<bool> IsDemandBranchPublishedAsync(Project project, Guid demandId, string pushUrl, CancellationToken ct);
+
+    /// <summary>
+    /// Para cada branch em <paramref name="branchNames"/> que existe no remoto (origin) mas não localmente,
+    /// cria o branch local a partir de origin/&lt;name&gt;. Idempotente. Retorna quantos foram criados.
+    /// </summary>
+    Task<int> EnsureLocalBranchesFromRemoteAsync(Project project, IReadOnlyList<string> branchNames, CancellationToken ct);
 }
 
 /// <summary>
@@ -382,6 +388,24 @@ public class WorkspaceManager(IOptions<WorkspaceOptions> options, IEnvironmentLa
             return $"(não foi possível gerar o diff: {ex.Message})";
         }
     }
+
+    public Task<int> EnsureLocalBranchesFromRemoteAsync(Project project, IReadOnlyList<string> branchNames, CancellationToken ct) =>
+        LockedAsync(project, ct, async t =>
+        {
+            var repo = await EnsureCoreAsync(t, project, ct);
+            int created = 0;
+            foreach (var branch in branchNames)
+            {
+                if (await BranchExistsAsync(t, repo, branch, ct)) continue;
+                try
+                {
+                    await Git(t, repo, ["branch", branch, $"origin/{branch}"], ct);
+                    created++;
+                }
+                catch (GitException) { /* remote ref pode não existir */ }
+            }
+            return created;
+        });
 
     private static async Task<bool> BranchExistsAsync(EnvironmentTarget t, string repo, string branch, CancellationToken ct)
     {

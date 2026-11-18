@@ -42,6 +42,7 @@ public sealed class PushUrlProviderTests
         public Task<string> GetDiffAsync(Project project, Guid workItemId, CancellationToken ct, string? baseCommit = null) => throw new NotSupportedException();
         public Task PushDemandBranchAsync(Project project, Guid demandId, string pushUrl, CancellationToken ct) => throw new NotSupportedException();
         public Task<bool> IsDemandBranchPublishedAsync(Project project, Guid demandId, string pushUrl, CancellationToken ct) => throw new NotSupportedException();
+        public Task<int> EnsureLocalBranchesFromRemoteAsync(Project project, IReadOnlyList<string> branchNames, CancellationToken ct) => throw new NotSupportedException();
     }
 
     private static PushUrlProvider Provider() => new(new FakeProtector());

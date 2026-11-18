@@ -138,6 +138,11 @@ button, a, [role="button"] {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
+button:active:not(:disabled), [role="button"]:active {
+  transform: scale(.97);
+  opacity: .85;
+}
+a:active { opacity: .8; }
 
 /* ── touch targets mínimos de 44px ── */
 @media (pointer: coarse) {

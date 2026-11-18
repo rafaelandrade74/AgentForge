@@ -123,13 +123,13 @@ const EMPTY: StackProfileInput = { name: '', description: '', image: '', dockerf
     </div>
   `,
   styles: `
-    .card { background: #1b1b1b; border-radius: 10px; padding: .75rem 1rem 1rem; margin-bottom: 1rem; }
+    .card { background: var(--bg-surface-1); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: .85rem 1.25rem 1.25rem; margin-bottom: 1rem; }
     .card h2 { margin: .25rem 0; }
     .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); gap: .75rem 1rem; padding-top: .5rem; }
     .grid .wide { grid-column: 1 / -1; }
     .small { font-size: .85rem; }
-    .result { margin-top: .5rem; padding: .5rem .75rem; border-radius: 8px; background: #151515; }
-    .result.ok { border-left: 4px solid #3f9f58; } .result.bad { border-left: 4px solid #c25555; }
+    .result { margin-top: .5rem; padding: .5rem .75rem; border-radius: var(--radius-md); background: var(--bg-surface-2); }
+    .result.ok { border-left: 4px solid var(--success); } .result.bad { border-left: 4px solid var(--danger); }
     .log { max-height: 16rem; overflow: auto; white-space: pre-wrap; }
     .build-env { margin-bottom: .75rem; }
   `,

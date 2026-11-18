@@ -79,17 +79,18 @@ import { BadgeComponent } from '../shared/shared';
     </div>
   `,
   styles: `
-    .demands { display: flex; flex-direction: column; gap: .4rem; }
-    .demand { display: flex; gap: .75rem; align-items: center; padding: .6rem .8rem; background: #1b1b1b; border-radius: 8px; text-decoration: none; color: inherit; }
-    .demand:hover { background: #242424; }
+    .demands { display: flex; flex-direction: column; gap: .5rem; }
+    .demand { display: flex; gap: .75rem; align-items: center; padding: .7rem 1rem; background: var(--bg-surface-1); border: 1px solid var(--border); border-radius: var(--radius-md); text-decoration: none; color: inherit; transition: background var(--transition), border-color var(--transition); }
+    .demand:hover { background: var(--bg-surface-2); border-color: var(--border-hover); }
     .board { display: flex; gap: .75rem; overflow-x: auto; padding-bottom: 1rem; align-items: flex-start; }
-    .col { flex: 0 0 15.5rem; background: #181818; border-radius: 10px; padding: .5rem; min-height: 6rem; }
+    .col { flex: 0 0 15.5rem; background: var(--bg-surface-1); border: 1px solid var(--border); border-radius: var(--radius-md); padding: .5rem; min-height: 6rem; }
     .col header { display: flex; justify-content: space-between; font-weight: 600; padding: .25rem .4rem .5rem; }
-    .count { background: #333; border-radius: 999px; padding: 0 .5rem; font-size: .8rem; }
-    .card { display: block; background: #242424; border-radius: 8px; padding: .6rem .7rem; margin-bottom: .5rem; text-decoration: none; color: inherit; border: 1px solid transparent; }
-    .card:hover, .card:focus-visible { border-color: var(--mat-sys-primary, #b69df8); outline: none; }
+    .count { background: var(--bg-surface-3); border-radius: 999px; padding: 0 .5rem; font-size: .8rem; }
+    .card { display: block; background: var(--bg-surface-2); border: 1px solid var(--border); border-radius: var(--radius-md); padding: .7rem .8rem; margin-bottom: .5rem; text-decoration: none; color: inherit; transition: border-color var(--transition); }
+    .card:hover, .card:focus-visible { border-color: var(--accent); outline: none; }
     .title { font-weight: 500; margin-bottom: .2rem; }
     .small { font-size: .8rem; margin-top: .3rem; }
+    @media (max-width: 639px) { .board { gap: .5rem; } .col { flex: 0 0 85vw; } }
   `,
 })
 export class ProjectPage {

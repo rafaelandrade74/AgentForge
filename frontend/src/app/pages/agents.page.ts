@@ -147,19 +147,20 @@ interface LoginUi {
     </div>
   `,
   styles: `
-    .agent { background: #1b1b1b; border-radius: 10px; padding: .75rem 1rem 1rem; margin-bottom: 1rem; }
+    .agent { background: var(--bg-surface-1); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: .85rem 1.25rem 1.25rem; margin-bottom: 1rem; }
     .agent h2 { margin: .25rem 0; }
     .small { font-size: .85rem; }
-    .env { display: flex; gap: .5rem; align-items: center; }
+    .env { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; }
     .test { display: flex; gap: .75rem; align-items: center; flex-wrap: wrap; }
-    .login { border-top: 1px solid #2c2c2c; margin-top: .5rem; padding-top: .5rem; }
+    .login { border-top: 1px solid var(--border); margin-top: .5rem; padding-top: .5rem; }
     .login ol { margin: .25rem 0 .75rem; padding-left: 1.25rem; }
     .code { width: 28rem; max-width: 100%; }
-    .bad-text { color: #ffb4b4; }
+    .bad-text { color: var(--danger); }
     .roles { display: grid; grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr)); gap: .75rem 1.5rem; }
     .role { display: flex; align-items: center; gap: 1rem; }
     .role .name { width: 7rem; font-weight: 500; }
     .role mat-form-field { flex: 1; }
+    @media (max-width: 639px) { .roles { grid-template-columns: 1fr; } .role { flex-direction: column; align-items: stretch; gap: .5rem; } .role .name { width: auto; } }
   `,
 })
 export class AgentsPage {

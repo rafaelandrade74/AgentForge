@@ -102,14 +102,15 @@ export function appendLine(lines: LiveLine[], e: RunEvent): LiveLine[] {
     </div>
   `,
   styles: `
-    .log { background: #0d0d0d; border-radius: 6px; padding: .5rem .75rem; height: 18rem; overflow: auto; font-size: .8rem; }
+    .log { background: var(--bg-base); border: 1px solid var(--border); border-radius: var(--radius-md); padding: .5rem .75rem; height: 18rem; overflow: auto; font-size: .8rem; }
     .line { padding: 1px 0; white-space: pre-wrap; word-break: break-word; }
-    .t { color: #777; margin-right: .5rem; }
-    .who { color: #9aa; margin-right: .5rem; }
-    .k-run_started .who, .k-run_finished .who { color: #b69df8; font-weight: 600; }
+    .t { color: var(--text-tertiary); margin-right: .5rem; }
+    .who { color: var(--text-secondary); margin-right: .5rem; }
+    .k-run_started .who, .k-run_finished .who { color: var(--accent); font-weight: 600; }
     .k-tool .txt { color: #e0b050; }
-    .k-tool_result .txt { color: #889; }
-    .k-result .txt { color: #7fd48a; }
+    .k-tool_result .txt { color: var(--text-tertiary); }
+    .k-result .txt { color: var(--success); }
+    @media (max-width: 639px) { .log { height: 14rem; } }
   `,
 })
 export class LiveLogComponent {
@@ -181,17 +182,17 @@ export class LiveLogComponent {
     }
   `,
   styles: `
-    .run { border-bottom: 1px solid #2a2a2a; }
+    .run { border-bottom: 1px solid var(--border); }
     .head { all: unset; cursor: pointer; display: flex; gap: .75rem; align-items: center; padding: .5rem .25rem; width: 100%; box-sizing: border-box; }
-    .head:hover { background: #1c1c1c; }
-    .head:focus-visible { outline: 2px solid var(--mat-sys-primary, #b69df8); }
+    .head:hover { background: var(--bg-surface-2); }
+    .head:focus-visible { outline: 2px solid var(--accent); }
     .body { padding: .25rem .5rem 1rem; }
     h4 { margin: .5rem 0 .25rem; }
     .spacer { flex: 1; }
     .row-head { display: flex; align-items: center; gap: .5rem; }
-    .view-toggle { background: none; border: 1px solid #444; color: inherit; border-radius: 6px; padding: .15rem .6rem; font: inherit; font-size: .8rem; cursor: pointer; }
-    .view-toggle:hover { background: #222; }
-    .formatted { background: #131313; border-radius: 6px; padding: .5rem .9rem; max-height: 32rem; overflow: auto; }
+    .view-toggle { background: none; border: 1px solid var(--border); color: inherit; border-radius: var(--radius-sm); padding: .3rem .7rem; min-height: 36px; font: inherit; font-size: .8rem; cursor: pointer; transition: background var(--transition); }
+    .view-toggle:hover { background: var(--bg-surface-2); }
+    .formatted { background: var(--bg-surface-1); border: 1px solid var(--border); border-radius: var(--radius-md); padding: .5rem .9rem; max-height: 32rem; overflow: auto; }
   `,
 })
 export class RunTimelineComponent {

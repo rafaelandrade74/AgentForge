@@ -76,11 +76,11 @@ import { MarkdownComponent } from '../shared/markdown.component';
   styles: `
     .desc { max-width: 60rem; }
     .items { display: flex; flex-direction: column; gap: .5rem; }
-    .item { display: block; background: #1b1b1b; border-radius: 8px; padding: .6rem .8rem; text-decoration: none; color: inherit; }
-    .item:hover { background: #242424; }
+    .item { display: block; background: var(--bg-surface-1); border: 1px solid var(--border); border-radius: var(--radius-md); padding: .7rem 1rem; text-decoration: none; color: inherit; transition: background var(--transition), border-color var(--transition); }
+    .item:hover { background: var(--bg-surface-2); border-color: var(--border-hover); }
     .small { font-size: .8rem; }
-    .crit { margin: .4rem 0 0; font-size: .85rem; color: #aaa; }
-    .bad-text { color: #ffb4b4; }
+    .crit { margin: .4rem 0 0; font-size: .85rem; color: var(--text-secondary); }
+    .bad-text { color: var(--danger); }
   `,
 })
 export class DemandPage {

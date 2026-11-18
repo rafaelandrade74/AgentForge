@@ -67,7 +67,8 @@ import { RoleConfig } from '../core/models';
     .form { display: flex; flex-direction: column; gap: .5rem; padding-top: .75rem; }
     .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); gap: .5rem 1rem; }
     .full { width: 100%; }
-    textarea { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: .85rem; }
+    textarea { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: max(16px, .85rem); }
+    @media (max-width: 639px) { .grid { grid-template-columns: 1fr; } }
   `,
 })
 export class PromptsPage {

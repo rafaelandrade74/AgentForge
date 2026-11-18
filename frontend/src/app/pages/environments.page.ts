@@ -166,17 +166,19 @@ const EMPTY: EnvironmentInput = { name: '', url: '', token: '', workspaceRoot: '
     </ng-template>
   `,
   styles: `
-    .card { background: #1b1b1b; border-radius: 10px; padding: .75rem 1rem 1rem; margin-bottom: 1rem; }
+    .card { background: var(--bg-surface-1); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: .85rem 1.25rem 1.25rem; margin-bottom: 1rem; }
     .card h2 { margin: .25rem 0; }
     .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr)); gap: .75rem 1rem; padding-top: .5rem; }
     .grid .row { grid-column: 1 / -1; }
     .small { font-size: .85rem; }
-    .result { margin-top: .5rem; padding: .5rem .75rem; border-radius: 8px; background: #151515; }
-    .result.ok { border-left: 4px solid #3f9f58; } .result.bad { border-left: 4px solid #c25555; }
+    .result { margin-top: .5rem; padding: .5rem .75rem; border-radius: var(--radius-md); background: var(--bg-surface-2); }
+    .result.ok { border-left: 4px solid var(--success); } .result.bad { border-left: 4px solid var(--danger); }
     .load { width: 100%; border-collapse: collapse; margin-top: .5rem; }
-    .load th, .load td { text-align: left; padding: .3rem .5rem; border-bottom: 1px solid #2a2a2a; }
-    .alert-waiting { margin-top: .5rem; padding: .4rem .75rem; border-left: 4px solid #c9a227; background: #151515; border-radius: 6px; display: flex; gap: .5rem; flex-wrap: wrap; align-items: center; }
+    .load th, .load td { text-align: left; padding: .4rem .6rem; border-bottom: 1px solid var(--border); }
+    .load th { font-weight: 600; color: var(--text-secondary); font-size: .85rem; text-transform: uppercase; letter-spacing: .03em; }
+    .alert-waiting { margin-top: .5rem; padding: .5rem .75rem; border-left: 4px solid var(--warning); background: var(--bg-surface-2); border-radius: var(--radius-sm); display: flex; gap: .5rem; flex-wrap: wrap; align-items: center; }
     .tools { list-style: none; padding: 0; margin: .5rem 0 0; display: flex; flex-wrap: wrap; gap: .25rem 1rem; }
+    @media (max-width: 639px) { .load { display: block; overflow-x: auto; } }
   `,
 })
 export class EnvironmentsPage {

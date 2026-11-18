@@ -101,18 +101,20 @@ import { BadgeComponent } from '../shared/shared';
     </div>
   `,
   styles: `
-    .card { background: #1b1b1b; border-radius: 10px; padding: .75rem 1rem 1rem; margin-bottom: 1rem; }
+    .card { background: var(--bg-surface-1); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: .85rem 1.25rem 1.25rem; margin-bottom: 1rem; }
     .card h2 { margin: .25rem 0 .5rem; }
     .small { font-size: .85rem; }
-    .url, .token { background: #0d0d0d; padding: .4rem .6rem; border-radius: 6px; word-break: break-all; }
-    .created { background: #1d2a1d; border: 1px solid #2f5a2f; border-radius: 8px; padding: .75rem 1rem; margin: .75rem 0; }
+    .url, .token { background: var(--bg-base); padding: .4rem .7rem; border-radius: var(--radius-sm); border: 1px solid var(--border); word-break: break-all; }
+    .created { background: var(--success-bg); border: 1px solid var(--success-border); border-radius: var(--radius-md); padding: .85rem 1rem; margin: .75rem 0; }
     .created h3 { margin: .75rem 0 .25rem; }
     .tokens { width: 100%; border-collapse: collapse; margin-top: .75rem; }
-    .tokens th, .tokens td { text-align: left; padding: .4rem .5rem; border-bottom: 1px solid #2a2a2a; }
-    .tokens tr.revoked { opacity: .55; }
+    .tokens th, .tokens td { text-align: left; padding: .45rem .6rem; border-bottom: 1px solid var(--border); }
+    .tokens th { font-weight: 600; color: var(--text-secondary); font-size: .85rem; }
+    .tokens tr.revoked { opacity: .5; }
     .tools { display: grid; grid-template-columns: repeat(auto-fill, minmax(22rem, 1fr)); gap: .5rem .75rem; }
-    .tool { background: #151515; border-radius: 8px; padding: .5rem .7rem; }
+    .tool { background: var(--bg-surface-2); border: 1px solid var(--border); border-radius: var(--radius-md); padding: .5rem .75rem; }
     .name { font-weight: 600; }
+    @media (max-width: 639px) { .tokens { display: block; overflow-x: auto; } .tools { grid-template-columns: 1fr; } }
   `,
 })
 export class IntegrationPage {

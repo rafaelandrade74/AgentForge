@@ -107,12 +107,13 @@ import { BadgeComponent } from '../shared/shared';
     .grow { flex: 1 1 18rem; }
     .full { width: 100%; }
     .repos { display: grid; gap: .35rem; max-height: 16rem; overflow: auto; margin-bottom: 1rem; }
-    .repo { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; text-align: left; padding: .5rem .75rem;
-      background: transparent; color: inherit; border: 1px solid rgba(255,255,255,.18); border-radius: 6px; cursor: pointer; }
-    .repo.selected { border-color: #7aa7ff; background: rgba(122,167,255,.12); }
+    .repo { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; text-align: left; padding: .6rem .85rem;
+      background: transparent; color: inherit; border: 1px solid var(--border); border-radius: var(--radius-sm); cursor: pointer; min-height: 44px; transition: border-color var(--transition), background var(--transition); }
+    .repo:hover { border-color: var(--border-hover); background: var(--bg-surface-2); }
+    .repo.selected { border-color: var(--accent); background: var(--accent-muted); }
     .name { font-weight: 600; }
     .desc { flex-basis: 100%; }
-    .error { color: #ff8a80; }
+    .error { color: var(--danger); }
     .result { margin-top: .75rem; }
     mat-card-actions { display: flex; gap: .5rem; padding: 0 1rem 1rem; }
   `,

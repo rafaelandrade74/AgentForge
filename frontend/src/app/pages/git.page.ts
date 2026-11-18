@@ -97,14 +97,14 @@ import { ActionDialogComponent, BadgeComponent } from '../shared/shared';
     </div>
   `,
   styles: `
-    .card { background: #1b1b1b; border-radius: 10px; padding: .75rem 1rem 1rem; margin-bottom: 1rem; }
+    .card { background: var(--bg-surface-1); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: .85rem 1.25rem 1.25rem; margin-bottom: 1rem; }
     .card h2 { margin: .25rem 0 .5rem; } .card h3 { margin: 1rem 0 .25rem; }
     .small { font-size: .85rem; }
     .key { word-break: break-all; white-space: pre-wrap; }
-    .steps li { margin-bottom: .4rem; }
+    .steps li { margin-bottom: .5rem; line-height: 1.5; }
     .url { width: 34rem; max-width: 100%; }
-    .result { margin-top: .75rem; padding: .5rem .75rem; border-radius: 8px; background: #151515; }
-    .result.ok { border-left: 4px solid #3f9f58; } .result.bad { border-left: 4px solid #c25555; }
+    .result { margin-top: .75rem; padding: .5rem .75rem; border-radius: var(--radius-md); background: var(--bg-surface-2); }
+    .result.ok { border-left: 4px solid var(--success); } .result.bad { border-left: 4px solid var(--danger); }
   `,
 })
 export class GitPage {

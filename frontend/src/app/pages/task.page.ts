@@ -173,24 +173,24 @@ const MAX_DIFF_LINES = 4000;
   `,
   styles: `
     .actions { margin: .75rem 0; }
-    .alert { padding: .6rem .9rem; border-radius: 8px; margin: .5rem 0; }
-    .alert.bad { background: #3a1818; color: #ffb4b4; }
-    .alert.warn { background: #3a3014; color: #ffe08a; }
-    .alert.ok { background: #12301b; color: #9be5ad; }
+    .alert { padding: .6rem .9rem; border-radius: var(--radius-md); margin: .5rem 0; border: 1px solid transparent; }
+    .alert.bad { background: var(--danger-bg); color: var(--danger); border-color: var(--danger-border); }
+    .alert.warn { background: var(--warning-bg); color: var(--warning); border-color: var(--warning-border); }
+    .alert.ok { background: var(--success-bg); color: var(--success); border-color: var(--success-border); }
     .pr { margin: .5rem 0 1rem; }
-    .prbase { background: #151515; color: inherit; border: 1px solid #333; border-radius: 6px; padding: .35rem .5rem; min-width: 12rem; }
+    .prbase { background: var(--bg-surface-2); color: inherit; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: .4rem .6rem; min-width: 12rem; font-size: 16px; }
     .cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(22rem, 1fr)); gap: 1.5rem; }
     .pre { white-space: pre-wrap; }
     .small { font-size: .8rem; }
-    .finding { background: #1b1b1b; border-radius: 8px; padding: .5rem .7rem; margin-bottom: .5rem; }
+    .finding { background: var(--bg-surface-1); border: 1px solid var(--border); border-radius: var(--radius-md); padding: .5rem .7rem; margin-bottom: .5rem; }
     .finding.resolved { opacity: .55; }
-    .diff { background: #0d0d0d; border-radius: 6px; padding: .5rem 0; overflow: auto; max-height: 36rem; font-size: .8rem; }
+    .diff { background: var(--bg-base); border: 1px solid var(--border); border-radius: var(--radius-md); padding: .5rem 0; overflow: auto; max-height: 36rem; font-size: .8rem; }
     .dl { padding: 0 .75rem; white-space: pre; }
-    .dl.add { background: #12301b; color: #9be5ad; }
-    .dl.del { background: #3a1616; color: #f0a5a5; }
-    .dl.hunk { color: #8ab4f8; background: #151d2b; }
-    .dl.meta { color: #aaa; font-weight: 600; }
-    .add { color: #7fd48a; } .del { color: #f08a8a; }
+    .dl.add { background: var(--success-bg); color: var(--success); }
+    .dl.del { background: var(--danger-bg); color: var(--danger); }
+    .dl.hunk { color: var(--info); background: var(--info-bg); }
+    .dl.meta { color: var(--text-secondary); font-weight: 600; }
+    .add { color: var(--success); } .del { color: var(--danger); }
   `,
 })
 export class TaskPage {

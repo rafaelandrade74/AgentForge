@@ -137,18 +137,19 @@ export function elapsed(startedAt: string, now: number): string {
     </div>
   `,
   styles: `
-    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1rem; }
-    .card { padding: 1rem; background: #151515; border: 1px solid #2a2a2a; border-radius: 10px; margin-top: .5rem; }
-    .agent { display: flex; flex-direction: column; gap: .35rem; margin-top: 0; }
-    .agent[data-state='ready'] { border-color: #1f4d2b; }
-    .agent[data-state='limited'], .agent[data-state='not-connected'] { border-color: #5a4a14; }
-    .agent[data-state='unreachable'], .agent[data-state='not-installed'] { border-color: #5c1f1f; }
-    .warnbox { padding: .35rem .6rem; border-left: 3px solid #c9a227; background: #1d1a10; border-radius: 4px; }
-    .actions { margin-top: .4rem; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem; }
+    .card { padding: 1rem 1.25rem; background: var(--bg-surface-1); border: 1px solid var(--border); border-radius: var(--radius-lg); margin-top: .5rem; transition: border-color var(--transition); }
+    .agent { display: flex; flex-direction: column; gap: .4rem; margin-top: 0; }
+    .agent[data-state='ready'] { border-color: var(--success-border); }
+    .agent[data-state='limited'], .agent[data-state='not-connected'] { border-color: var(--warning-border); }
+    .agent[data-state='unreachable'], .agent[data-state='not-installed'] { border-color: var(--danger-border); }
+    .warnbox { padding: .4rem .7rem; border-left: 3px solid var(--warning); background: var(--warning-bg); border-radius: var(--radius-sm); }
+    .actions { margin-top: .5rem; }
     .start { margin-top: 1rem; }
-    .field { min-width: 18rem; }
-    .run .tail { margin-top: .4rem; color: #aaa; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .field { min-width: 18rem; max-width: 100%; }
+    .run .tail { margin-top: .4rem; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .empty { margin-top: .5rem; }
+    @media (max-width: 639px) { .grid { grid-template-columns: 1fr; } .field { min-width: 0; width: 100%; } }
   `,
 })
 export class LivePage {

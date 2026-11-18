@@ -124,24 +124,24 @@ import { MarkdownComponent } from '../shared/markdown.component';
   styles: `
     .layout { display: grid; grid-template-columns: 320px 1fr; gap: 1.25rem; align-items: start; }
     .side { display: flex; flex-direction: column; gap: .5rem; }
-    .side .card { display: flex; flex-direction: column; padding: .75rem; background: #151515; border: 1px solid #2a2a2a; border-radius: 10px; }
-    .session { display: block; padding: .5rem .7rem; border: 1px solid #2a2a2a; border-radius: 8px; color: inherit; text-decoration: none; background: #151515; }
-    .session:hover, .session.active { border-color: #8ab4f8; }
+    .side .card { display: flex; flex-direction: column; padding: .75rem 1rem; background: var(--bg-surface-1); border: 1px solid var(--border); border-radius: var(--radius-lg); }
+    .session { display: block; padding: .6rem .8rem; border: 1px solid var(--border); border-radius: var(--radius-md); color: inherit; text-decoration: none; background: var(--bg-surface-1); transition: border-color var(--transition); min-height: 44px; }
+    .session:hover, .session.active { border-color: var(--accent); }
     .session .title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 600; }
-    .conversation { display: flex; flex-direction: column; min-height: 70vh; border: 1px solid #2a2a2a; border-radius: 10px; background: #111; }
-    .head { padding: .75rem 1rem; border-bottom: 1px solid #2a2a2a; }
-    .messages { flex: 1; overflow-y: auto; padding: 1rem; max-height: 62vh; display: flex; flex-direction: column; gap: .75rem; }
+    .conversation { display: flex; flex-direction: column; min-height: 70dvh; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--bg-surface-1); }
+    .head { padding: .75rem 1rem; border-bottom: 1px solid var(--border); }
+    .messages { flex: 1; overflow-y: auto; padding: 1rem; max-height: 62dvh; display: flex; flex-direction: column; gap: .75rem; }
     .msg { display: flex; flex-direction: column; gap: .4rem; max-width: 85%; }
     .msg.user { align-self: flex-end; align-items: flex-end; }
-    .bubble { padding: .6rem .85rem; border-radius: 12px; background: #1b1b1b; border: 1px solid #2a2a2a; }
-    .user-bubble { background: #1f3a5c; border-color: #2b4f7a; white-space: pre-wrap; }
-    .msg.failed .bubble { border-color: #5c1f1f; background: #231414; }
-    .proposal { padding: .6rem .8rem; border: 1px dashed #4a6fa5; border-radius: 10px; background: #12202f; }
+    .bubble { padding: .65rem .9rem; border-radius: var(--radius-lg); background: var(--bg-surface-2); border: 1px solid var(--border); }
+    .user-bubble { background: var(--info-bg); border-color: var(--info-border); white-space: pre-wrap; }
+    .msg.failed .bubble { border-color: var(--danger-border); background: var(--danger-bg); }
+    .proposal { padding: .65rem .9rem; border: 1px dashed var(--info-border); border-radius: var(--radius-md); background: var(--info-bg); }
     .proposal p { margin: .3rem 0 .5rem; }
-    .composer { display: flex; gap: .75rem; align-items: flex-start; padding: .75rem 1rem; border-top: 1px solid #2a2a2a; }
+    .composer { display: flex; gap: .75rem; align-items: flex-start; padding: .75rem 1rem; border-top: 1px solid var(--border); }
     .grow { flex: 1; }
-    .empty { margin: 1rem; padding: 1rem; display: flex; flex-direction: column; gap: .3rem; }
-    @media (max-width: 900px) { .layout { grid-template-columns: 1fr; } }
+    .empty { margin: 1rem; padding: 1.25rem; display: flex; flex-direction: column; gap: .4rem; }
+    @media (max-width: 900px) { .layout { grid-template-columns: 1fr; } .conversation { min-height: 50dvh; } .messages { max-height: 50dvh; } }
   `,
 })
 export class ChatPage {

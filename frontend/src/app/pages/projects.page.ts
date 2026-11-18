@@ -159,6 +159,7 @@ const EMPTY: ProjectInput = { name: '', repositoryUrl: '', baseBranch: 'main', b
     .grid mat-checkbox, .grid .row { grid-column: 1 / -1; }
     .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(22rem, 1fr)); gap: 1rem; margin-top: 1rem; }
     mat-card-title a { text-decoration: none; color: inherit; }
+    @media (max-width: 639px) { .cards { grid-template-columns: 1fr; } }
   `,
 })
 export class ProjectsPage {

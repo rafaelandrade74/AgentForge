@@ -169,6 +169,7 @@ public sealed class EnvironmentMigrationTests : IAsyncLifetime
         public Task PushDemandBranchAsync(Project project, Guid demandId, string pushUrl, CancellationToken ct) { PushCalls++; return Task.CompletedTask; }
         public Task<bool> IsBranchPublishedAsync(Project project, Guid workItemId, string pushUrl, CancellationToken ct) => Task.FromResult(false);
         public Task<bool> IsDemandBranchPublishedAsync(Project project, Guid demandId, string pushUrl, CancellationToken ct) => Task.FromResult(false);
+        public Task<bool> LocalBranchExistsAsync(Project project, string branchName, CancellationToken ct) => Task.FromResult(true);
         public Task<int> EnsureLocalBranchesFromRemoteAsync(Project project, IReadOnlyList<string> branchNames, CancellationToken ct)
         {
             LocalBranchesCreated.AddRange(branchNames);

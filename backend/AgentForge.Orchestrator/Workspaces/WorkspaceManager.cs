@@ -76,6 +76,9 @@ public interface IWorkspaceManager
     /// cria o branch local a partir de origin/&lt;name&gt;. Idempotente. Retorna quantos foram criados.
     /// </summary>
     Task<int> EnsureLocalBranchesFromRemoteAsync(Project project, IReadOnlyList<string> branchNames, CancellationToken ct);
+
+    /// <summary>Verifica se o branch local existe no clone do projeto.</summary>
+    Task<bool> LocalBranchExistsAsync(Project project, string branchName, CancellationToken ct);
 }
 
 /// <summary>
@@ -405,6 +408,14 @@ public class WorkspaceManager(IOptions<WorkspaceOptions> options, IEnvironmentLa
                 catch (GitException) { /* remote ref pode não existir */ }
             }
             return created;
+        });
+
+    public Task<bool> LocalBranchExistsAsync(Project project, string branchName, CancellationToken ct) =>
+        LockedAsync(project, ct, async t =>
+        {
+            var repo = RepoPath(t, project);
+            if (!await HasRepoAsync(t, repo, ct)) return false;
+            return await BranchExistsAsync(t, repo, branchName, ct);
         });
 
     private static async Task<bool> BranchExistsAsync(EnvironmentTarget t, string repo, string branch, CancellationToken ct)

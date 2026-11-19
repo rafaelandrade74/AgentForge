@@ -71,6 +71,11 @@ public class EnvironmentMigrationService(
 
             foreach (var (id, branch, kind) in allBranches)
             {
+                if (!await workspaces.LocalBranchExistsAsync(project, branch, ct))
+                {
+                    skipped++;
+                    continue;
+                }
                 try
                 {
                     if (kind == "demand")

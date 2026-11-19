@@ -39,26 +39,28 @@ import { BadgeComponent } from '../shared/shared';
           <div class="migrate-panel card-surface">
             <h3>Migrar para outro ambiente</h3>
             <p class="muted small">Todos os branches ativos serão publicados no origin e o projeto passará a rodar no novo ambiente.</p>
-            <div class="row">
-              <mat-form-field appearance="outline">
-                <mat-label>Ambiente de destino</mat-label>
-                <mat-select [(ngModel)]="migrateTarget">
-                  <mat-option [value]="null">Padrão do servidor</mat-option>
-                  @for (e of environments(); track e.id) {
-                    <mat-option [value]="e.id" [disabled]="e.id === project()?.environmentId">{{ e.name }}</mat-option>
-                  }
-                </mat-select>
-              </mat-form-field>
-              <button mat-flat-button type="button" [disabled]="migrating() || migrateTarget === project()?.environmentId" (click)="migrate()">
-                @if (migrating()) { Migrando… } @else { Confirmar migração }
-              </button>
-              <button mat-button type="button" (click)="showMigrate.set(false)">Cancelar</button>
-            </div>
             @if (migrateResult(); as r) {
               <div class="migrate-result">
                 <span class="badge ok">{{ r.branchesPushed }} branch(es) transferido(s)</span>
                 @if (r.branchesSkipped > 0) { <span class="badge warn">{{ r.branchesSkipped }} ignorado(s)</span> }
                 @for (w of r.warnings; track w) { <div class="muted small">⚠ {{ w }}</div> }
+              </div>
+              <button mat-button type="button" (click)="showMigrate.set(false)" style="margin-top:.5rem">Fechar</button>
+            } @else {
+              <div class="row">
+                <mat-form-field appearance="outline">
+                  <mat-label>Ambiente de destino</mat-label>
+                  <mat-select [(ngModel)]="migrateTarget">
+                    <mat-option [value]="null">Padrão do servidor</mat-option>
+                    @for (e of environments(); track e.id) {
+                      <mat-option [value]="e.id" [disabled]="e.id === project()?.environmentId">{{ e.name }}</mat-option>
+                    }
+                  </mat-select>
+                </mat-form-field>
+                <button mat-flat-button type="button" [disabled]="migrating() || migrateTarget === project()?.environmentId" (click)="migrate()">
+                  @if (migrating()) { Migrando… } @else { Confirmar migração }
+                </button>
+                <button mat-button type="button" (click)="showMigrate.set(false)">Cancelar</button>
               </div>
             }
           </div>

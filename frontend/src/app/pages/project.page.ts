@@ -22,10 +22,11 @@ import { BadgeComponent } from '../shared/shared';
   template: `
     <div class="page">
       @if (project(); as p) {
+        <nav class="breadcrumb"><a routerLink="/">Projetos</a> <span class="sep">/</span> <span>{{ p.name }}</span></nav>
         <div class="row">
           <div>
             <h1>{{ p.name }}</h1>
-            <div class="muted mono">{{ p.repositoryUrl }} · base {{ p.baseBranch }}</div>
+            <div class="muted mono small">{{ p.repositoryUrl }} · base {{ p.baseBranch }}</div>
           </div>
           <span class="spacer"></span>
           <app-badge [label]="p.autoMode ? 'modo automático' : 'com aprovações humanas'" [tone]="p.autoMode ? 'warn' : 'ok'" />
@@ -118,15 +119,27 @@ import { BadgeComponent } from '../shared/shared';
     </div>
   `,
   styles: `
+    .breadcrumb { font-size: .85rem; color: var(--text-secondary); margin-bottom: .25rem; }
+    .breadcrumb a { color: var(--text-secondary); text-decoration: none; }
+    .breadcrumb a:hover { color: var(--accent); }
+    .breadcrumb .sep { margin: 0 .35rem; opacity: .5; }
+    .breadcrumb span:last-child { color: var(--text-primary); font-weight: 500; }
+    h2 { padding-bottom: .4rem; border-bottom: 1px solid var(--border); }
     .demands { display: flex; flex-direction: column; gap: .5rem; }
-    .demand { display: flex; gap: .75rem; align-items: center; padding: .7rem 1rem; background: var(--bg-surface-1); border: 1px solid var(--border); border-radius: var(--radius-md); text-decoration: none; color: inherit; transition: background var(--transition), border-color var(--transition); }
-    .demand:hover { background: var(--bg-surface-2); border-color: var(--border-hover); }
+    .demand { display: flex; gap: .75rem; align-items: center; padding: .75rem 1rem; background: var(--bg-surface-1); border: 1px solid var(--border); border-left: 3px solid var(--accent); border-radius: var(--radius-md); text-decoration: none; color: inherit; transition: background var(--transition), border-color var(--transition), box-shadow var(--transition); }
+    .demand:hover { background: var(--bg-surface-2); border-color: var(--border-hover); box-shadow: var(--shadow-sm); }
     .board { display: flex; gap: .75rem; overflow-x: auto; padding-bottom: 1rem; align-items: flex-start; }
-    .col { flex: 0 0 15.5rem; background: var(--bg-surface-1); border: 1px solid var(--border); border-radius: var(--radius-md); padding: .5rem; min-height: 6rem; }
-    .col header { display: flex; justify-content: space-between; font-weight: 600; padding: .25rem .4rem .5rem; }
-    .count { background: var(--bg-surface-3); border-radius: 999px; padding: 0 .5rem; font-size: .8rem; }
-    .card { display: block; background: var(--bg-surface-2); border: 1px solid var(--border); border-radius: var(--radius-md); padding: .7rem .8rem; margin-bottom: .5rem; text-decoration: none; color: inherit; transition: border-color var(--transition); }
-    .card:hover, .card:focus-visible { border-color: var(--accent); outline: none; }
+    .col { flex: 0 0 15.5rem; background: var(--bg-surface-1); border: 1px solid var(--border); border-radius: var(--radius-md); padding: .5rem; min-height: 6rem; border-top: 3px solid var(--border); }
+    .col[aria-label="Backlog"] { border-top-color: var(--text-tertiary); }
+    .col[aria-label="Em desenvolvimento"], .col[aria-label="InDevelopment"] { border-top-color: var(--info); }
+    .col[aria-label="Revisão Tech Lead"], .col[aria-label="Revisão Security"], .col[aria-label="QA"] { border-top-color: var(--warning); }
+    .col[aria-label="Aguardando aprovação"] { border-top-color: var(--warning); }
+    .col[aria-label="Done"], .col[aria-label="Concluída"] { border-top-color: var(--success); }
+    .col[aria-label="Blocked"], .col[aria-label="Bloqueada"] { border-top-color: var(--danger); }
+    .col header { display: flex; justify-content: space-between; font-weight: 600; padding: .25rem .4rem .5rem; font-size: .85rem; }
+    .count { background: var(--bg-surface-3); border-radius: 999px; padding: 0 .5rem; font-size: .75rem; }
+    .card { display: block; background: var(--bg-surface-2); border: 1px solid var(--border); border-left: 3px solid var(--border); border-radius: var(--radius-md); padding: .7rem .8rem; margin-bottom: .5rem; text-decoration: none; color: inherit; transition: border-color var(--transition), box-shadow var(--transition); }
+    .card:hover, .card:focus-visible { border-color: var(--accent); box-shadow: var(--shadow-sm); outline: none; }
     .title { font-weight: 500; margin-bottom: .2rem; }
     .small { font-size: .8rem; margin-top: .3rem; }
     .migrate-panel { margin: 1rem 0; }

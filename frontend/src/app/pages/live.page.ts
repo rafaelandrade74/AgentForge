@@ -138,17 +138,20 @@ export function elapsed(startedAt: string, now: number): string {
   `,
   styles: `
     .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem; }
-    .card { padding: 1rem 1.25rem; background: var(--bg-surface-1); border: 1px solid var(--border); border-radius: var(--radius-lg); margin-top: .5rem; transition: border-color var(--transition); }
-    .agent { display: flex; flex-direction: column; gap: .4rem; margin-top: 0; }
-    .agent[data-state='ready'] { border-color: var(--success-border); }
-    .agent[data-state='limited'], .agent[data-state='not-connected'] { border-color: var(--warning-border); }
-    .agent[data-state='unreachable'], .agent[data-state='not-installed'] { border-color: var(--danger-border); }
+    .card { padding: 1rem 1.25rem; background: var(--bg-surface-1); border: 1px solid var(--border); border-radius: var(--radius-lg); margin-top: .5rem; transition: border-color var(--transition), box-shadow var(--transition); box-shadow: var(--shadow-sm); }
+    .agent { display: flex; flex-direction: column; gap: .4rem; margin-top: 0; border-top: 3px solid var(--border); }
+    .agent:hover { box-shadow: var(--shadow-md); }
+    .agent[data-state='ready'] { border-top-color: var(--success); }
+    .agent[data-state='busy'] { border-top-color: var(--info); }
+    .agent[data-state='limited'], .agent[data-state='not-connected'] { border-top-color: var(--warning); }
+    .agent[data-state='unreachable'], .agent[data-state='not-installed'] { border-top-color: var(--danger); }
     .warnbox { padding: .4rem .7rem; border-left: 3px solid var(--warning); background: var(--warning-bg); border-radius: var(--radius-sm); }
     .actions { margin-top: .5rem; }
-    .start { margin-top: 1rem; }
+    .start { margin-top: 1rem; display: flex; flex-direction: column; gap: .75rem; }
     .field { min-width: 18rem; max-width: 100%; }
+    .run { border-left: 3px solid var(--info); }
     .run .tail { margin-top: .4rem; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .empty { margin-top: .5rem; }
+    .empty { margin-top: .5rem; text-align: center; padding: 1.5rem; }
     @media (max-width: 639px) { .grid { grid-template-columns: 1fr; } .field { min-width: 0; width: 100%; } }
   `,
 })

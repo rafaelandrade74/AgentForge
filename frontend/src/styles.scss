@@ -181,9 +181,9 @@ pre.block {
 .badge {
   display: inline-flex;
   align-items: center;
-  padding: .15rem .55rem;
+  padding: .2rem .6rem;
   border-radius: 999px;
-  font-size: .75rem;
+  font-size: .72rem;
   font-weight: 500;
   background: var(--bg-surface-3);
   color: var(--text-secondary);
@@ -195,6 +195,22 @@ pre.block {
 .badge.bad { background: var(--danger-bg); color: var(--danger); border: 1px solid var(--danger-border); }
 .badge.info { background: var(--info-bg); color: var(--info); border: 1px solid var(--info-border); }
 .badge.idle { background: var(--bg-surface-3); color: var(--text-secondary); border: 1px solid var(--border); }
+
+/* ── page header ── */
+.page-header { display: flex; gap: .75rem; align-items: center; flex-wrap: wrap; margin-bottom: 1.5rem; }
+.section-title { font-size: .7rem; text-transform: uppercase; letter-spacing: .08em; color: var(--text-tertiary); font-weight: 600; margin-bottom: .5rem; }
+
+/* ── alerts ── */
+.alert { padding: .6rem 1rem; border-radius: var(--radius-md); border-left: 3px solid var(--border); background: var(--bg-surface-2); }
+.alert.ok { border-left-color: var(--success); background: var(--success-bg); color: var(--success); }
+.alert.warn { border-left-color: var(--warning); background: var(--warning-bg); color: var(--warning); }
+.alert.bad { border-left-color: var(--danger); background: var(--danger-bg); color: var(--danger); }
+
+/* ── action buttons ── */
+.btn-success { background: var(--success) !important; color: #fff !important; }
+.btn-success:hover { opacity: .9; }
+.btn-danger { background: var(--danger) !important; color: #fff !important; }
+.btn-danger:hover { opacity: .9; }
 
 /* ── cards globais ── */
 .card-surface {

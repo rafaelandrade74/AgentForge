@@ -212,12 +212,18 @@ const EMPTY: ProjectInput = { name: '', repositoryUrl: '', baseBranch: 'main', b
     .form { margin: 1rem 0; }
     .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr)); gap: .75rem 1rem; padding-top: 1rem; }
     .grid mat-checkbox, .grid .row { grid-column: 1 / -1; }
-    .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(22rem, 1fr)); gap: 1rem; margin-top: .5rem; }
-    mat-card-title a { text-decoration: none; color: inherit; }
-    .group-section { margin-top: 1.5rem; }
-    .group-header h2 { margin: 0; }
+    .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(22rem, 1fr)); gap: 1rem; margin-top: .75rem; }
+    mat-card { border-left: 3px solid var(--accent) !important; transition: box-shadow var(--transition), border-color var(--transition) !important; }
+    mat-card:hover { box-shadow: var(--shadow-md) !important; border-left-color: var(--accent-hover) !important; }
+    mat-card-title a { text-decoration: none; color: inherit; font-size: 1.05rem; }
+    mat-card-title a:hover { color: var(--accent); }
+    mat-card-subtitle { font-size: .78rem !important; }
+    .group-section { margin-top: 2rem; }
+    .group-header { padding-bottom: .5rem; border-bottom: 1px solid var(--border); }
+    .group-header h2 { margin: 0; font-size: 1.1rem; }
     .group-header h2 a { text-decoration: none; color: inherit; }
-    .section-title { margin-top: 1.5rem; }
+    .group-header h2 a:hover { color: var(--accent); }
+    .section-title { margin-top: 2rem; font-size: .7rem; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: var(--text-tertiary); }
     @media (max-width: 639px) { .cards { grid-template-columns: 1fr; } }
   `,
 })

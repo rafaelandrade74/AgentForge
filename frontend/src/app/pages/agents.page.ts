@@ -147,16 +147,16 @@ interface LoginUi {
     </div>
   `,
   styles: `
-    .agent { background: var(--bg-surface-1); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: .85rem 1.25rem 1.25rem; margin-bottom: 1rem; }
-    .agent h2 { margin: .25rem 0; }
+    .agent { background: var(--bg-surface-1); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: .85rem 1.25rem 1.25rem; margin-bottom: 1rem; box-shadow: var(--shadow-sm); }
+    .agent h2 { margin: .25rem 0; padding-bottom: .4rem; border-bottom: 1px solid var(--border); margin-bottom: .75rem; }
     .small { font-size: .85rem; }
     .env { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; }
-    .test { display: flex; gap: .75rem; align-items: center; flex-wrap: wrap; }
-    .login { border-top: 1px solid var(--border); margin-top: .5rem; padding-top: .5rem; }
+    .test { display: flex; gap: .75rem; align-items: center; flex-wrap: wrap; margin-top: .25rem; }
+    .login { border-top: 1px solid var(--border); margin-top: .75rem; padding-top: .75rem; }
     .login ol { margin: .25rem 0 .75rem; padding-left: 1.25rem; }
     .code { width: 28rem; max-width: 100%; }
     .bad-text { color: var(--danger); }
-    .roles { display: grid; grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr)); gap: .75rem 1.5rem; }
+    .roles { display: grid; grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr)); gap: 1rem 1.5rem; }
     .role { display: flex; align-items: center; gap: 1rem; }
     .role .name { width: 7rem; font-weight: 500; }
     .role mat-form-field { flex: 1; }

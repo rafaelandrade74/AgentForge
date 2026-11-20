@@ -13,7 +13,7 @@ import { MarkdownComponent } from './markdown.component';
 @Component({
   selector: 'app-badge',
   standalone: true,
-  template: `<span class="badge" [class]="tone()">{{ label() }}</span>`,
+  template: `<span class="badge" [class]="'badge-' + tone()">{{ label() }}</span>`,
 })
 export class BadgeComponent {
   readonly label = input.required<string>();
@@ -86,7 +86,7 @@ export function appendLine(lines: LiveLine[], e: RunEvent): LiveLine[] {
   standalone: true,
   imports: [DatePipe],
   template: `
-    <div #box class="log mono" role="log" aria-live="polite">
+    <div #box class="log-box" role="log" aria-live="polite">
       @for (l of lines(); track l.key) {
         <div class="line" [class]="'k-' + l.kind">
           <span class="t">{{ l.at | date: 'HH:mm:ss' }}</span>
@@ -97,20 +97,21 @@ export function appendLine(lines: LiveLine[], e: RunEvent): LiveLine[] {
           }
         </div>
       } @empty {
-        <div class="muted">{{ empty() }}</div>
+        <div class="empty">{{ empty() }}</div>
       }
     </div>
   `,
   styles: `
-    .log { background: var(--bg-base); border: 1px solid var(--border); border-radius: var(--radius-md); padding: .5rem .75rem; height: 18rem; overflow: auto; font-size: .8rem; }
+    .log-box { background: var(--bg-2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px; font-family: var(--mono); font-size: 12px; color: var(--text-1); max-height: 200px; overflow-y: auto; line-height: 1.7; }
     .line { padding: 1px 0; white-space: pre-wrap; word-break: break-word; }
-    .t { color: var(--text-tertiary); margin-right: .5rem; }
-    .who { color: var(--text-secondary); margin-right: .5rem; }
+    .t { color: var(--text-2); margin-right: .5rem; }
+    .who { color: var(--text-1); margin-right: .5rem; }
     .k-run_started .who, .k-run_finished .who { color: var(--accent); font-weight: 600; }
     .k-tool .txt { color: #e0b050; }
-    .k-tool_result .txt { color: var(--text-tertiary); }
+    .k-tool_result .txt { color: var(--text-2); }
     .k-result .txt { color: var(--success); }
-    @media (max-width: 639px) { .log { height: 14rem; } }
+    .empty { color: var(--text-2); }
+    @media (max-width: 639px) { .log-box { max-height: 160px; } }
   `,
 })
 export class LiveLogComponent {
@@ -123,7 +124,6 @@ export class LiveLogComponent {
       this.lines();
       const el = this.box()?.nativeElement;
       if (!el) return;
-      // rola para o fim só se o usuário já estava perto do fim
       queueMicrotask(() => {
         if (el.scrollHeight - el.scrollTop - el.clientHeight < 80) el.scrollTop = el.scrollHeight;
       });
@@ -139,67 +139,71 @@ export class LiveLogComponent {
   imports: [BadgeComponent, DatePipe, MarkdownComponent],
   template: `
     @for (r of runs(); track r.id) {
-      <div class="run">
-        <button type="button" class="head" (click)="toggle(r)" [attr.aria-expanded]="expandedId() === r.id">
-          <span class="when muted">{{ r.startedAt | date: 'dd/MM HH:mm:ss' }}</span>
+      <div class="accordion-item" [class.open]="expandedId() === r.id">
+        <div class="accordion-header" (click)="toggle(r)">
+          <div class="agent-avatar" style="width:24px;height:24px;font-size:10px">{{ (roleLabel[r.role] ?? '?')[0] }}</div>
+          <span class="when">{{ r.startedAt | date: 'dd/MM HH:mm:ss' }}</span>
           <strong>{{ roleLabel[r.role] }}</strong>
           <app-badge [label]="runLabel[r.status]" [tone]="runTone[r.status]" />
-          <span class="spacer"></span>
-          <span class="muted">{{ r.status === 'Running' ? 'em andamento' : duration(r.durationMs) }}</span>
-          <span class="muted">{{ usd(r.costUsd) }}</span>
-        </button>
+          <span style="flex:1"></span>
+          <span class="meta">{{ r.status === 'Running' ? 'em andamento' : duration(r.durationMs) }}</span>
+          <span class="meta">{{ usd(r.costUsd) }}</span>
+          <span class="accordion-chevron">▾</span>
+        </div>
         @if (expandedId() === r.id) {
-          <div class="body">
+          <div class="accordion-body">
             @if (detail(); as d) {
               <div class="row-head">
                 <h4>Saída</h4>
-                <span class="spacer"></span>
-                <button type="button" class="view-toggle" (click)="raw.set(!raw())" [attr.aria-pressed]="raw()">
+                <span style="flex:1"></span>
+                <button type="button" class="btn btn-secondary btn-sm" (click)="raw.set(!raw())" [attr.aria-pressed]="raw()">
                   {{ raw() ? 'Ver formatado' : 'Ver texto bruto' }}
                 </button>
               </div>
               @if (raw()) {
-                <pre class="block">{{ d.output || '(vazia)' }}</pre>
+                <div class="log-box" style="max-height:400px;white-space:pre-wrap;word-break:break-word">{{ d.output || '(vazia)' }}</div>
               } @else {
-                <div class="formatted" data-testid="output"><app-markdown [source]="d.output || '(vazia)'" /></div>
+                <div class="formatted"><app-markdown [source]="d.output || '(vazia)'" /></div>
               }
               <details>
-                <summary>Prompt enviado</summary>
+                <summary style="cursor:pointer;color:var(--text-2);font-size:13px;margin-top:12px">Prompt enviado</summary>
                 @if (raw()) {
-                  <pre class="block">{{ d.prompt }}</pre>
+                  <div class="log-box" style="max-height:400px;white-space:pre-wrap;word-break:break-word;margin-top:8px">{{ d.prompt }}</div>
                 } @else {
-                  <div class="formatted" data-testid="prompt"><app-markdown [source]="d.prompt" /></div>
+                  <div class="formatted" style="margin-top:8px"><app-markdown [source]="d.prompt" /></div>
                 }
               </details>
             } @else {
-              <span class="muted">Carregando…</span>
+              <span style="color:var(--text-2)">Carregando…</span>
             }
           </div>
         }
       </div>
     } @empty {
-      <p class="muted">Nenhuma execução de agente ainda.</p>
+      <p style="color:var(--text-2)">Nenhuma execução de agente ainda.</p>
     }
   `,
   styles: `
-    .run { border-bottom: 1px solid var(--border); }
-    .head { all: unset; cursor: pointer; display: flex; gap: .75rem; align-items: center; padding: .5rem .25rem; width: 100%; box-sizing: border-box; }
-    .head:hover { background: var(--bg-surface-2); }
-    .head:focus-visible { outline: 2px solid var(--accent); }
-    .body { padding: .25rem .5rem 1rem; }
+    .accordion-item { background: var(--bg-1); border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 8px; overflow: hidden; }
+    .accordion-header { padding: 14px 18px; cursor: pointer; display: flex; align-items: center; gap: 12px; font-size: 13px; font-weight: 600; transition: background var(--transition); }
+    .accordion-header:hover { background: var(--bg-hover); }
+    .accordion-chevron { margin-left: auto; color: var(--text-2); transition: transform .2s; }
+    .accordion-item.open .accordion-chevron { transform: rotate(180deg); }
+    .accordion-body { padding: 0 18px 18px; }
+    .accordion-item:not(.open) .accordion-body { display: none; }
+    .agent-avatar { border-radius: 50%; display: grid; place-items: center; font-weight: 700; background: linear-gradient(135deg, #d4a574, #c8956c); color: #fff; flex-shrink: 0; }
+    .when { font-size: 12px; color: var(--text-2); }
+    .meta { font-size: 12px; color: var(--text-2); }
     h4 { margin: .5rem 0 .25rem; }
-    .spacer { flex: 1; }
     .row-head { display: flex; align-items: center; gap: .5rem; }
-    .view-toggle { background: none; border: 1px solid var(--border); color: inherit; border-radius: var(--radius-sm); padding: .3rem .7rem; min-height: 36px; font: inherit; font-size: .8rem; cursor: pointer; transition: background var(--transition); }
-    .view-toggle:hover { background: var(--bg-surface-2); }
-    .formatted { background: var(--bg-surface-1); border: 1px solid var(--border); border-radius: var(--radius-md); padding: .5rem .9rem; max-height: 32rem; overflow: auto; }
+    .formatted { background: var(--bg-2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px 16px; max-height: 32rem; overflow: auto; }
+    .log-box { background: var(--bg-2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px; font-family: var(--mono); font-size: 12px; color: var(--text-1); overflow-y: auto; line-height: 1.7; }
   `,
 })
 export class RunTimelineComponent {
   private readonly api = inject(ApiService);
   readonly runs = input.required<RunSummary[]>();
   readonly expandedId = signal<string | null>(null);
-  /** false: saída formatada como Markdown (padrão); true: texto bruto. */
   readonly raw = signal(false);
   readonly detail = signal<Run | null>(null);
 

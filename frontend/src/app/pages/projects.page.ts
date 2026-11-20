@@ -20,15 +20,19 @@ const EMPTY: ProjectInput = { name: '', repositoryUrl: '', baseBranch: 'main', b
 @Component({
   selector: 'app-projects-page',
   standalone: true,
-  imports: [FormsModule, RouterLink, MatButtonModule, MatCardModule, MatCheckboxModule, MatFormFieldModule, MatInputModule, MatSelectModule, BadgeComponent, GithubImportComponent, NgTemplateOutlet],
+  imports: [FormsModule, RouterLink, MatButtonModule, MatCheckboxModule, MatFormFieldModule, MatInputModule, MatSelectModule, BadgeComponent, GithubImportComponent, NgTemplateOutlet],
   template: `
     <div class="page">
-      <div class="row">
-        <h1>Projetos</h1>
-        <span class="spacer"></span>
-        <button mat-stroked-button type="button" (click)="toggleGroupForm()">Novo grupo</button>
-        <button mat-stroked-button type="button" (click)="importOpen.set(!importOpen())">Importar do GitHub</button>
-        <button mat-flat-button type="button" (click)="toggleForm()">{{ formOpen() ? 'Fechar' : 'Novo projeto' }}</button>
+      <div class="page-header">
+        <div>
+          <div class="page-title">Projetos</div>
+          <div class="page-subtitle">Repositórios e demandas em andamento</div>
+        </div>
+        <div class="header-actions">
+          <button class="btn btn-secondary" type="button" (click)="toggleGroupForm()">Novo grupo</button>
+          <button class="btn btn-secondary" type="button" (click)="importOpen.set(!importOpen())">Importar do GitHub</button>
+          <button class="btn btn-primary" type="button" (click)="toggleForm()">{{ formOpen() ? 'Fechar' : 'Novo projeto' }}</button>
+        </div>
       </div>
 
       @if (importOpen()) {
@@ -36,195 +40,165 @@ const EMPTY: ProjectInput = { name: '', repositoryUrl: '', baseBranch: 'main', b
       }
 
       @if (formOpen()) {
-        <mat-card class="form">
-          <mat-card-header><mat-card-title>{{ editingId() ? 'Editar projeto' : 'Cadastrar projeto' }}</mat-card-title></mat-card-header>
-          <mat-card-content>
-            <form (ngSubmit)="save()" #f="ngForm" class="grid">
-              <mat-form-field appearance="outline">
-                <mat-label>Nome</mat-label>
-                <input matInput name="name" [(ngModel)]="draft.name" required />
-              </mat-form-field>
-              <mat-form-field appearance="outline">
-                <mat-label>URL do repositório Git</mat-label>
-                <input matInput name="repositoryUrl" [(ngModel)]="draft.repositoryUrl" required />
-              </mat-form-field>
-              <mat-form-field appearance="outline">
-                <mat-label>Branch base</mat-label>
-                <input matInput name="baseBranch" [(ngModel)]="draft.baseBranch" />
-              </mat-form-field>
-              <mat-form-field appearance="outline">
-                <mat-label>Comando de build</mat-label>
-                <input matInput name="buildCommand" [(ngModel)]="draft.buildCommand" placeholder="dotnet build" />
-              </mat-form-field>
-              <mat-form-field appearance="outline">
-                <mat-label>Comando de teste</mat-label>
-                <input matInput name="testCommand" [(ngModel)]="draft.testCommand" placeholder="dotnet test" />
-              </mat-form-field>
-              @if (groups().length > 0) {
-                <mat-form-field appearance="outline">
-                  <mat-label>Grupo</mat-label>
-                  <mat-select name="projectGroupId" [(ngModel)]="draft.projectGroupId">
-                    <mat-option [value]="null">Sem grupo</mat-option>
-                    @for (g of groups(); track g.id) { <mat-option [value]="g.id">{{ g.name }}</mat-option> }
-                  </mat-select>
-                </mat-form-field>
-              }
-              <mat-form-field appearance="outline">
-                <mat-label>Ambiente de execução</mat-label>
-                <mat-select name="environmentId" [(ngModel)]="draft.environmentId">
-                  <mat-option [value]="null">Padrão do servidor</mat-option>
-                  @for (e of environments(); track e.id) { <mat-option [value]="e.id">{{ e.name }}</mat-option> }
-                </mat-select>
-              </mat-form-field>
-              @if (draft.environmentId) {
-                <mat-form-field appearance="outline">
-                  <mat-label>Perfil de stack (container)</mat-label>
-                  <mat-select name="stackProfileId" [(ngModel)]="draft.stackProfileId">
-                    <mat-option [value]="null">Nenhum (roda direto na máquina)</mat-option>
-                    @for (s of profiles(); track s.id) { <mat-option [value]="s.id">{{ s.name }}</mat-option> }
-                  </mat-select>
-                </mat-form-field>
-              }
-              <mat-form-field appearance="outline">
-                <mat-label>Branch de destino dos PRs</mat-label>
-                <input matInput name="pullRequestBaseBranch" [(ngModel)]="draft.pullRequestBaseBranch" placeholder="develop (vazio = a branch base)" data-testid="pr-branch" />
-              </mat-form-field>
-              <div class="gh-token" data-testid="gh-token">
-                <mat-form-field appearance="outline">
-                  <mat-label>{{ draft.hasGitHubToken && !tokenCleared ? 'Token do GitHub para PRs (vazio mantém o guardado)' : 'Token do GitHub para PRs' }}</mat-label>
-                  <input matInput type="password" name="githubToken" autocomplete="off" [ngModel]="tokenInput" (ngModelChange)="setToken($event)"
-                    placeholder="github_pat_… (Contents e Pull requests de escrita, só neste repositório)" />
-                </mat-form-field>
-                @if (draft.hasGitHubToken && !tokenCleared) {
-                  <p class="muted small">Há um token guardado (criptografado; nunca volta para esta tela).
-                    <button mat-button type="button" (click)="clearToken()">Apagar token</button></p>
-                } @else if (tokenCleared) {
-                  <p class="muted small">O token guardado será apagado ao salvar.</p>
-                }
+        <div class="card card-p form-card">
+          <div class="section-title">{{ editingId() ? 'Editar projeto' : 'Cadastrar projeto' }}</div>
+          <form (ngSubmit)="save()" #f="ngForm" class="form-grid">
+            <div class="form-group"><div class="form-label">Nome</div><input class="form-input" name="name" [(ngModel)]="draft.name" required /></div>
+            <div class="form-group"><div class="form-label">URL do repositório Git</div><input class="form-input" name="repositoryUrl" [(ngModel)]="draft.repositoryUrl" required /></div>
+            <div class="form-group"><div class="form-label">Branch base</div><input class="form-input" name="baseBranch" [(ngModel)]="draft.baseBranch" /></div>
+            <div class="form-group"><div class="form-label">Comando de build</div><input class="form-input" name="buildCommand" [(ngModel)]="draft.buildCommand" placeholder="dotnet build" /></div>
+            <div class="form-group"><div class="form-label">Comando de teste</div><input class="form-input" name="testCommand" [(ngModel)]="draft.testCommand" placeholder="dotnet test" /></div>
+            @if (groups().length > 0) {
+              <div class="form-group"><div class="form-label">Grupo</div>
+                <select class="form-input" name="projectGroupId" [(ngModel)]="draft.projectGroupId">
+                  <option [ngValue]="null">Sem grupo</option>
+                  @for (g of groups(); track g.id) { <option [ngValue]="g.id">{{ g.name }}</option> }
+                </select>
               </div>
-              @if (environments().length > 0) {
-                <div class="roles-env" data-testid="role-envs">
-                  <p class="muted small">Revisão em outra máquina (opcional): Tech Lead e Security recebem só o diff, sem o repositório. Dev e QA ficam sempre no ambiente do projeto.</p>
+            }
+            <div class="form-group"><div class="form-label">Ambiente de execução</div>
+              <select class="form-input" name="environmentId" [(ngModel)]="draft.environmentId">
+                <option [ngValue]="null">Padrão do servidor</option>
+                @for (e of environments(); track e.id) { <option [ngValue]="e.id">{{ e.name }}</option> }
+              </select>
+            </div>
+            @if (draft.environmentId) {
+              <div class="form-group"><div class="form-label">Perfil de stack (container)</div>
+                <select class="form-input" name="stackProfileId" [(ngModel)]="draft.stackProfileId">
+                  <option [ngValue]="null">Nenhum (roda direto na máquina)</option>
+                  @for (s of profiles(); track s.id) { <option [ngValue]="s.id">{{ s.name }}</option> }
+                </select>
+              </div>
+            }
+            <div class="form-group"><div class="form-label">Branch de destino dos PRs</div>
+              <input class="form-input" name="pullRequestBaseBranch" [(ngModel)]="draft.pullRequestBaseBranch" placeholder="develop (vazio = a branch base)" data-testid="pr-branch" />
+            </div>
+            <div class="form-group full" data-testid="gh-token">
+              <div class="form-label">{{ draft.hasGitHubToken && !tokenCleared ? 'Token do GitHub para PRs (vazio mantém o guardado)' : 'Token do GitHub para PRs' }}</div>
+              <input class="form-input" type="password" name="githubToken" autocomplete="off" [ngModel]="tokenInput" (ngModelChange)="setToken($event)"
+                placeholder="github_pat_… (Contents e Pull requests de escrita, só neste repositório)" />
+              @if (draft.hasGitHubToken && !tokenCleared) {
+                <p style="font-size:12px;color:var(--text-2);margin-top:4px">Há um token guardado (criptografado; nunca volta para esta tela).
+                  <button class="btn btn-secondary btn-sm" type="button" (click)="clearToken()" style="margin-left:6px">Apagar token</button></p>
+              } @else if (tokenCleared) {
+                <p style="font-size:12px;color:var(--text-2);margin-top:4px">O token guardado será apagado ao salvar.</p>
+              }
+            </div>
+            @if (environments().length > 0) {
+              <div class="form-group full" data-testid="role-envs">
+                <p style="font-size:12px;color:var(--text-2);margin-bottom:8px">Revisão em outra máquina (opcional): Tech Lead e Security recebem só o diff, sem o repositório. Dev e QA ficam sempre no ambiente do projeto.</p>
+                <div class="form-grid">
                   @for (role of movableRoles; track role.key) {
-                    <mat-form-field appearance="outline" subscriptSizing="dynamic">
-                      <mat-label>{{ role.label }} roda em</mat-label>
-                      <mat-select [name]="'role-' + role.key" [ngModel]="roleEnv(role.key)" (ngModelChange)="setRoleEnv(role.key, $event)">
-                        <mat-option [value]="null">Mesmo ambiente do projeto</mat-option>
-                        @for (e of environments(); track e.id) { <mat-option [value]="e.id">{{ e.name }}</mat-option> }
-                      </mat-select>
-                    </mat-form-field>
+                    <div class="form-group"><div class="form-label">{{ role.label }} roda em</div>
+                      <select class="form-input" [name]="'role-' + role.key" [ngModel]="roleEnv(role.key)" (ngModelChange)="setRoleEnv(role.key, $event)">
+                        <option [ngValue]="null">Mesmo ambiente do projeto</option>
+                        @for (e of environments(); track e.id) { <option [ngValue]="e.id">{{ e.name }}</option> }
+                      </select>
+                    </div>
                   }
                 </div>
-              }
-              @if (environmentChanged()) {
-                <p class="muted small env-hint" data-testid="env-change-hint">
-                  O clone atual continua na máquina anterior (não é movido): o próximo uso clona o repositório na nova máquina, que precisa
-                  ter acesso a ele — gere a chave dela na tela Git e autorize-a no GitHub.
-                </p>
-              }
-              <mat-checkbox name="autoMode" [(ngModel)]="draft.autoMode">
-                Modo automático (sem aprovações humanas)
-              </mat-checkbox>
-              <div class="row">
-                <button mat-flat-button type="submit" [disabled]="f.invalid || saving()">Salvar</button>
-                <button mat-button type="button" (click)="closeForm()">Cancelar</button>
               </div>
-            </form>
-          </mat-card-content>
-        </mat-card>
+            }
+            @if (environmentChanged()) {
+              <p class="form-group full" style="font-size:12px;color:var(--text-2)" data-testid="env-change-hint">
+                O clone atual continua na máquina anterior (não é movido): o próximo uso clona o repositório na nova máquina, que precisa
+                ter acesso a ele — gere a chave dela na tela Git e autorize-a no GitHub.
+              </p>
+            }
+            <div class="form-group full">
+              <mat-checkbox name="autoMode" [(ngModel)]="draft.autoMode">Modo automático (sem aprovações humanas)</mat-checkbox>
+            </div>
+            <div class="form-group full" style="display:flex;gap:8px">
+              <button class="btn btn-primary" type="submit" [disabled]="f.invalid || saving()">Salvar</button>
+              <button class="btn btn-secondary" type="button" (click)="closeForm()">Cancelar</button>
+            </div>
+          </form>
+        </div>
       }
 
       @if (groupFormOpen()) {
-        <mat-card class="form">
-          <mat-card-header><mat-card-title>{{ editingGroupId() ? 'Editar grupo' : 'Novo grupo' }}</mat-card-title></mat-card-header>
-          <mat-card-content>
-            <form (ngSubmit)="saveGroup()" class="grid" style="padding-top:.75rem">
-              <mat-form-field appearance="outline"><mat-label>Nome</mat-label>
-                <input matInput [(ngModel)]="groupDraft.name" name="gname" required /></mat-form-field>
-              <mat-form-field appearance="outline"><mat-label>Descrição</mat-label>
-                <input matInput [(ngModel)]="groupDraft.description" name="gdesc" /></mat-form-field>
-              <div class="row">
-                <button mat-flat-button type="submit" [disabled]="!groupDraft.name">Salvar</button>
-                <button mat-button type="button" (click)="groupFormOpen.set(false)">Cancelar</button>
-              </div>
-            </form>
-          </mat-card-content>
-        </mat-card>
+        <div class="card card-p form-card">
+          <div class="section-title">{{ editingGroupId() ? 'Editar grupo' : 'Novo grupo' }}</div>
+          <form (ngSubmit)="saveGroup()" class="form-grid" style="margin-top:8px">
+            <div class="form-group"><div class="form-label">Nome</div><input class="form-input" [(ngModel)]="groupDraft.name" name="gname" required /></div>
+            <div class="form-group"><div class="form-label">Descrição</div><input class="form-input" [(ngModel)]="groupDraft.description" name="gdesc" /></div>
+            <div class="form-group full" style="display:flex;gap:8px">
+              <button class="btn btn-primary" type="submit" [disabled]="!groupDraft.name">Salvar</button>
+              <button class="btn btn-secondary" type="button" (click)="groupFormOpen.set(false)">Cancelar</button>
+            </div>
+          </form>
+        </div>
       }
 
       @for (g of groups(); track g.id) {
         <section class="group-section">
-          <div class="row group-header">
-            <h2><a [routerLink]="['/groups', g.id]">{{ g.name }}</a></h2>
-            @if (g.description) { <span class="muted small">{{ g.description }}</span> }
-            <span class="spacer"></span>
-            <button mat-button type="button" (click)="editGroup(g)">Editar</button>
-            <button mat-button type="button" (click)="removeGroup(g)">Excluir</button>
+          <div class="section-title" style="display:flex;align-items:center;gap:8px">
+            <a [routerLink]="['/groups', g.id]" style="text-decoration:none;color:inherit;font-size:14px">{{ g.name }}</a>
+            <span class="count">{{ projectsOfGroup(g.id).length }}</span>
+            @if (g.description) { <span style="font-size:12px;color:var(--text-2);font-weight:400">{{ g.description }}</span> }
+            <span style="flex:1"></span>
+            <button class="btn btn-secondary btn-sm" type="button" (click)="editGroup(g)">Editar</button>
+            <button class="btn btn-danger btn-sm" type="button" (click)="removeGroup(g)">Excluir</button>
           </div>
-          <div class="cards">
+          <div class="grid-auto">
             @for (p of projectsOfGroup(g.id); track p.id) {
               <ng-container *ngTemplateOutlet="projectCard; context: { $implicit: p }"></ng-container>
             } @empty {
-              <p class="muted small">Nenhum projeto neste grupo.</p>
+              <p style="font-size:13px;color:var(--text-2)">Nenhum projeto neste grupo.</p>
             }
           </div>
         </section>
       }
 
       @if (ungroupedProjects().length > 0 || (groups().length === 0 && loaded())) {
-        @if (groups().length > 0) { <h2 class="section-title">Sem grupo</h2> }
-        <div class="cards">
+        @if (groups().length > 0) { <div class="section-title">Sem grupo <span class="count">{{ ungroupedProjects().length }}</span></div> }
+        <div class="grid-auto">
           @for (p of ungroupedProjects(); track p.id) {
             <ng-container *ngTemplateOutlet="projectCard; context: { $implicit: p }"></ng-container>
           } @empty {
             @if (loaded() && groups().length === 0) {
-              <p class="muted">Nenhum projeto ainda. Cadastre o primeiro para começar.</p>
+              <p style="font-size:13px;color:var(--text-2)">Nenhum projeto ainda. Cadastre o primeiro para começar.</p>
             }
           }
         </div>
       }
 
       <ng-template #projectCard let-p>
-        <mat-card>
-          <mat-card-header>
-            <mat-card-title><a [routerLink]="['/projects', p.id]">{{ p.name }}</a></mat-card-title>
-            <mat-card-subtitle class="mono">{{ p.repositoryUrl }}</mat-card-subtitle>
-          </mat-card-header>
-          <mat-card-content>
-            <div class="row">
-              <app-badge [label]="'base: ' + p.baseBranch" />
-              <app-badge [label]="p.autoMode ? 'automático' : 'com aprovações'" [tone]="p.autoMode ? 'warn' : 'ok'" />
-              @if (environmentName(p); as env) { <app-badge [label]="'ambiente: ' + env" tone="info" /> }
-              @if (profileName(p); as prof) { <app-badge [label]="'perfil: ' + prof" tone="info" /> }
+        <div class="project-card" [routerLink]="['/projects', p.id]">
+          <div style="display:flex;align-items:center;gap:10px">
+            <div class="p-icon violet">
+              <svg width="18" height="18" viewBox="0 0 18 18"><path d="M3 5l6-3 6 3v7l-6 3-6-3V5z" fill="currentColor"/></svg>
             </div>
-          </mat-card-content>
-          <mat-card-actions>
-            <a mat-button [routerLink]="['/projects', p.id]">Abrir</a>
-            <a mat-button [routerLink]="['/projects', p.id, 'demands', 'new']">Nova demanda</a>
-            <button mat-button type="button" (click)="edit(p)">Editar</button>
-            <button mat-button type="button" (click)="remove(p)">Excluir</button>
-          </mat-card-actions>
-        </mat-card>
+            <div>
+              <div style="font-size:14px;font-weight:600">{{ p.name }}</div>
+              <div style="font-size:11.5px;color:var(--text-2);font-family:var(--mono)">{{ p.repositoryUrl }}</div>
+            </div>
+          </div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap">
+            <span class="badge badge-idle">{{ p.baseBranch }}</span>
+            @if (p.autoMode) { <span class="badge badge-accent">Auto</span> }
+            @if (environmentName(p); as env) { <span class="badge badge-info">{{ env }}</span> }
+            @if (profileName(p); as prof) { <span class="badge badge-info">{{ prof }}</span> }
+          </div>
+          <div style="display:flex;gap:16px;font-size:12px;color:var(--text-2)">
+            <span><b style="color:var(--text-0)">{{ p.demandCount ?? 0 }}</b> demandas</span>
+            <span><b style="color:var(--text-0)">{{ p.taskCount ?? 0 }}</b> tarefas</span>
+            <span><b style="color:var(--success)">{{ p.doneCount ?? 0 }}</b> done</span>
+          </div>
+          <div class="progress-bar"><div class="progress-fill" [style.width.%]="p.taskCount ? ((p.doneCount ?? 0) / p.taskCount * 100) : 0"></div></div>
+          <div style="display:flex;gap:6px;margin-top:4px" (click)="$event.stopPropagation()">
+            <a class="btn btn-secondary btn-sm" [routerLink]="['/projects', p.id, 'demands', 'new']">Nova demanda</a>
+            <button class="btn btn-secondary btn-sm" type="button" (click)="edit(p)">Editar</button>
+            <button class="btn btn-danger btn-sm" type="button" (click)="remove(p)">Excluir</button>
+          </div>
+        </div>
       </ng-template>
     </div>
   `,
   styles: `
-    .form { margin: 1rem 0; }
-    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr)); gap: .75rem 1rem; padding-top: 1rem; }
-    .grid mat-checkbox, .grid .row { grid-column: 1 / -1; }
-    .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(22rem, 1fr)); gap: 1rem; margin-top: .75rem; }
-    mat-card { border-left: 3px solid var(--accent) !important; transition: box-shadow var(--transition), border-color var(--transition) !important; }
-    mat-card:hover { box-shadow: var(--shadow-md) !important; border-left-color: var(--accent-hover) !important; }
-    mat-card-title a { text-decoration: none; color: inherit; font-size: 1.05rem; }
-    mat-card-title a:hover { color: var(--accent); }
-    mat-card-subtitle { font-size: .78rem !important; }
-    .group-section { margin-top: 2rem; }
-    .group-header { padding-bottom: .5rem; border-bottom: 1px solid var(--border); }
-    .group-header h2 { margin: 0; font-size: 1.1rem; }
-    .group-header h2 a { text-decoration: none; color: inherit; }
-    .group-header h2 a:hover { color: var(--accent); }
-    .section-title { margin-top: 2rem; font-size: .7rem; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: var(--text-tertiary); }
-    @media (max-width: 639px) { .cards { grid-template-columns: 1fr; } }
+    .form-card { margin: 16px 0; }
+    .group-section { margin-top: 24px; }
+    @media (max-width: 639px) { :host ::ng-deep .grid-auto { grid-template-columns: 1fr; } }
   `,
 })
 export class ProjectsPage {

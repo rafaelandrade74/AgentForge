@@ -1,7 +1,6 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { RouterLink } from '@angular/router';
-import { MatButtonModule } from '@angular/material/button';
 import { debounceTime, interval } from 'rxjs';
 import { ApiService } from '../core/api.service';
 import { Approval } from '../core/models';
@@ -22,65 +21,57 @@ export function waitingFor(iso: string | null, now: Date = new Date()): string {
 @Component({
   selector: 'app-approvals-page',
   standalone: true,
-  imports: [RouterLink, MatButtonModule, BadgeComponent],
+  imports: [RouterLink, BadgeComponent],
   template: `
-    <div class="page">
-      <div class="row">
-        <h1>Aguardando aprovação</h1>
-        <span class="spacer"></span>
-        <button mat-button type="button" (click)="load()">Atualizar</button>
+    <div class="content-area">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Aprovações</div>
+          <div class="page-subtitle">Tarefas aguardando revisão humana</div>
+        </div>
+        <div class="header-actions">
+          <button class="btn btn-secondary" type="button" (click)="load()">Atualizar</button>
+        </div>
       </div>
-      <p class="muted">
-        Entregas prontas de <strong>todos os projetos</strong> que esperam a sua decisão. Abra a tarefa para ver o diff e
-        <strong>aprovar</strong> ou <strong>rejeitar com comentário</strong>. As mais antigas aparecem primeiro.
-      </p>
 
       @if (items() === null) {
-        <p class="muted">Carregando…</p>
+        <p style="color:var(--text-2)">Carregando…</p>
       } @else if (items()!.length === 0) {
-        <section class="card empty" data-testid="approvals-empty">
+        <div class="card card-p" style="text-align:center;padding:2.5rem" data-testid="approvals-empty">
           <strong>Nada aguardando aprovação.</strong>
-          <span class="muted">Quando um agente terminar uma tarefa, ela aparece aqui.</span>
-        </section>
+          <div style="color:var(--text-2);margin-top:4px">Quando um agente terminar uma tarefa, ela aparece aqui.</div>
+        </div>
       } @else {
-        <p class="muted small" data-testid="approvals-total">{{ items()!.length }} tarefa(s) em {{ groups().length }} projeto(s).</p>
         @for (g of groups(); track g.projectId) {
-          <section class="card" data-testid="approvals-project">
-            <div class="row">
-              <h2><a [routerLink]="['/projects', g.projectId]">{{ g.project }}</a></h2>
-              <app-badge [label]="g.items.length + ' aguardando'" tone="warn" />
-            </div>
+          <div class="section-title">
+            <a [routerLink]="['/projects', g.projectId]" style="color:inherit;text-decoration:none">{{ g.project }}</a>
+            <span class="count">{{ g.items.length }}</span>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:24px" data-testid="approvals-project">
             @for (a of g.items; track a.id) {
-              <a class="item" [routerLink]="['/tasks', a.id]" data-testid="approval-item">
-                <div class="main">
-                  <div class="title">{{ a.title }}</div>
-                  <div class="muted small">{{ a.demand }}@if (a.branchName) { · <span class="mono">{{ a.branchName }}</span> }</div>
+              <div class="card card-p" style="cursor:pointer" data-testid="approval-item">
+                <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+                  <span class="badge badge-warn">Aprovação</span>
+                  <div>
+                    <a [routerLink]="['/tasks', a.id]" style="font-size:14px;font-weight:500;color:var(--text-0);text-decoration:none">{{ a.title }}</a>
+                    <div style="font-size:12px;color:var(--text-2)">{{ a.demand }}@if (a.branchName) { · <span style="font-family:var(--mono)">{{ a.branchName }}</span> } · {{ waited(a) }}</div>
+                  </div>
+                  <div style="margin-left:auto;display:flex;gap:6px">
+                    @if (a.reworkCount > 0) { <span class="badge badge-warn">retrabalho {{ a.reworkCount }}</span> }
+                    <a [routerLink]="['/tasks', a.id]" class="btn btn-success btn-sm">Aprovar</a>
+                    <a [routerLink]="['/tasks', a.id]" class="btn btn-danger btn-sm">Rejeitar</a>
+                  </div>
                 </div>
-                <div class="meta">
-                  @if (a.reworkCount > 0) { <app-badge [label]="'retrabalho ' + a.reworkCount" tone="warn" /> }
-                  <span class="muted small">{{ waited(a) }}</span>
-                  <span class="go">Revisar →</span>
-                </div>
-              </a>
+              </div>
             }
-          </section>
+          </div>
         }
       }
     </div>
   `,
   styles: `
-    .card { margin-top: 1rem; padding: 1.25rem; background: var(--bg-surface-1); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); }
-    .card.empty { display: flex; flex-direction: column; gap: .5rem; align-items: center; text-align: center; padding: 2.5rem 1.5rem; }
-    .card h2 { margin: 0; font-size: 1.1rem; }
-    .card h2 a { color: inherit; text-decoration: none; transition: color var(--transition); }
-    .card h2 a:hover { color: var(--accent); }
-    .item { display: flex; gap: 1rem; align-items: center; justify-content: space-between; flex-wrap: wrap; padding: .75rem 1rem; margin-top: .5rem; border: 1px solid var(--border); border-left: 3px solid var(--warning); border-radius: var(--radius-md); background: var(--bg-surface-2); color: inherit; text-decoration: none; transition: border-color var(--transition), background var(--transition), box-shadow var(--transition); }
-    .item:hover { border-color: var(--warning); background: var(--bg-surface-3); box-shadow: var(--shadow-sm); }
-    .title { font-weight: 600; }
-    .meta { display: flex; gap: .75rem; align-items: center; }
-    .go { display: inline-flex; align-items: center; padding: .25rem .65rem; border-radius: var(--radius-sm); background: var(--warning-bg); color: var(--warning); font-weight: 600; font-size: .8rem; border: 1px solid var(--warning-border); transition: background var(--transition); }
-    .item:hover .go { background: var(--warning); color: #000; }
-    @media (max-width: 639px) { .item { flex-direction: column; align-items: flex-start; } .meta { width: 100%; } }
+    .content-area { padding: 24px; max-width: 1200px; }
+    @media (max-width: 639px) { .content-area { padding: 16px; } }
   `,
 })
 export class ApprovalsPage {

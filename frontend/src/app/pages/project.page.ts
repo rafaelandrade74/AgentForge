@@ -31,9 +31,9 @@ import { BadgeComponent } from '../shared/shared';
           <span class="spacer"></span>
           <app-badge [label]="p.autoMode ? 'modo automático' : 'com aprovações humanas'" [tone]="p.autoMode ? 'warn' : 'ok'" />
           @if (environments().length > 0) {
-            <button mat-stroked-button type="button" (click)="toggleMigrate()">Migrar ambiente</button>
+            <button class="btn btn-secondary" type="button" (click)="toggleMigrate()">Migrar ambiente</button>
           }
-          <a mat-flat-button [routerLink]="['demands', 'new']">Nova demanda</a>
+          <a class="btn btn-primary" [routerLink]="['demands', 'new']">Nova demanda</a>
         </div>
 
         @if (showMigrate()) {
@@ -119,30 +119,30 @@ import { BadgeComponent } from '../shared/shared';
     </div>
   `,
   styles: `
-    .breadcrumb { font-size: .85rem; color: var(--text-secondary); margin-bottom: .25rem; }
-    .breadcrumb a { color: var(--text-secondary); text-decoration: none; }
+    .breadcrumb { font-size: 13px; color: var(--text-2); margin-bottom: .25rem; }
+    .breadcrumb a { color: var(--text-2); text-decoration: none; }
     .breadcrumb a:hover { color: var(--accent); }
     .breadcrumb .sep { margin: 0 .35rem; opacity: .5; }
-    .breadcrumb span:last-child { color: var(--text-primary); font-weight: 500; }
+    .breadcrumb span:last-child { color: var(--text-0); font-weight: 500; }
     h2 { padding-bottom: .4rem; border-bottom: 1px solid var(--border); }
     .demands { display: flex; flex-direction: column; gap: .5rem; }
-    .demand { display: flex; gap: .75rem; align-items: center; padding: .75rem 1rem; background: var(--bg-surface-1); border: 1px solid var(--border); border-left: 3px solid var(--accent); border-radius: var(--radius-md); text-decoration: none; color: inherit; transition: background var(--transition), border-color var(--transition), box-shadow var(--transition); }
-    .demand:hover { background: var(--bg-surface-2); border-color: var(--border-hover); box-shadow: var(--shadow-sm); }
+    .demand { display: flex; gap: .75rem; align-items: center; padding: .75rem 1rem; background: var(--bg-1); border: 1px solid var(--border); border-left: 3px solid var(--accent); border-radius: var(--radius); text-decoration: none; color: inherit; transition: background .15s, border-color .15s; }
+    .demand:hover { background: var(--bg-hover); border-color: var(--border-active); }
     .board { display: flex; gap: .75rem; overflow-x: auto; padding-bottom: 1rem; align-items: flex-start; }
-    .col { flex: 0 0 15.5rem; background: var(--bg-surface-1); border: 1px solid var(--border); border-radius: var(--radius-md); padding: .5rem; min-height: 6rem; border-top: 3px solid var(--border); }
-    .col[aria-label="Backlog"] { border-top-color: var(--text-tertiary); }
+    .col { flex: 0 0 15.5rem; background: var(--bg-1); border: 1px solid var(--border); border-radius: var(--radius); padding: .5rem; min-height: 6rem; border-top: 3px solid var(--border); }
+    .col[aria-label="Backlog"] { border-top-color: var(--text-2); }
     .col[aria-label="Em desenvolvimento"], .col[aria-label="InDevelopment"] { border-top-color: var(--info); }
     .col[aria-label="Revisão Tech Lead"], .col[aria-label="Revisão Security"], .col[aria-label="QA"] { border-top-color: var(--warning); }
     .col[aria-label="Aguardando aprovação"] { border-top-color: var(--warning); }
     .col[aria-label="Done"], .col[aria-label="Concluída"] { border-top-color: var(--success); }
     .col[aria-label="Blocked"], .col[aria-label="Bloqueada"] { border-top-color: var(--danger); }
-    .col header { display: flex; justify-content: space-between; font-weight: 600; padding: .25rem .4rem .5rem; font-size: .85rem; }
-    .count { background: var(--bg-surface-3); border-radius: 999px; padding: 0 .5rem; font-size: .75rem; }
-    .card { display: block; background: var(--bg-surface-2); border: 1px solid var(--border); border-left: 3px solid var(--border); border-radius: var(--radius-md); padding: .7rem .8rem; margin-bottom: .5rem; text-decoration: none; color: inherit; transition: border-color var(--transition), box-shadow var(--transition); }
-    .card:hover, .card:focus-visible { border-color: var(--accent); box-shadow: var(--shadow-sm); outline: none; }
+    .col header { display: flex; justify-content: space-between; font-weight: 600; padding: .25rem .4rem .5rem; font-size: 13px; }
+    .count { background: var(--bg-3); border-radius: 999px; padding: 0 .5rem; font-size: 12px; }
+    .card { display: block; background: var(--bg-2); border: 1px solid var(--border); border-left: 3px solid var(--border); border-radius: var(--radius); padding: .7rem .8rem; margin-bottom: .5rem; text-decoration: none; color: inherit; transition: border-color .15s, box-shadow .15s; }
+    .card:hover, .card:focus-visible { border-color: var(--accent); box-shadow: var(--shadow-card); outline: none; }
     .title { font-weight: 500; margin-bottom: .2rem; }
-    .small { font-size: .8rem; margin-top: .3rem; }
-    .migrate-panel { margin: 1rem 0; }
+    .small { font-size: 12px; margin-top: .3rem; }
+    .migrate-panel { background: var(--bg-1); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 20px; margin: 1rem 0; }
     .migrate-panel h3 { margin: 0 0 .25rem; }
     .migrate-result { margin-top: .5rem; display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; }
     @media (max-width: 639px) { .board { gap: .5rem; } .col { flex: 0 0 85vw; } }

@@ -64,10 +64,11 @@ import { RoleConfig } from '../core/models';
     </div>
   `,
   styles: `
-    .form { display: flex; flex-direction: column; gap: .5rem; padding-top: .75rem; }
-    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); gap: .5rem 1rem; }
+    .form { display: flex; flex-direction: column; gap: .75rem; padding-top: .75rem; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); gap: .75rem 1rem; }
     .full { width: 100%; }
     textarea { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: max(16px, .85rem); }
+    :host ::ng-deep .mat-expansion-panel { box-shadow: var(--shadow-sm) !important; border: 1px solid var(--border) !important; margin-bottom: .5rem !important; }
     @media (max-width: 639px) { .grid { grid-template-columns: 1fr; } }
   `,
 })

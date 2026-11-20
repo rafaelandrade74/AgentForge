@@ -11,7 +11,7 @@ import { AgentsService } from '../core/agents.service';
 import { RealtimeService } from '../core/realtime.service';
 import { ThemeService } from '../core/theme.service';
 
-interface NavItem { path: string; label: string; group: 'main' | 'config'; }
+interface NavItem { path: string; label: string; group: 'main' | 'config'; icon: string; }
 
 @Component({
   selector: 'app-shell',
@@ -24,7 +24,10 @@ interface NavItem { path: string; label: string; group: 'main' | 'config'; }
         [attr.aria-expanded]="sidebarOpen()" aria-label="Alternar menu">
         <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M3 5h14M3 10h14M3 15h14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
       </button>
-      <a routerLink="/" class="brand">AgentForge</a>
+      <a routerLink="/" class="brand">
+        <svg class="brand-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+        <span>AgentForge</span>
+      </a>
       <span class="spacer"></span>
 
       @for (b of banners(); track b.text) {
@@ -59,7 +62,8 @@ interface NavItem { path: string; label: string; group: 'main' | 'config'; }
         @for (item of mainNav; track item.path) {
           <a [routerLink]="item.path" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: item.path === '/' }"
              class="nav-item" (click)="sidebarOpen.set(false)">
-            {{ item.label }}
+            <svg class="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path [attr.d]="item.icon"/></svg>
+            <span class="nav-text">{{ item.label }}</span>
             @if (item.path === '/approvals' && pending() > 0) {
               <span class="nav-badge">{{ pending() }}</span>
             }
@@ -71,10 +75,14 @@ interface NavItem { path: string; label: string; group: 'main' | 'config'; }
         @for (item of configNav; track item.path) {
           <a [routerLink]="item.path" routerLinkActive="active"
              class="nav-item" (click)="sidebarOpen.set(false)">
-            {{ item.label }}
+            <svg class="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path [attr.d]="item.icon"/></svg>
+            <span class="nav-text">{{ item.label }}</span>
           </a>
         }
       </nav>
+      <div class="sidebar-footer">
+        <span class="muted small">AgentForge v1.0</span>
+      </div>
     </aside>
 
     <!-- main content -->
@@ -111,15 +119,20 @@ interface NavItem { path: string; label: string; group: 'main' | 'config'; }
       padding: 0 .75rem;
       background: var(--bg-surface-1);
       border-bottom: 1px solid var(--border);
+      box-shadow: 0 1px 3px rgba(0,0,0,.1);
       z-index: 200;
     }
     .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: .5rem;
       font-weight: 700;
       font-size: 1rem;
       text-decoration: none;
       color: var(--text-primary);
       letter-spacing: -0.03em;
     }
+    .brand-icon { flex-shrink: 0; }
     .spacer { flex: 1; }
 
     .icon-btn {
@@ -209,11 +222,12 @@ interface NavItem { path: string; label: string; group: 'main' | 'config'; }
       gap: .5rem;
       padding: .45rem .75rem;
       border-radius: var(--radius-sm);
+      border-left: 3px solid transparent;
       font-size: .85rem;
       font-weight: 500;
       color: var(--text-secondary);
       text-decoration: none;
-      transition: background var(--transition), color var(--transition);
+      transition: background var(--transition), color var(--transition), border-color var(--transition);
       min-height: 36px;
     }
     .nav-item:hover { background: var(--sidebar-hover); color: var(--text-primary); }
@@ -221,7 +235,13 @@ interface NavItem { path: string; label: string; group: 'main' | 'config'; }
       background: var(--sidebar-active);
       color: var(--accent);
       font-weight: 600;
+      border-left-color: var(--accent);
     }
+    .nav-icon { width: 18px; height: 18px; flex-shrink: 0; opacity: .6; }
+    .nav-item:hover .nav-icon { opacity: .85; }
+    .nav-item.active .nav-icon { opacity: 1; color: var(--accent); }
+    .nav-text { flex: 1; }
+    .sidebar-footer { margin-top: auto; padding: .75rem 1.25rem; border-top: 1px solid var(--sidebar-border); }
     .nav-badge {
       margin-left: auto;
       display: inline-flex;
@@ -298,18 +318,18 @@ export class ShellComponent {
   readonly sidebarOpen = signal(false);
 
   readonly mainNav: NavItem[] = [
-    { path: '/', label: 'Projetos', group: 'main' },
-    { path: '/approvals', label: 'Aprovações', group: 'main' },
-    { path: '/live', label: 'Ao vivo', group: 'main' },
-    { path: '/chat', label: 'Chat', group: 'main' },
+    { path: '/', label: 'Projetos', group: 'main', icon: 'M3 7v10a2 2 0 002 2h12a2 2 0 002-2V9a2 2 0 00-2-2h-4.586a1 1 0 01-.707-.293l-1.414-1.414A1 1 0 0010.586 5H5a2 2 0 00-2 2z' },
+    { path: '/approvals', label: 'Aprovações', group: 'main', icon: 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z' },
+    { path: '/live', label: 'Ao vivo', group: 'main', icon: 'M22 12h-4l-3 9L9 3l-3 9H2' },
+    { path: '/chat', label: 'Chat', group: 'main', icon: 'M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z' },
   ];
   readonly configNav: NavItem[] = [
-    { path: '/agents', label: 'Agentes', group: 'config' },
-    { path: '/prompts', label: 'Prompts', group: 'config' },
-    { path: '/environments', label: 'Ambientes', group: 'config' },
-    { path: '/profiles', label: 'Perfis', group: 'config' },
-    { path: '/git', label: 'Git', group: 'config' },
-    { path: '/integration', label: 'Integração', group: 'config' },
+    { path: '/agents', label: 'Agentes', group: 'config', icon: 'M9 3v2m6-2v2M9 19v2m6-2v2M3 9h2m-2 6h2M19 9h2m-2 6h2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2z' },
+    { path: '/prompts', label: 'Prompts', group: 'config', icon: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z' },
+    { path: '/environments', label: 'Ambientes', group: 'config', icon: 'M5 12h14M12 12v7m-7 0h14a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zM12 5v7M5 5h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V6a1 1 0 011-1z' },
+    { path: '/profiles', label: 'Perfis', group: 'config', icon: 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4' },
+    { path: '/git', label: 'Git', group: 'config', icon: 'M6 3v12M18 9a3 3 0 100-6 3 3 0 000 6zm0 0v3a3 3 0 01-3 3H9m0 0a3 3 0 100 6' },
+    { path: '/integration', label: 'Integração', group: 'config', icon: 'M11 4a2 2 0 114 0v1a1 1 0 001 1h3a2 2 0 012 2v3a1 1 0 01-1 1 2 2 0 100 4 1 1 0 011 1v3a2 2 0 01-2 2h-3a1 1 0 01-1-1 2 2 0 10-4 0 1 1 0 01-1 1H7a2 2 0 01-2-2v-3a1 1 0 011-1 2 2 0 100-4 1 1 0 01-1-1V7a2 2 0 012-2h3a1 1 0 001-1V4z' },
   ];
 
   get banners() {

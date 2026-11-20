@@ -101,18 +101,20 @@ import { BadgeComponent } from '../shared/shared';
     </div>
   `,
   styles: `
-    .card { background: var(--bg-surface-1); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: .85rem 1.25rem 1.25rem; margin-bottom: 1rem; }
-    .card h2 { margin: .25rem 0 .5rem; }
+    .card { background: var(--bg-surface-1); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: .85rem 1.25rem 1.25rem; margin-bottom: 1rem; box-shadow: var(--shadow-sm); }
+    .card h2 { margin: .25rem 0 .5rem; padding-bottom: .4rem; border-bottom: 1px solid var(--border); }
     .small { font-size: .85rem; }
     .url, .token { background: var(--bg-base); padding: .4rem .7rem; border-radius: var(--radius-sm); border: 1px solid var(--border); word-break: break-all; }
-    .created { background: var(--success-bg); border: 1px solid var(--success-border); border-radius: var(--radius-md); padding: .85rem 1rem; margin: .75rem 0; }
+    .created { background: var(--success-bg); border: 1px solid var(--success-border); border-radius: var(--radius-md); padding: .85rem 1rem; margin: .75rem 0; box-shadow: var(--shadow-sm); }
     .created h3 { margin: .75rem 0 .25rem; }
     .tokens { width: 100%; border-collapse: collapse; margin-top: .75rem; }
     .tokens th, .tokens td { text-align: left; padding: .45rem .6rem; border-bottom: 1px solid var(--border); }
     .tokens th { font-weight: 600; color: var(--text-secondary); font-size: .85rem; }
+    .tokens tbody tr:hover { background: var(--bg-surface-2); }
     .tokens tr.revoked { opacity: .5; }
     .tools { display: grid; grid-template-columns: repeat(auto-fill, minmax(22rem, 1fr)); gap: .5rem .75rem; }
-    .tool { background: var(--bg-surface-2); border: 1px solid var(--border); border-radius: var(--radius-md); padding: .5rem .75rem; }
+    .tool { background: var(--bg-surface-2); border: 1px solid var(--border); border-radius: var(--radius-md); padding: .6rem .85rem; transition: border-color var(--transition); }
+    .tool:hover { border-color: var(--border-hover); }
     .name { font-weight: 600; }
     @media (max-width: 639px) { .tokens { display: block; overflow-x: auto; } .tools { grid-template-columns: 1fr; } }
   `,

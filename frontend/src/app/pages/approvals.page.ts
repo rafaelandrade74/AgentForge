@@ -69,15 +69,17 @@ export function waitingFor(iso: string | null, now: Date = new Date()): string {
     </div>
   `,
   styles: `
-    .card { margin-top: 1rem; padding: 1rem; background: var(--bg-surface-1); border: 1px solid var(--border); border-radius: var(--radius-lg); }
-    .card.empty { display: flex; flex-direction: column; gap: .25rem; }
+    .card { margin-top: 1rem; padding: 1.25rem; background: var(--bg-surface-1); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); }
+    .card.empty { display: flex; flex-direction: column; gap: .5rem; align-items: center; text-align: center; padding: 2.5rem 1.5rem; }
     .card h2 { margin: 0; font-size: 1.1rem; }
-    .card h2 a { color: inherit; text-decoration: none; }
-    .item { display: flex; gap: 1rem; align-items: center; justify-content: space-between; flex-wrap: wrap; padding: .7rem 1rem; margin-top: .5rem; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--bg-surface-2); color: inherit; text-decoration: none; transition: border-color var(--transition); }
-    .item:hover { border-color: var(--warning); }
+    .card h2 a { color: inherit; text-decoration: none; transition: color var(--transition); }
+    .card h2 a:hover { color: var(--accent); }
+    .item { display: flex; gap: 1rem; align-items: center; justify-content: space-between; flex-wrap: wrap; padding: .75rem 1rem; margin-top: .5rem; border: 1px solid var(--border); border-left: 3px solid var(--warning); border-radius: var(--radius-md); background: var(--bg-surface-2); color: inherit; text-decoration: none; transition: border-color var(--transition), background var(--transition), box-shadow var(--transition); }
+    .item:hover { border-color: var(--warning); background: var(--bg-surface-3); box-shadow: var(--shadow-sm); }
     .title { font-weight: 600; }
     .meta { display: flex; gap: .75rem; align-items: center; }
-    .go { color: var(--warning); font-weight: 600; }
+    .go { display: inline-flex; align-items: center; padding: .25rem .65rem; border-radius: var(--radius-sm); background: var(--warning-bg); color: var(--warning); font-weight: 600; font-size: .8rem; border: 1px solid var(--warning-border); transition: background var(--transition); }
+    .item:hover .go { background: var(--warning); color: #000; }
     @media (max-width: 639px) { .item { flex-direction: column; align-items: flex-start; } .meta { width: 100%; } }
   `,
 })

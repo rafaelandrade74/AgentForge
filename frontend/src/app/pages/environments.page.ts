@@ -166,9 +166,9 @@ const EMPTY: EnvironmentInput = { name: '', url: '', token: '', workspaceRoot: '
     </ng-template>
   `,
   styles: `
-    .card { background: var(--bg-surface-1); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: .85rem 1.25rem 1.25rem; margin-bottom: 1rem; }
-    .card h2 { margin: .25rem 0; }
-    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr)); gap: .75rem 1rem; padding-top: .5rem; }
+    .card { background: var(--bg-surface-1); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: .85rem 1.25rem 1.25rem; margin-bottom: 1rem; box-shadow: var(--shadow-sm); }
+    .card h2 { margin: .25rem 0; padding-bottom: .4rem; border-bottom: 1px solid var(--border); margin-bottom: .75rem; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr)); gap: 1rem; padding-top: .5rem; }
     .grid .row { grid-column: 1 / -1; }
     .small { font-size: .85rem; }
     .result { margin-top: .5rem; padding: .5rem .75rem; border-radius: var(--radius-md); background: var(--bg-surface-2); }
@@ -176,7 +176,8 @@ const EMPTY: EnvironmentInput = { name: '', url: '', token: '', workspaceRoot: '
     .load { width: 100%; border-collapse: collapse; margin-top: .5rem; }
     .load th, .load td { text-align: left; padding: .4rem .6rem; border-bottom: 1px solid var(--border); }
     .load th { font-weight: 600; color: var(--text-secondary); font-size: .85rem; text-transform: uppercase; letter-spacing: .03em; }
-    .alert-waiting { margin-top: .5rem; padding: .5rem .75rem; border-left: 4px solid var(--warning); background: var(--bg-surface-2); border-radius: var(--radius-sm); display: flex; gap: .5rem; flex-wrap: wrap; align-items: center; }
+    .load tbody tr:hover { background: var(--bg-surface-2); }
+    .alert-waiting { margin-top: .5rem; padding: .6rem .85rem; border-left: 4px solid var(--warning); background: var(--warning-bg); border-radius: var(--radius-sm); display: flex; gap: .5rem; flex-wrap: wrap; align-items: center; }
     .tools { list-style: none; padding: 0; margin: .5rem 0 0; display: flex; flex-wrap: wrap; gap: .25rem 1rem; }
     @media (max-width: 639px) { .load { display: block; overflow-x: auto; } }
   `,

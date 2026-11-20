@@ -44,7 +44,7 @@ import { MarkdownComponent } from '../shared/markdown.component';
         }
         <div class="items">
           @for (w of items(); track w.id) {
-            <a class="item" [routerLink]="['/tasks', w.id]">
+            <a class="item" [routerLink]="['/tasks', w.id]" [attr.data-state]="w.state">
               <div class="row">
                 <strong>{{ w.title }}</strong>
                 <app-badge [label]="stateLabel[w.state]" [tone]="stateTone[w.state]" />
@@ -75,9 +75,19 @@ import { MarkdownComponent } from '../shared/markdown.component';
   `,
   styles: `
     .desc { max-width: 60rem; }
+    h2 { padding-bottom: .4rem; border-bottom: 1px solid var(--border); }
     .items { display: flex; flex-direction: column; gap: .5rem; }
-    .item { display: block; background: var(--bg-surface-1); border: 1px solid var(--border); border-radius: var(--radius-md); padding: .7rem 1rem; text-decoration: none; color: inherit; transition: background var(--transition), border-color var(--transition); }
-    .item:hover { background: var(--bg-surface-2); border-color: var(--border-hover); }
+    .item { display: block; background: var(--bg-surface-1); border: 1px solid var(--border); border-left: 3px solid var(--border); border-radius: var(--radius-md); padding: .7rem 1rem; text-decoration: none; color: inherit; transition: background var(--transition), border-color var(--transition), box-shadow var(--transition); }
+    .item:hover { background: var(--bg-surface-2); border-color: var(--border-hover); box-shadow: var(--shadow-sm); }
+    :host ::ng-deep .item[data-state="Backlog"] { border-left-color: var(--text-tertiary); }
+    :host ::ng-deep .item[data-state="InDevelopment"],
+    :host ::ng-deep .item[data-state="TechLeadReview"],
+    :host ::ng-deep .item[data-state="SecurityReview"],
+    :host ::ng-deep .item[data-state="Qa"] { border-left-color: var(--info); }
+    :host ::ng-deep .item[data-state="AwaitingApproval"] { border-left-color: var(--warning); }
+    :host ::ng-deep .item[data-state="Done"] { border-left-color: var(--success); }
+    :host ::ng-deep .item[data-state="Blocked"] { border-left-color: var(--danger); }
+    :host ::ng-deep .item[data-state="Cancelled"] { border-left-color: var(--text-tertiary); opacity: .6; }
     .small { font-size: .8rem; }
     .crit { margin: .4rem 0 0; font-size: .85rem; color: var(--text-secondary); }
     .bad-text { color: var(--danger); }

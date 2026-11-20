@@ -124,23 +124,24 @@ import { MarkdownComponent } from '../shared/markdown.component';
   styles: `
     .layout { display: grid; grid-template-columns: 320px 1fr; gap: 1.25rem; align-items: start; }
     .side { display: flex; flex-direction: column; gap: .5rem; }
-    .side .card { display: flex; flex-direction: column; padding: .75rem 1rem; background: var(--bg-surface-1); border: 1px solid var(--border); border-radius: var(--radius-lg); }
-    .session { display: block; padding: .6rem .8rem; border: 1px solid var(--border); border-radius: var(--radius-md); color: inherit; text-decoration: none; background: var(--bg-surface-1); transition: border-color var(--transition); min-height: 44px; }
-    .session:hover, .session.active { border-color: var(--accent); }
+    .side .card { display: flex; flex-direction: column; gap: .5rem; padding: .75rem 1rem; background: var(--bg-surface-1); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); }
+    .session { display: block; padding: .65rem .85rem; border: 1px solid var(--border); border-left: 3px solid transparent; border-radius: var(--radius-md); color: inherit; text-decoration: none; background: var(--bg-surface-1); transition: border-color var(--transition), background var(--transition); min-height: 44px; }
+    .session:hover { background: var(--bg-surface-2); border-left-color: var(--border-hover); }
+    .session.active { border-left-color: var(--accent); background: var(--accent-muted); }
     .session .title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 600; }
-    .conversation { display: flex; flex-direction: column; min-height: 70dvh; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--bg-surface-1); }
+    .conversation { display: flex; flex-direction: column; min-height: 70dvh; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--bg-surface-1); box-shadow: var(--shadow-sm); }
     .head { padding: .75rem 1rem; border-bottom: 1px solid var(--border); }
-    .messages { flex: 1; overflow-y: auto; padding: 1rem; max-height: 62dvh; display: flex; flex-direction: column; gap: .75rem; }
+    .messages { flex: 1; overflow-y: auto; padding: 1.25rem; max-height: 62dvh; display: flex; flex-direction: column; gap: .85rem; }
     .msg { display: flex; flex-direction: column; gap: .4rem; max-width: 85%; }
     .msg.user { align-self: flex-end; align-items: flex-end; }
-    .bubble { padding: .65rem .9rem; border-radius: var(--radius-lg); background: var(--bg-surface-2); border: 1px solid var(--border); }
-    .user-bubble { background: var(--info-bg); border-color: var(--info-border); white-space: pre-wrap; }
+    .bubble { padding: .75rem 1rem; border-radius: var(--radius-xl); background: var(--bg-surface-2); border: 1px solid var(--border); }
+    .user-bubble { background: var(--accent-muted); border-color: var(--border-active); white-space: pre-wrap; border-radius: var(--radius-xl) var(--radius-xl) var(--radius-sm) var(--radius-xl); }
     .msg.failed .bubble { border-color: var(--danger-border); background: var(--danger-bg); }
-    .proposal { padding: .65rem .9rem; border: 1px dashed var(--info-border); border-radius: var(--radius-md); background: var(--info-bg); }
+    .proposal { padding: .75rem 1rem; border: 1px solid var(--accent); border-left: 3px solid var(--accent); border-radius: var(--radius-md); background: var(--accent-subtle); }
     .proposal p { margin: .3rem 0 .5rem; }
-    .composer { display: flex; gap: .75rem; align-items: flex-start; padding: .75rem 1rem; border-top: 1px solid var(--border); }
+    .composer { display: flex; gap: .75rem; align-items: flex-end; padding: .75rem 1rem; border-top: 1px solid var(--border); background: var(--bg-surface-2); border-radius: 0 0 var(--radius-lg) var(--radius-lg); }
     .grow { flex: 1; }
-    .empty { margin: 1rem; padding: 1.25rem; display: flex; flex-direction: column; gap: .4rem; }
+    .empty { margin: 1rem; padding: 2rem 1.5rem; display: flex; flex-direction: column; gap: .5rem; align-items: center; text-align: center; }
     @media (max-width: 900px) { .layout { grid-template-columns: 1fr; } .conversation { min-height: 50dvh; } .messages { max-height: 50dvh; } }
   `,
 })

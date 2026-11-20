@@ -51,7 +51,8 @@ import { BadgeComponent } from '../shared/shared';
   styles: `
     .header { margin-bottom: 1rem; }
     .project-chips { display: flex; flex-wrap: wrap; gap: .5rem; margin: .5rem 0 1.5rem; }
-    .chip { padding: .25rem .75rem; border-radius: 999px; background: var(--clr-surface-alt, #f0f0f0); text-decoration: none; color: inherit; font-size: .875rem; }
+    .chip { padding: .25rem .75rem; border-radius: 999px; background: var(--bg-surface-3); color: var(--text-primary); text-decoration: none; font-size: .875rem; border: 1px solid var(--border); transition: background var(--transition); }
+    .chip:hover { background: var(--bg-surface-4); }
     .demand-card { margin-bottom: .75rem; }
     .demand-card mat-card-title a { text-decoration: none; color: inherit; }
     .hidden { display: none; }

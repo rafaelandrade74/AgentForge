@@ -76,6 +76,7 @@ import { AuthService } from '../auth/auth.service';
     button:active { opacity: .9; }
     button:disabled { opacity: .5; cursor: not-allowed; }
     .error { color: var(--danger); margin: 0; font-size: .9rem; }
+    :host-context(html[data-theme="light"]) button { color: #fff; }
   `,
 })
 export class LoginComponent {

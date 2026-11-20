@@ -1,13 +1,6 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { Component, computed, inject, input, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { MatButtonModule } from '@angular/material/button';
-import { MatCardModule } from '@angular/material/card';
-import { MatCheckboxModule } from '@angular/material/checkbox';
-import { MatFormFieldModule } from '@angular/material/form-field';
-import { MatInputModule } from '@angular/material/input';
-import { MatSelectModule } from '@angular/material/select';
-import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { ApiService } from '../core/api.service';
 import { ExecutionEnvironment, GitHubImportResult, GitHubRepo } from '../core/models';
 import { BadgeComponent } from '../shared/shared';
@@ -16,115 +9,122 @@ import { BadgeComponent } from '../shared/shared';
 @Component({
   selector: 'app-github-import',
   standalone: true,
-  imports: [FormsModule, MatButtonModule, MatCardModule, MatCheckboxModule, MatFormFieldModule, MatInputModule, MatSelectModule, MatProgressSpinnerModule, BadgeComponent],
+  imports: [FormsModule, BadgeComponent],
   template: `
-    <mat-card class="box">
-      <mat-card-header><mat-card-title>Importar do GitHub</mat-card-title></mat-card-header>
-      <mat-card-content>
-        <p class="muted">
-          O token é usado só nesta tela, para listar os repositórios e autorizar a chave do AgentForge; ele não é guardado.
-          Gere um em GitHub → Settings → Developer settings → Personal access tokens (escopo <span class="mono">repo</span>).
-        </p>
-        <div class="row">
-          <mat-form-field appearance="outline" class="grow">
-            <mat-label>Token de acesso do GitHub</mat-label>
-            <input matInput type="password" name="ghToken" autocomplete="off" [(ngModel)]="token" data-testid="token" />
-          </mat-form-field>
-          <button mat-flat-button type="button" [disabled]="loading() || !token.trim()" (click)="list()">Listar meus repositórios</button>
-        </div>
+    <div class="card card-p import-box">
+      <div class="section-title">Importar do GitHub</div>
+      <p style="font-size:13px;color:var(--text-2);margin:4px 0 14px">
+        O token é usado só nesta tela, para listar os repositórios e autorizar a chave do AgentForge; ele não é guardado.
+        Gere um em GitHub → Settings → Developer settings → Personal access tokens (escopo <span style="font-family:var(--mono)">repo</span>).
+      </p>
 
-        @if (error()) {
-          <p class="error" data-testid="error">{{ error() }}</p>
-        }
-
-        @if (repos().length) {
-          <mat-form-field appearance="outline" class="full">
-            <mat-label>Filtrar</mat-label>
-            <input matInput name="ghFilter" [ngModel]="filter()" (ngModelChange)="filter.set($event)" data-testid="filter" />
-          </mat-form-field>
-          <div class="repos" data-testid="repos">
-            @for (r of filtered(); track r.fullName) {
-              <button type="button" class="repo" [class.selected]="repository === r.fullName" (click)="select(r)">
-                <span class="name mono">{{ r.fullName }}</span>
-                <app-badge [label]="r.private ? 'privado' : 'público'" [tone]="r.private ? 'warn' : 'ok'" />
-                <app-badge [label]="'base: ' + r.defaultBranch" />
-                @if (r.description) { <span class="muted desc">{{ r.description }}</span> }
-              </button>
-            } @empty {
-              <p class="muted">Nenhum repositório corresponde ao filtro.</p>
-            }
-          </div>
-        }
-
-        <div class="row">
-          <mat-form-field appearance="outline" class="grow">
-            <mat-label>Repositório (dono/nome ou URL)</mat-label>
-            <input matInput name="ghRepo" [(ngModel)]="repository" placeholder="octocat/Hello-World" data-testid="repository" />
-          </mat-form-field>
+      <div class="row-flex">
+        <div class="form-group" style="flex:1">
+          <div class="form-label">Token de acesso do GitHub</div>
+          <input class="form-input" type="password" autocomplete="off" [(ngModel)]="token" data-testid="token" />
         </div>
-        <div class="row">
-          <mat-form-field appearance="outline" class="grow">
-            <mat-label>Comando de build</mat-label>
-            <input matInput name="ghBuild" [(ngModel)]="buildCommand" placeholder="dotnet build" />
-          </mat-form-field>
-          <mat-form-field appearance="outline" class="grow">
-            <mat-label>Comando de teste</mat-label>
-            <input matInput name="ghTest" [(ngModel)]="testCommand" placeholder="dotnet test" />
-          </mat-form-field>
+        <button class="btn btn-secondary" type="button" style="align-self:flex-end" [disabled]="loading() || !token.trim()" (click)="list()">Listar meus repositórios</button>
+      </div>
+
+      @if (error()) {
+        <p style="color:var(--danger);font-size:13px;margin-top:8px" data-testid="error">{{ error() }}</p>
+      }
+
+      @if (repos().length) {
+        <div class="form-group" style="margin-top:12px">
+          <div class="form-label">Filtrar</div>
+          <input class="form-input" style="width:100%" [ngModel]="filter()" (ngModelChange)="filter.set($event)" data-testid="filter" />
         </div>
-        @if (environments().length > 0) {
-          <mat-form-field appearance="outline">
-            <mat-label>Ambiente de execução</mat-label>
-            <mat-select name="ghEnv" [(ngModel)]="environmentId" data-testid="environment">
-              <mat-option [value]="null">Padrão do servidor</mat-option>
-              @for (e of environments(); track e.id) { <mat-option [value]="e.id">{{ e.name }}</mat-option> }
-            </mat-select>
-          </mat-form-field>
-        }
-        <mat-checkbox name="ghDeploy" [(ngModel)]="addDeployKey">
+        <div class="repos" data-testid="repos">
+          @for (r of filtered(); track r.fullName) {
+            <button type="button" class="repo" [class.selected]="repository === r.fullName" (click)="select(r)">
+              <span class="repo-name">{{ r.fullName }}</span>
+              <app-badge [label]="r.private ? 'privado' : 'público'" [tone]="r.private ? 'warn' : 'ok'" />
+              <app-badge [label]="'base: ' + r.defaultBranch" />
+              @if (r.description) { <span style="flex-basis:100%;font-size:12px;color:var(--text-2)">{{ r.description }}</span> }
+            </button>
+          } @empty {
+            <p style="font-size:13px;color:var(--text-2)">Nenhum repositório corresponde ao filtro.</p>
+          }
+        </div>
+      }
+
+      <div class="form-group" style="margin-top:12px">
+        <div class="form-label">Repositório (dono/nome ou URL)</div>
+        <input class="form-input" style="width:100%" [(ngModel)]="repository" placeholder="octocat/Hello-World" data-testid="repository" />
+      </div>
+
+      <div class="form-grid" style="margin-top:10px">
+        <div class="form-group">
+          <div class="form-label">Comando de build</div>
+          <input class="form-input" [(ngModel)]="buildCommand" placeholder="dotnet build" />
+        </div>
+        <div class="form-group">
+          <div class="form-label">Comando de teste</div>
+          <input class="form-input" [(ngModel)]="testCommand" placeholder="dotnet test" />
+        </div>
+      </div>
+
+      @if (environments().length > 0) {
+        <div class="form-group" style="margin-top:10px">
+          <div class="form-label">Ambiente de execução</div>
+          <select class="form-input" [(ngModel)]="environmentId" data-testid="environment">
+            <option [ngValue]="null">Padrão do servidor</option>
+            @for (e of environments(); track e.id) { <option [ngValue]="e.id">{{ e.name }}</option> }
+          </select>
+        </div>
+      }
+
+      <div style="display:flex;flex-direction:column;gap:8px;margin-top:14px">
+        <label class="checkbox-row">
+          <input type="checkbox" [(ngModel)]="addDeployKey" />
           Autorizar a chave SSH do AgentForge no repositório (deploy key somente leitura, só para repositórios privados)
-        </mat-checkbox>
-        <mat-checkbox name="ghAuto" [(ngModel)]="autoMode">Modo automático (sem aprovações humanas)</mat-checkbox>
+        </label>
+        <label class="checkbox-row">
+          <input type="checkbox" [(ngModel)]="autoMode" />
+          Modo automático (sem aprovações humanas)
+        </label>
+      </div>
 
-        @if (result(); as r) {
-          <div class="result" data-testid="result">
-            <strong>{{ r.project.name }}</strong> importado e clonado.
-            @for (n of r.notes; track n) { <div class="muted">{{ n }}</div> }
-          </div>
-        }
-      </mat-card-content>
-      <mat-card-actions>
-        <button mat-flat-button type="button" [disabled]="importing() || !repository.trim()" (click)="doImport()" data-testid="import">
-          @if (importing()) { <mat-spinner diameter="18" /> Clonando… } @else { Importar e clonar }
+      @if (result(); as r) {
+        <div class="result-box" data-testid="result">
+          <strong>{{ r.project.name }}</strong> importado e clonado.
+          @for (n of r.notes; track n) { <div style="font-size:12px;color:var(--text-2)">{{ n }}</div> }
+        </div>
+      }
+
+      <div style="display:flex;gap:10px;justify-content:flex-start;padding-top:12px;border-top:1px solid var(--border);margin-top:14px">
+        <button class="btn btn-primary" type="button" [disabled]="importing() || !repository.trim()" (click)="doImport()" data-testid="import">
+          {{ importing() ? 'Clonando…' : 'Importar e clonar' }}
         </button>
-        <button mat-button type="button" (click)="closed.emit()">Cancelar</button>
-      </mat-card-actions>
-    </mat-card>
+        <button class="btn btn-secondary" type="button" (click)="closed.emit()">Cancelar</button>
+      </div>
+    </div>
   `,
   styles: `
-    .box { margin: 1rem 0; }
-    .row { display: flex; gap: .75rem; flex-wrap: wrap; align-items: baseline; }
-    .grow { flex: 1 1 18rem; }
-    .full { width: 100%; }
-    .repos { display: grid; gap: .35rem; max-height: 16rem; overflow: auto; margin-bottom: 1rem; }
-    .repo { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; text-align: left; padding: .6rem .85rem;
-      background: transparent; color: inherit; border: 1px solid var(--border); border-radius: var(--radius-sm); cursor: pointer; min-height: 44px; transition: border-color var(--transition), background var(--transition); }
-    .repo:hover { border-color: var(--border-hover); background: var(--bg-surface-2); }
-    .repo.selected { border-color: var(--accent); background: var(--accent-muted); }
-    .name { font-weight: 600; }
-    .desc { flex-basis: 100%; }
-    .error { color: var(--danger); }
-    .result { margin-top: .75rem; }
-    mat-card-actions { display: flex; gap: .5rem; padding: 0 1rem 1rem; }
+    .import-box { margin: 16px 0; }
+    .row-flex { display: flex; gap: 10px; align-items: flex-start; flex-wrap: wrap; }
+    .repos { display: grid; gap: 6px; max-height: 16rem; overflow-y: auto; margin-top: 8px; }
+    .repo {
+      display: flex; gap: 8px; align-items: center; flex-wrap: wrap; text-align: left;
+      padding: 8px 12px; background: var(--bg-2); color: inherit;
+      border: 1px solid var(--border); border-radius: var(--radius-sm);
+      cursor: pointer; min-height: 40px; transition: border-color .15s, background .15s;
+      font: inherit; font-size: 13px;
+    }
+    .repo:hover { border-color: var(--border-active); background: var(--bg-hover); }
+    .repo.selected { border-color: var(--accent); background: var(--accent-dim); }
+    .repo-name { font-weight: 600; font-family: var(--mono); font-size: 13px; }
+    .checkbox-row { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-1); cursor: pointer; }
+    .checkbox-row input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--accent); cursor: pointer; }
+    .result-box { margin-top: 12px; padding: 10px 14px; background: rgba(52,211,153,.08); border-radius: var(--radius-sm); font-size: 13px; }
   `,
 })
 export class GithubImportComponent {
   private readonly api = inject(ApiService);
 
-  /** Emite o resultado quando o projeto foi criado e clonado. */
   readonly imported = output<GitHubImportResult>();
   readonly closed = output<void>();
-  /** Ambientes cadastrados, para escolher onde o projeto roda (vazio = só o padrão do servidor). */
   readonly environments = input<ExecutionEnvironment[]>([]);
 
   token = '';

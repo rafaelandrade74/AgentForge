@@ -361,6 +361,14 @@ pre.block {
 textarea.form-input { resize: vertical; font-family: var(--mono); font-size: 12px; line-height: 1.6; }
 select.form-input { cursor: pointer; }
 
+.checkbox-row {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 13px; color: var(--text-1); cursor: pointer;
+}
+.checkbox-row input[type="checkbox"] {
+  width: 16px; height: 16px; accent-color: var(--accent); cursor: pointer; flex-shrink: 0;
+}
+
 /* ══════════════════════════════════════════════
    Progress bar
    ══════════════════════════════════════════════ */
@@ -394,7 +402,7 @@ select.form-input { cursor: pointer; }
 /* ══════════════════════════════════════════════
    Grid layouts
    ══════════════════════════════════════════════ */
-.grid-auto { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 14px; margin-bottom: 24px; }
+.grid-auto { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(320px, 100%), 1fr)); gap: 14px; margin-bottom: 24px; }
 .two-col { display: grid; grid-template-columns: 1fr 360px; gap: 20px; }
 
 /* ══════════════════════════════════════════════
@@ -643,8 +651,8 @@ a:active { opacity: .8; }
 }
 
 /* ── inputs: 16px min on mobile (prevents Safari zoom) ── */
-input, select, textarea {
-  font-size: max(16px, 1em);
+@media (pointer: coarse) {
+  input, select, textarea { font-size: max(16px, 1em); }
 }
 
 /* ── responsive tables ── */
@@ -669,4 +677,7 @@ input, select, textarea {
 }
 @media (max-width: 500px) {
   .stats-row { grid-template-columns: 1fr; }
+  .header-actions { width: 100%; justify-content: flex-start; }
+  .page-header { gap: 10px; }
+  .page { padding: 1rem .75rem; }
 }

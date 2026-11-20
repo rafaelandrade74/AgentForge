@@ -3,9 +3,6 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
-import { MatButtonModule } from '@angular/material/button';
-import { MatFormFieldModule } from '@angular/material/form-field';
-import { MatSelectModule } from '@angular/material/select';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { ApiService } from '../core/api.service';
 import {
@@ -18,7 +15,7 @@ import { BadgeComponent } from '../shared/shared';
 @Component({
   selector: 'app-project-page',
   standalone: true,
-  imports: [RouterLink, FormsModule, MatButtonModule, MatFormFieldModule, MatSelectModule, BadgeComponent],
+  imports: [RouterLink, FormsModule, BadgeComponent],
   template: `
     <div class="page">
       @if (project(); as p) {
@@ -46,22 +43,22 @@ import { BadgeComponent } from '../shared/shared';
                 @if (r.branchesSkipped > 0) { <span class="badge warn">{{ r.branchesSkipped }} ignorado(s)</span> }
                 @for (w of r.warnings; track w) { <div class="muted small">⚠ {{ w }}</div> }
               </div>
-              <button mat-button type="button" (click)="showMigrate.set(false)" style="margin-top:.5rem">Fechar</button>
+              <button class="btn btn-secondary" type="button" (click)="showMigrate.set(false)" style="margin-top:.5rem">Fechar</button>
             } @else {
-              <div class="row">
-                <mat-form-field appearance="outline">
-                  <mat-label>Ambiente de destino</mat-label>
-                  <mat-select [(ngModel)]="migrateTarget">
-                    <mat-option [value]="null">Padrão do servidor</mat-option>
+              <div class="row" style="align-items:flex-end">
+                <div class="form-group" style="flex:1;min-width:12rem">
+                  <div class="form-label">Ambiente de destino</div>
+                  <select class="form-input" [(ngModel)]="migrateTarget">
+                    <option [ngValue]="null">Padrão do servidor</option>
                     @for (e of environments(); track e.id) {
-                      <mat-option [value]="e.id" [disabled]="e.id === project()?.environmentId">{{ e.name }}</mat-option>
+                      <option [ngValue]="e.id" [disabled]="e.id === project()?.environmentId">{{ e.name }}</option>
                     }
-                  </mat-select>
-                </mat-form-field>
-                <button mat-flat-button type="button" [disabled]="migrating() || migrateTarget === project()?.environmentId" (click)="migrate()">
-                  @if (migrating()) { Migrando… } @else { Confirmar migração }
+                  </select>
+                </div>
+                <button class="btn btn-primary" type="button" [disabled]="migrating() || migrateTarget === project()?.environmentId" (click)="migrate()">
+                  {{ migrating() ? 'Migrando…' : 'Confirmar migração' }}
                 </button>
-                <button mat-button type="button" (click)="showMigrate.set(false)">Cancelar</button>
+                <button class="btn btn-secondary" type="button" (click)="showMigrate.set(false)">Cancelar</button>
               </div>
             }
           </div>

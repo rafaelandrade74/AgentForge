@@ -123,7 +123,6 @@ interface NavItem { path: string; label: string; group: 'main' | 'config'; svgCo
     </main>
   `,
   styles: `
-    /* ── shell grid layout (artifact exact) ── */
     :host {
       display: grid;
       grid-template-columns: 240px 1fr;
@@ -132,7 +131,6 @@ interface NavItem { path: string; label: string; group: 'main' | 'config'; svgCo
       overflow: hidden;
     }
 
-    /* ── topbar ── */
     .topbar {
       grid-column: 1 / -1;
       background: var(--bg-1);
@@ -220,7 +218,6 @@ interface NavItem { path: string; label: string; group: 'main' | 'config'; svgCo
       padding: 4px;
     }
 
-    /* ── sidebar ── */
     .sidebar {
       background: var(--bg-1);
       border-right: 1px solid var(--border);
@@ -283,7 +280,6 @@ interface NavItem { path: string; label: string; group: 'main' | 'config'; svgCo
     }
     .sidebar-footer .env-dot { width: 6px; height: 6px; }
 
-    /* ── backdrop (mobile) ── */
     .backdrop {
       position: fixed;
       inset: 0;
@@ -291,14 +287,12 @@ interface NavItem { path: string; label: string; group: 'main' | 'config'; svgCo
       background: rgba(0,0,0,.5);
     }
 
-    /* ── main content ── */
     .content {
       overflow-y: auto;
       padding: 24px;
       background: var(--bg-0);
     }
 
-    /* ── banners ── */
     .banner {
       display: flex; gap: .75rem; align-items: center; justify-content: center;
       flex-wrap: wrap; padding: .5rem 1rem; font-size: .85rem;
@@ -308,7 +302,6 @@ interface NavItem { path: string; label: string; group: 'main' | 'config'; svgCo
     .banner--limit { background: var(--accent-dim); color: var(--accent); border-bottom: 1px solid var(--border); }
     .banner-btn { font-size: .8rem !important; }
 
-    /* ── responsive ── */
     @media (max-width: 900px) {
       :host { grid-template-columns: 1fr; }
       .sidebar {
@@ -321,6 +314,13 @@ interface NavItem { path: string; label: string; group: 'main' | 'config'; svgCo
       .sidebar.open { display: flex; }
       .sidebar-toggle { display: grid; place-items: center; }
       .brand { min-width: unset; }
+      .content { padding: 16px; }
+    }
+    @media (max-width: 500px) {
+      .topbar { padding-inline: 10px; gap: 6px; }
+      .content { padding: 12px 8px; }
+      .env-pill { display: none; }
+      .brand span { display: none; }
     }
 
     @media (pointer: coarse) {

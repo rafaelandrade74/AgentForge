@@ -11,7 +11,7 @@ import { AgentsService } from '../core/agents.service';
 import { RealtimeService } from '../core/realtime.service';
 import { ThemeService } from '../core/theme.service';
 
-interface NavItem { path: string; label: string; group: 'main' | 'config'; icon: string; }
+interface NavItem { path: string; label: string; group: 'main' | 'config'; svgContent: string; }
 
 @Component({
   selector: 'app-shell',
@@ -25,29 +25,38 @@ interface NavItem { path: string; label: string; group: 'main' | 'config'; icon:
         <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M3 5h14M3 10h14M3 15h14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
       </button>
       <a routerLink="/" class="brand">
-        <svg class="brand-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+        <div class="brand-icon">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 1L14.5 4.75V11.25L8 15L1.5 11.25V4.75L8 1Z" stroke="#fff" stroke-width="1.5" fill="none"/><circle cx="8" cy="8" r="2.5" fill="#fff"/></svg>
+        </div>
         <span>AgentForge</span>
       </a>
-      <span class="spacer"></span>
+      <span class="topbar-spacer"></span>
 
       @for (b of banners(); track b.text) {
         <span class="topbar-banner" [class]="'topbar-banner--' + b.tone">{{ b.text }}</span>
       }
 
-      <span class="rt" [class.on]="realtime.status() === 'connected'" [title]="'Tempo real: ' + realtime.status()">●</span>
+      <div class="env-pill">
+        <span class="env-dot" [class.on]="realtime.status() === 'connected'"></span>
+        <span>{{ realtime.status() === 'connected' ? 'Conectado' : 'Desconectado' }}</span>
+      </div>
 
-      <button class="icon-btn" type="button" (click)="theme.toggle()" [title]="theme.current() === 'dark' ? 'Tema claro' : 'Tema escuro'" aria-label="Alternar tema">
+      <button class="topbar-btn" type="button" title="Notificações" aria-label="Notificações">
+        <svg width="16" height="16" viewBox="0 0 16 16"><path d="M8 14.5c.83 0 1.5-.67 1.5-1.5h-3c0 .83.67 1.5 1.5 1.5zm4.5-4V7c0-2.34-1.6-4.3-3.75-4.82V1.75a.75.75 0 00-1.5 0v.43C5.1 2.7 3.5 4.66 3.5 7v3.5L2 12v.5h12V12l-1.5-1.5z"/></svg>
+      </button>
+
+      <button class="topbar-btn" type="button" (click)="theme.toggle()"
+        [title]="theme.current() === 'dark' ? 'Tema claro' : 'Tema escuro'" aria-label="Alternar tema">
         @if (theme.current() === 'dark') {
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+          <svg width="16" height="16" viewBox="0 0 16 16"><circle cx="8" cy="8" r="3.5" fill="currentColor"/><path d="M8 2v1.5m0 9V14m-4.24-9.74l1.06 1.06m6.36 6.36l1.06 1.06M2 8h1.5m9 0H14M4.76 12.74l1.06-1.06m6.36-6.36l1.06-1.06" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
         } @else {
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+          <svg width="16" height="16" viewBox="0 0 16 16"><path d="M13.5 8.5a6 6 0 01-6 6 6 6 0 110-12 4.5 4.5 0 006 6z" fill="currentColor"/></svg>
         }
       </button>
 
-      <span class="user-name">{{ auth.username() }}</span>
-      <button class="icon-btn" type="button" (click)="auth.logout()" title="Sair" aria-label="Sair">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/></svg>
-      </button>
+      <div class="avatar" (click)="auth.logout()" [title]="auth.username() + ' — Sair'">
+        {{ (auth.username() ?? 'U').charAt(0).toUpperCase() }}
+      </div>
     </header>
 
     <!-- backdrop mobile -->
@@ -56,37 +65,42 @@ interface NavItem { path: string; label: string; group: 'main' | 'config'; icon:
     }
 
     <!-- sidebar -->
-    <aside class="sidebar" [class.open]="sidebarOpen()">
-      <nav class="nav-section">
-        <span class="nav-label">Principal</span>
-        @for (item of mainNav; track item.path) {
-          <a [routerLink]="item.path" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: item.path === '/' }"
-             class="nav-item" (click)="sidebarOpen.set(false)">
-            <svg class="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path [attr.d]="item.icon"/></svg>
-            <span class="nav-text">{{ item.label }}</span>
-            @if (item.path === '/approvals' && pending() > 0) {
-              <span class="nav-badge">{{ pending() }}</span>
-            }
-          </a>
-        }
-      </nav>
-      <nav class="nav-section">
-        <span class="nav-label">Configuração</span>
-        @for (item of configNav; track item.path) {
-          <a [routerLink]="item.path" routerLinkActive="active"
-             class="nav-item" (click)="sidebarOpen.set(false)">
-            <svg class="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path [attr.d]="item.icon"/></svg>
-            <span class="nav-text">{{ item.label }}</span>
-          </a>
-        }
-      </nav>
-      <div class="sidebar-footer">
-        <span class="muted small">AgentForge v1.0</span>
+    <nav class="sidebar" [class.open]="sidebarOpen()">
+      <div>
+        <div class="nav-section-label">Principal</div>
+        <div class="nav-list">
+          @for (item of mainNav; track item.path) {
+            <a [routerLink]="item.path" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: item.path === '/' }"
+               class="nav-item" (click)="sidebarOpen.set(false)">
+              <svg class="nav-icon" viewBox="0 0 18 18" [innerHTML]="item.svgContent"></svg>
+              <span>{{ item.label }}</span>
+              @if (item.path === '/approvals' && pending() > 0) {
+                <span class="nav-badge">{{ pending() }}</span>
+              }
+            </a>
+          }
+        </div>
       </div>
-    </aside>
+      <div>
+        <div class="nav-section-label">Configuração</div>
+        <div class="nav-list">
+          @for (item of configNav; track item.path) {
+            <a [routerLink]="item.path" routerLinkActive="active"
+               class="nav-item" (click)="sidebarOpen.set(false)">
+              <svg class="nav-icon" viewBox="0 0 18 18" [innerHTML]="item.svgContent"></svg>
+              <span>{{ item.label }}</span>
+            </a>
+          }
+        </div>
+      </div>
+      <div class="sidebar-footer">
+        <span class="env-dot on"></span>
+        v1.0 · AgentForge
+      </div>
+    </nav>
 
     <!-- main content -->
-    <main class="content" [class.sidebar-open]="sidebarOpen()">
+    <main class="content">
       @if (agents.needsAttention().length > 0) {
         <div class="banner banner--warn" role="status">
           <span>
@@ -108,197 +122,208 @@ interface NavItem { path: string; label: string; group: 'main' | 'config'; icon:
     </main>
   `,
   styles: `
+    /* ── shell grid layout (artifact exact) ── */
+    :host {
+      display: grid;
+      grid-template-columns: 240px 1fr;
+      grid-template-rows: 56px 1fr;
+      height: 100vh;
+      overflow: hidden;
+    }
+
     /* ── topbar ── */
     .topbar {
-      position: fixed;
-      top: 0; left: 0; right: 0;
-      height: var(--topbar-height);
+      grid-column: 1 / -1;
+      background: var(--bg-1);
+      border-bottom: 1px solid var(--border);
       display: flex;
       align-items: center;
-      gap: .5rem;
-      padding: 0 .75rem;
-      background: var(--bg-surface-1);
-      border-bottom: 1px solid var(--border);
-      box-shadow: 0 1px 3px rgba(0,0,0,.1);
-      z-index: 200;
+      padding-inline: 20px;
+      gap: 12px;
+      z-index: 10;
     }
     .brand {
-      display: inline-flex;
+      display: flex;
       align-items: center;
-      gap: .5rem;
+      gap: 10px;
       font-weight: 700;
-      font-size: 1rem;
+      font-size: 15px;
+      letter-spacing: -.02em;
+      min-width: 200px;
+      cursor: pointer;
       text-decoration: none;
-      color: var(--text-primary);
-      letter-spacing: -0.03em;
+      color: var(--text-0);
     }
-    .brand-icon { flex-shrink: 0; }
-    .spacer { flex: 1; }
+    .brand-icon {
+      width: 30px; height: 30px;
+      background: linear-gradient(135deg, var(--accent), #a78bfa);
+      border-radius: 8px;
+      display: grid; place-items: center;
+      box-shadow: 0 2px 8px rgba(139,92,246,.3);
+      flex-shrink: 0;
+    }
+    .topbar-spacer { flex: 1; }
 
-    .icon-btn {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      width: 32px; height: 32px;
-      background: none;
-      border: none;
-      border-radius: var(--radius-sm);
-      color: var(--text-secondary);
-      cursor: pointer;
-      transition: background var(--transition), color var(--transition);
+    .env-pill {
+      display: flex; align-items: center; gap: 6px;
+      font-size: 12px; color: var(--text-1);
+      background: var(--bg-2);
+      padding: 4px 10px; border-radius: 20px;
+      border: 1px solid var(--border);
     }
-    .icon-btn:hover { background: var(--sidebar-hover); color: var(--text-primary); }
+    .env-dot {
+      width: 7px; height: 7px; border-radius: 50%;
+      background: var(--danger);
+    }
+    .env-dot.on {
+      background: var(--success);
+      box-shadow: 0 0 6px var(--success);
+    }
 
-    .sidebar-toggle { composes: icon-btn; }
-    .sidebar-toggle {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      width: 32px; height: 32px;
+    .topbar-btn {
       background: none;
-      border: none;
+      border: 1px solid var(--border);
+      color: var(--text-1);
       border-radius: var(--radius-sm);
-      color: var(--text-secondary);
+      padding: 6px 8px;
       cursor: pointer;
-      transition: background var(--transition), color var(--transition);
+      display: grid; place-items: center;
+      transition: var(--transition);
     }
-    .sidebar-toggle:hover { background: var(--sidebar-hover); color: var(--text-primary); }
+    .topbar-btn:hover {
+      background: var(--bg-hover);
+      color: var(--text-0);
+      border-color: var(--border-active);
+    }
+
+    .avatar {
+      width: 32px; height: 32px; border-radius: 50%;
+      background: linear-gradient(135deg, var(--accent), #c084fc);
+      display: grid; place-items: center;
+      color: #fff; font-size: 13px; font-weight: 600;
+      cursor: pointer;
+    }
 
     .topbar-banner {
-      display: inline-flex;
-      align-items: center;
-      padding: .2rem .6rem;
-      border-radius: 999px;
-      font-size: .7rem;
-      font-weight: 600;
+      display: inline-flex; align-items: center;
+      padding: 2px 8px; border-radius: 999px;
+      font-size: 11px; font-weight: 600;
     }
     .topbar-banner--warn { background: var(--warning-bg); color: var(--warning); }
-    .topbar-banner--limit { background: #1f172e; color: #d8b4fe; }
+    .topbar-banner--limit { background: rgba(139,92,246,.12); color: #d8b4fe; }
 
-    .rt { font-size: .6rem; color: var(--text-tertiary); }
-    .rt.on { color: var(--success); }
-    .user-name { font-size: .8rem; color: var(--text-secondary); }
+    .sidebar-toggle {
+      display: none;
+      background: none; border: none;
+      color: var(--text-1); cursor: pointer;
+      padding: 4px;
+    }
 
     /* ── sidebar ── */
     .sidebar {
-      position: fixed;
-      top: var(--topbar-height);
-      left: 0;
-      bottom: 0;
-      width: var(--sidebar-width);
-      background: var(--sidebar-bg);
-      border-right: 1px solid var(--sidebar-border);
+      background: var(--bg-1);
+      border-right: 1px solid var(--border);
+      padding: 16px 12px;
       overflow-y: auto;
-      z-index: 150;
       display: flex;
       flex-direction: column;
-      gap: .25rem;
-      padding: .75rem 0;
-      transform: translateX(-100%);
-      transition: transform 200ms ease;
-    }
-    .sidebar.open { transform: translateX(0); }
-
-    @media (min-width: 1024px) {
-      .sidebar { transform: translateX(0); }
-      .sidebar-toggle { display: none; }
+      gap: 24px;
     }
 
-    .nav-section { padding: 0 .5rem; }
-    .nav-section + .nav-section { margin-top: .75rem; }
-
-    .nav-label {
-      display: block;
-      padding: .25rem .75rem;
-      font-size: .65rem;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: .06em;
-      color: var(--text-tertiary);
+    .nav-section-label {
+      font-size: 10px; font-weight: 600;
+      letter-spacing: .08em; text-transform: uppercase;
+      color: var(--text-2);
+      padding: 0 10px; margin-bottom: 4px;
     }
+    .nav-list { display: flex; flex-direction: column; gap: 2px; }
+
     .nav-item {
-      display: flex;
-      align-items: center;
-      gap: .5rem;
-      padding: .45rem .75rem;
+      display: flex; align-items: center; gap: 10px;
+      padding: 8px 10px;
       border-radius: var(--radius-sm);
-      border-left: 3px solid transparent;
-      font-size: .85rem;
-      font-weight: 500;
-      color: var(--text-secondary);
+      color: var(--text-1);
+      font-size: 13.5px; font-weight: 500;
+      cursor: pointer;
+      transition: var(--transition);
+      position: relative;
       text-decoration: none;
-      transition: background var(--transition), color var(--transition), border-color var(--transition);
-      min-height: 36px;
+      user-select: none;
     }
-    .nav-item:hover { background: var(--sidebar-hover); color: var(--text-primary); }
-    .nav-item.active {
-      background: var(--sidebar-active);
-      color: var(--accent);
-      font-weight: 600;
-      border-left-color: var(--accent);
+    .nav-item:hover { background: var(--bg-hover); color: var(--text-0); }
+    .nav-item.active { background: var(--accent-dim); color: var(--accent); }
+    .nav-item.active::before {
+      content: '';
+      position: absolute;
+      left: 0; top: 6px; bottom: 6px;
+      width: 3px;
+      border-radius: 0 3px 3px 0;
+      background: var(--accent);
     }
-    .nav-icon { width: 18px; height: 18px; flex-shrink: 0; opacity: .6; }
-    .nav-item:hover .nav-icon { opacity: .85; }
-    .nav-item.active .nav-icon { opacity: 1; color: var(--accent); }
-    .nav-text { flex: 1; }
-    .sidebar-footer { margin-top: auto; padding: .75rem 1.25rem; border-top: 1px solid var(--sidebar-border); }
+
+    .nav-icon { width: 18px; height: 18px; opacity: .7; flex-shrink: 0; }
+    .nav-item.active .nav-icon { opacity: 1; }
+
     .nav-badge {
       margin-left: auto;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      min-width: 1.1rem;
-      height: 1.1rem;
-      padding: 0 .3rem;
-      border-radius: 999px;
-      background: var(--accent);
+      background: var(--danger);
       color: #fff;
-      font-size: .65rem;
-      font-weight: 700;
+      font-size: 10px; font-weight: 700;
+      padding: 1px 6px; border-radius: 10px;
+      min-width: 18px; text-align: center;
     }
+
+    .sidebar-footer {
+      margin-top: auto;
+      padding: 12px 10px;
+      border-top: 1px solid var(--border);
+      display: flex; align-items: center; gap: 8px;
+      font-size: 12px; color: var(--text-2);
+    }
+    .sidebar-footer .env-dot { width: 6px; height: 6px; }
 
     /* ── backdrop (mobile) ── */
     .backdrop {
       position: fixed;
       inset: 0;
       z-index: 140;
-      background: rgba(0,0,0,.4);
+      background: rgba(0,0,0,.5);
     }
 
     /* ── main content ── */
     .content {
-      margin-top: var(--topbar-height);
-      min-height: calc(100vh - var(--topbar-height));
-      transition: margin-left 200ms ease;
-    }
-    @media (min-width: 1024px) {
-      .content { margin-left: var(--sidebar-width); }
+      overflow-y: auto;
+      padding: 24px;
+      background: var(--bg-0);
     }
 
     /* ── banners ── */
     .banner {
-      display: flex;
-      gap: .75rem;
-      align-items: center;
-      justify-content: center;
-      flex-wrap: wrap;
-      padding: .5rem 1rem;
-      font-size: .85rem;
+      display: flex; gap: .75rem; align-items: center; justify-content: center;
+      flex-wrap: wrap; padding: .5rem 1rem; font-size: .85rem;
+      margin: -24px -24px 24px;
     }
-    .banner--warn {
-      background: var(--warning-bg);
-      color: var(--warning);
-      border-bottom: 1px solid var(--warning-border);
-    }
-    .banner--limit {
-      background: var(--accent-muted);
-      color: var(--accent);
-      border-bottom: 1px solid var(--border);
-    }
+    .banner--warn { background: var(--warning-bg); color: var(--warning); border-bottom: 1px solid var(--warning-border); }
+    .banner--limit { background: var(--accent-dim); color: var(--accent); border-bottom: 1px solid var(--border); }
     .banner-btn { font-size: .8rem !important; }
 
+    /* ── responsive ── */
+    @media (max-width: 900px) {
+      :host { grid-template-columns: 1fr; }
+      .sidebar {
+        display: none;
+        position: fixed;
+        top: 56px; left: 0; bottom: 0;
+        width: 240px;
+        z-index: 150;
+      }
+      .sidebar.open { display: flex; }
+      .sidebar-toggle { display: grid; place-items: center; }
+      .brand { min-width: unset; }
+    }
+
     @media (pointer: coarse) {
-      .nav-item { min-height: 44px; padding: .6rem .75rem; }
+      .nav-item { min-height: 44px; padding: 10px; }
     }
   `,
 })
@@ -318,18 +343,18 @@ export class ShellComponent {
   readonly sidebarOpen = signal(false);
 
   readonly mainNav: NavItem[] = [
-    { path: '/', label: 'Projetos', group: 'main', icon: 'M3 7v10a2 2 0 002 2h12a2 2 0 002-2V9a2 2 0 00-2-2h-4.586a1 1 0 01-.707-.293l-1.414-1.414A1 1 0 0010.586 5H5a2 2 0 00-2 2z' },
-    { path: '/approvals', label: 'Aprovações', group: 'main', icon: 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z' },
-    { path: '/live', label: 'Ao vivo', group: 'main', icon: 'M22 12h-4l-3 9L9 3l-3 9H2' },
-    { path: '/chat', label: 'Chat', group: 'main', icon: 'M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z' },
+    { path: '/', label: 'Projetos', group: 'main', svgContent: '<path d="M2 4.5A1.5 1.5 0 013.5 3h3.59a1.5 1.5 0 011.06.44l1.41 1.41a1.5 1.5 0 001.06.44H14.5A1.5 1.5 0 0116 6.79V13.5a1.5 1.5 0 01-1.5 1.5h-11A1.5 1.5 0 012 13.5V4.5z"/>' },
+    { path: '/approvals', label: 'Aprovações', group: 'main', svgContent: '<path d="M9 1.5a7.5 7.5 0 100 15 7.5 7.5 0 000-15zM8 5h2v4.59l2.7 2.71-1.4 1.41L8 10.41V5z"/>' },
+    { path: '/live', label: 'Ao vivo', group: 'main', svgContent: '<circle cx="5" cy="9" r="2"/><circle cx="13" cy="9" r="2"/><circle cx="9" cy="4" r="2" opacity=".5"/><circle cx="9" cy="14" r="2" opacity=".5"/>' },
+    { path: '/chat', label: 'Chat', group: 'main', svgContent: '<path d="M3 3.5A1.5 1.5 0 014.5 2h9A1.5 1.5 0 0115 3.5v8a1.5 1.5 0 01-1.5 1.5H6l-3 3V3.5z"/>' },
   ];
   readonly configNav: NavItem[] = [
-    { path: '/agents', label: 'Agentes', group: 'config', icon: 'M9 3v2m6-2v2M9 19v2m6-2v2M3 9h2m-2 6h2M19 9h2m-2 6h2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2z' },
-    { path: '/prompts', label: 'Prompts', group: 'config', icon: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z' },
-    { path: '/environments', label: 'Ambientes', group: 'config', icon: 'M5 12h14M12 12v7m-7 0h14a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zM12 5v7M5 5h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V6a1 1 0 011-1z' },
-    { path: '/profiles', label: 'Perfis', group: 'config', icon: 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4' },
-    { path: '/git', label: 'Git', group: 'config', icon: 'M6 3v12M18 9a3 3 0 100-6 3 3 0 000 6zm0 0v3a3 3 0 01-3 3H9m0 0a3 3 0 100 6' },
-    { path: '/integration', label: 'Integração', group: 'config', icon: 'M11 4a2 2 0 114 0v1a1 1 0 001 1h3a2 2 0 012 2v3a1 1 0 01-1 1 2 2 0 100 4 1 1 0 011 1v3a2 2 0 01-2 2h-3a1 1 0 01-1-1 2 2 0 10-4 0 1 1 0 01-1 1H7a2 2 0 01-2-2v-3a1 1 0 011-1 2 2 0 100-4 1 1 0 01-1-1V7a2 2 0 012-2h3a1 1 0 001-1V4z' },
+    { path: '/agents', label: 'Agentes', group: 'config', svgContent: '<path d="M9 2a2.5 2.5 0 00-2.5 2.5V6h5V4.5A2.5 2.5 0 009 2zM5 6V4.5a4 4 0 118 0V6h1.5A1.5 1.5 0 0116 7.5v7a1.5 1.5 0 01-1.5 1.5h-11A1.5 1.5 0 012 14.5v-7A1.5 1.5 0 013.5 6H5z"/>' },
+    { path: '/prompts', label: 'Prompts', group: 'config', svgContent: '<path d="M9 1.5l1.3 4h4.2l-3.4 2.5 1.3 4L9 9.5 5.6 12l1.3-4L3.5 5.5h4.2L9 1.5z"/>' },
+    { path: '/environments', label: 'Ambientes', group: 'config', svgContent: '<rect x="2" y="3" width="14" height="12" rx="2"/><path d="M5.5 7.5l2.5 2-2.5 2" stroke="var(--bg-1)" stroke-width="1.3" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M9.5 11.5h3" stroke="var(--bg-1)" stroke-width="1.3" fill="none" stroke-linecap="round"/>' },
+    { path: '/profiles', label: 'Perfis', group: 'config', svgContent: '<path d="M14.5 9A5.5 5.5 0 119 3.5V1L12 4 9 7V4.5A4 4 0 1013 9h1.5z"/>' },
+    { path: '/git', label: 'Git', group: 'config', svgContent: '<path d="M3 3h4v2H5v8h2v2H3V3zm8 0h4v12h-4v-2h2V5h-2V3z" opacity=".8"/><circle cx="9" cy="9" r="1.5"/>' },
+    { path: '/integration', label: 'Integração', group: 'config', svgContent: '<path d="M9 2v5m0 0L6.5 4.5M9 7l2.5-2.5M4 9h10M9 11v5m0 0l2.5-2.5M9 16L6.5 13.5" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round"/>' },
   ];
 
   get banners() {

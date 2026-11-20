@@ -25,115 +25,119 @@ interface LoginUi {
   standalone: true,
   imports: [FormsModule, MatButtonModule, MatFormFieldModule, MatInputModule, MatSelectModule, BadgeComponent, EnvironmentSelectComponent],
   template: `
-    <div class="page">
-      <h1>Agentes</h1>
-      <p class="muted">
-        Os papéis rodam no CLI de um agente instalado no servidor ou em outra máquina (ambiente). Cada máquina tem o seu login:
-        aqui você vê se o agente já está conectado, testa na hora e, se precisar, entra pelo link — sem chave de API.
-      </p>
+    <div class="content-area">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Agentes</div>
+          <div class="page-subtitle">Configuração e status dos agentes CLI</div>
+        </div>
+      </div>
 
-      <app-environment-select [value]="environmentId()" (changed)="select($event)" />
+      <div style="margin-bottom:16px">
+        <app-environment-select [value]="environmentId()" (changed)="select($event)" />
+      </div>
 
       @if (environment(); as env) {
-        <p class="env small" data-testid="environment">
+        <div style="display:flex;gap:6px;align-items:center;margin-bottom:16px;font-size:12px">
           <app-badge [label]="env.mode === 'host' ? 'CLI no seu computador' : 'CLI neste servidor'" [tone]="env.mode === 'host' ? 'info' : 'idle'" />
-          Os agentes rodam {{ env.description }}.
-        </p>
+          <span style="color:var(--text-2)">{{ env.description }}</span>
+        </div>
       }
 
-      @for (a of agents(); track a.name) {
-        <section class="agent" [attr.aria-label]="a.displayName">
-          <div class="row">
-            <h2>{{ a.displayName }}</h2>
-            @if (!a.installed) {
-              <app-badge label="CLI não instalado" tone="bad" />
-            } @else if (a.authenticated) {
-              <app-badge label="Conectado" tone="ok" />
-            } @else {
-              <app-badge label="Não conectado" tone="warn" />
-            }
-            @if (a.version) { <span class="muted mono small">{{ a.version }}</span> }
-            <span class="spacer"></span>
-            @for (r of a.usedByRoles; track r) { <app-badge [label]="roleLabel[r]" /> }
-          </div>
-
-          @if (a.authenticated && a.detail) {
-            <p class="muted">Conta: {{ a.detail }}@if (a.authMethod) { · {{ a.authMethod }} }</p>
-          }
-          @if (!a.installed) {
-            <p class="bad-text">
-              {{ a.detail }}
-              {{ environmentId() ? 'Confira o host agent e o CLI dessa máquina (tela Ambientes → Testar).' : 'Reconstrua a imagem da API com o CLI instalado.' }}
-            </p>
-          }
-
-          @if (a.installed && a.authenticated) {
-            <div class="test">
-              @if (testing()[a.name]) {
-                <span class="muted">Testando a conexão…</span>
-              } @else if (a.lastTest) {
-                <app-badge [label]="a.lastTest.ok ? 'Teste passou' : 'Teste falhou'" [tone]="a.lastTest.ok ? 'ok' : 'bad'" />
-                <span class="small">"{{ a.lastTest.message }}"</span>
-                <span class="muted small">{{ duration(a.lastTest.durationMs) }} · {{ usd(a.lastTest.costUsd) }}</span>
-              }
-              <span class="spacer"></span>
-              <button mat-stroked-button type="button" [disabled]="testing()[a.name]" (click)="test(a)">Testar de novo</button>
-              @if (a.supportsLogin) {
-                <button mat-button type="button" (click)="logout(a)">Desconectar</button>
+      <div class="grid-auto" style="grid-template-columns:repeat(auto-fill,minmax(300px,1fr))">
+        @for (a of agents(); track a.name) {
+          <div class="card card-p" [attr.aria-label]="a.displayName">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+              <div class="agent-avatar">{{ a.displayName?.charAt(0) ?? 'A' }}</div>
+              <div style="flex:1">
+                <div style="font-size:14px;font-weight:600">{{ a.displayName }}</div>
+                @if (a.version) { <div style="font-size:11px;color:var(--text-2)">v{{ a.version }}</div> }
+              </div>
+              @if (!a.installed) {
+                <span class="badge badge-bad">Não instalado</span>
+              } @else if (a.authenticated) {
+                <span class="badge badge-ok">Conectado</span>
+              } @else {
+                <span class="badge badge-warn">Não conectado</span>
               }
             </div>
-          }
 
-          @if (a.installed && !a.authenticated) {
-            @if (a.supportsLogin) {
-              @if (loginOf(a.name); as ui) {
-                <div class="login" role="group" aria-label="Login por link">
-                  @if (!ui.session && !ui.error) {
-                    <span class="muted">Gerando o link de login…</span>
-                  } @else if (ui.session?.state === 'WaitingForCode') {
-                    <ol>
-                      <li>
-                        Abra o link e entre na sua conta:
-                        @if (ui.session?.url; as url) {
-                          <a [href]="url" target="_blank" rel="noopener noreferrer" class="mono small">Abrir página de login</a>
-                        }
-                      </li>
-                      <li>Copie o código que a página mostrar e cole aqui:</li>
-                    </ol>
-                    <div class="row">
-                      <mat-form-field appearance="outline" class="code">
-                        <mat-label>Código</mat-label>
-                        <input matInput [name]="'code-' + a.name" [ngModel]="ui.code" (ngModelChange)="setCode(a.name, $event)"
-                          (keydown.enter)="sendCode(a)" autocomplete="off" />
-                      </mat-form-field>
-                      <button mat-flat-button type="button" [disabled]="!ui.code.trim() || ui.busy" (click)="sendCode(a)">Confirmar</button>
-                      <button mat-button type="button" (click)="cancelLogin(a)">Cancelar</button>
-                    </div>
-                  } @else {
-                    <button mat-flat-button type="button" (click)="startLogin(a)">Tentar de novo</button>
-                  }
-                  @if (ui.busy) { <span class="muted">Verificando…</span> }
-                  @if (ui.error) { <p class="bad-text" role="alert">{{ ui.error }}</p> }
-                </div>
-              } @else {
-                <p class="muted">Este agente ainda não está conectado.</p>
-                <button mat-flat-button type="button" (click)="startLogin(a)">Conectar</button>
-              }
-            } @else {
-              <p class="muted">Este agente não tem login pela aplicação; conecte-o direto no servidor.</p>
+            <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:10px">
+              @for (r of a.usedByRoles; track r) { <span class="badge badge-accent">{{ roleLabel[r] }}</span> }
+            </div>
+
+            @if (a.authenticated && a.detail) {
+              <div style="font-size:12px;color:var(--text-2);margin-bottom:8px">Conta: {{ a.detail }}@if (a.authMethod) { · {{ a.authMethod }} }</div>
             }
-          }
-        </section>
-      } @empty {
-        <p class="muted">Carregando agentes…</p>
-      }
+            @if (!a.installed) {
+              <div style="font-size:12px;color:var(--danger);margin-bottom:8px">
+                {{ a.detail }}
+                {{ environmentId() ? 'Confira o host agent e o CLI.' : 'Reconstrua a imagem da API.' }}
+              </div>
+            }
 
-      <h2>Agente de cada papel</h2>
-      <div class="roles">
+            @if (a.installed && a.authenticated) {
+              <div style="margin-bottom:8px">
+                @if (testing()[a.name]) {
+                  <span style="font-size:12px;color:var(--text-2)">Testando…</span>
+                } @else if (a.lastTest) {
+                  <div style="display:flex;align-items:center;gap:6px;font-size:12px">
+                    <span class="badge" [class]="a.lastTest.ok ? 'badge-ok' : 'badge-bad'">{{ a.lastTest.ok ? 'Teste OK' : 'Falhou' }}</span>
+                    <span style="color:var(--text-2)">"{{ a.lastTest.message }}" · {{ duration(a.lastTest.durationMs) }} · {{ usd(a.lastTest.costUsd) }}</span>
+                  </div>
+                }
+              </div>
+              <div style="display:flex;gap:6px">
+                <button class="btn btn-secondary btn-sm" type="button" [disabled]="testing()[a.name]" (click)="test(a)">Testar</button>
+                @if (a.supportsLogin) {
+                  <button class="btn btn-secondary btn-sm" type="button" (click)="logout(a)">Desconectar</button>
+                }
+              </div>
+            }
+
+            @if (a.installed && !a.authenticated) {
+              @if (a.supportsLogin) {
+                @if (loginOf(a.name); as ui) {
+                  <div style="border-top:1px solid var(--border);margin-top:10px;padding-top:10px">
+                    @if (!ui.session && !ui.error) {
+                      <span style="font-size:12px;color:var(--text-2)">Gerando o link…</span>
+                    } @else if (ui.session?.state === 'WaitingForCode') {
+                      <div style="font-size:12px;margin-bottom:8px">
+                        1. <a [href]="ui.session?.url" target="_blank" rel="noopener noreferrer" style="color:var(--accent)">Abrir página de login</a><br>
+                        2. Cole o código:
+                      </div>
+                      <div style="display:flex;gap:6px">
+                        <input class="form-input" style="flex:1" placeholder="Código" [value]="ui.code" (input)="setCode(a.name, $any($event.target).value)" (keydown.enter)="sendCode(a)" autocomplete="off">
+                        <button class="btn btn-primary btn-sm" type="button" [disabled]="!ui.code.trim() || ui.busy" (click)="sendCode(a)">OK</button>
+                        <button class="btn btn-secondary btn-sm" type="button" (click)="cancelLogin(a)">×</button>
+                      </div>
+                    } @else {
+                      <button class="btn btn-primary btn-sm" type="button" (click)="startLogin(a)">Tentar de novo</button>
+                    }
+                    @if (ui.busy) { <div style="font-size:12px;color:var(--text-2);margin-top:4px">Verificando…</div> }
+                    @if (ui.error) { <div style="font-size:12px;color:var(--danger);margin-top:4px">{{ ui.error }}</div> }
+                  </div>
+                } @else {
+                  <div style="display:flex;gap:6px;margin-top:8px">
+                    <button class="btn btn-primary btn-sm" type="button" (click)="startLogin(a)">Conectar</button>
+                  </div>
+                }
+              } @else {
+                <div style="font-size:12px;color:var(--text-2);margin-top:8px">Conecte direto no servidor.</div>
+              }
+            }
+          </div>
+        } @empty {
+          <p style="color:var(--text-2)">Carregando agentes…</p>
+        }
+      </div>
+
+      <div class="section-title" style="margin-top:24px">Agente de cada papel</div>
+      <div class="grid-auto" style="grid-template-columns:repeat(auto-fill,minmax(260px,1fr))">
         @for (c of configs(); track c.id) {
-          <div class="role">
-            <span class="name">{{ roleLabel[c.role] }}</span>
-            <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <div class="card card-p" style="display:flex;align-items:center;gap:10px">
+            <span style="font-size:13px;font-weight:500;min-width:90px">{{ roleLabel[c.role] }}</span>
+            <mat-form-field appearance="outline" subscriptSizing="dynamic" style="flex:1">
               <mat-label>Agente</mat-label>
               <mat-select [value]="c.adapterName" (selectionChange)="assign(c, $event.value)" [attr.aria-label]="'Agente do papel ' + roleLabel[c.role]">
                 @for (a of agents(); track a.name) {
@@ -147,20 +151,8 @@ interface LoginUi {
     </div>
   `,
   styles: `
-    .agent { background: var(--bg-surface-1); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: .85rem 1.25rem 1.25rem; margin-bottom: 1rem; box-shadow: var(--shadow-sm); }
-    .agent h2 { margin: .25rem 0; padding-bottom: .4rem; border-bottom: 1px solid var(--border); margin-bottom: .75rem; }
-    .small { font-size: .85rem; }
-    .env { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; }
-    .test { display: flex; gap: .75rem; align-items: center; flex-wrap: wrap; margin-top: .25rem; }
-    .login { border-top: 1px solid var(--border); margin-top: .75rem; padding-top: .75rem; }
-    .login ol { margin: .25rem 0 .75rem; padding-left: 1.25rem; }
-    .code { width: 28rem; max-width: 100%; }
-    .bad-text { color: var(--danger); }
-    .roles { display: grid; grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr)); gap: 1rem 1.5rem; }
-    .role { display: flex; align-items: center; gap: 1rem; }
-    .role .name { width: 7rem; font-weight: 500; }
-    .role mat-form-field { flex: 1; }
-    @media (max-width: 639px) { .roles { grid-template-columns: 1fr; } .role { flex-direction: column; align-items: stretch; gap: .5rem; } .role .name { width: auto; } }
+    .content-area { padding: 24px; max-width: 1200px; }
+    @media (max-width: 639px) { .content-area { padding: 16px; } }
   `,
 })
 export class AgentsPage {

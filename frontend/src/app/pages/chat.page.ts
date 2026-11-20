@@ -19,78 +19,74 @@ import { MarkdownComponent } from '../shared/markdown.component';
   standalone: true,
   imports: [FormsModule, RouterLink, MatButtonModule, MatFormFieldModule, MatInputModule, MatSelectModule, BadgeComponent, MarkdownComponent],
   template: `
-    <div class="page layout">
-      <aside class="side">
-        <div class="row">
-          <h1>Chat</h1>
-          <span class="spacer"></span>
-          <button mat-flat-button type="button" (click)="newOpen.set(!newOpen())" data-testid="new-chat">Nova conversa</button>
+    <div class="chat-layout">
+      <div class="chat-sidebar">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+          <div style="font-size:16px;font-weight:700">Chat</div>
+          <button class="btn btn-primary btn-sm" type="button" (click)="newOpen.set(!newOpen())" data-testid="new-chat">Nova</button>
         </div>
 
         @if (newOpen()) {
-          <section class="card" data-testid="new-form">
-            <mat-form-field appearance="outline">
+          <div class="card card-p" style="margin-bottom:8px" data-testid="new-form">
+            <mat-form-field appearance="outline" style="width:100%">
               <mat-label>Agente</mat-label>
               <mat-select [ngModel]="agentKey()" (ngModelChange)="agentKey.set($event)" data-testid="new-agent">
                 @for (a of agents(); track key(a)) { <mat-option [value]="key(a)">{{ a.displayName }} · {{ a.environment }}</mat-option> }
               </mat-select>
             </mat-form-field>
-            <mat-form-field appearance="outline">
+            <mat-form-field appearance="outline" style="width:100%">
               <mat-label>Projeto</mat-label>
               <mat-select [ngModel]="projectId()" (ngModelChange)="projectId.set($event)" data-testid="new-project">
                 @for (p of projects(); track p.id) { <mat-option [value]="p.id">{{ p.name }}</mat-option> }
               </mat-select>
             </mat-form-field>
-            @if (agents().length === 0) { <p class="muted small">Nenhum agente conectado e acessível. Veja a página Ao vivo.</p> }
-            <div class="row">
-              <button mat-flat-button type="button" [disabled]="!agentKey() || !projectId() || creating()" (click)="create()" data-testid="new-create">Abrir</button>
-              <button mat-button type="button" (click)="newOpen.set(false)">Cancelar</button>
+            @if (agents().length === 0) { <p style="font-size:12px;color:var(--text-2)">Nenhum agente conectado.</p> }
+            <div style="display:flex;gap:6px">
+              <button class="btn btn-primary btn-sm" type="button" [disabled]="!agentKey() || !projectId() || creating()" (click)="create()" data-testid="new-create">Abrir</button>
+              <button class="btn btn-secondary btn-sm" type="button" (click)="newOpen.set(false)">Cancelar</button>
             </div>
-          </section>
+          </div>
         }
 
         @for (s of sessions(); track s.id) {
-          <a class="session" [class.active]="s.id === currentId()" [routerLink]="['/chat', s.id]" data-testid="session">
-            <div class="title">{{ s.title }}</div>
-            <div class="muted small">{{ s.project }} · {{ s.environment }}</div>
+          <a class="chat-session" [class.active]="s.id === currentId()" [routerLink]="['/chat', s.id]" data-testid="session">
+            <div class="chat-session-title">{{ s.title }}</div>
+            <div class="chat-session-meta">{{ s.project }} · {{ s.environment }}</div>
           </a>
         }
-        @if (sessions().length === 0) { <p class="muted small" data-testid="no-sessions">Nenhuma conversa ainda.</p> }
-      </aside>
+        @if (sessions().length === 0) { <p style="font-size:12px;color:var(--text-2)" data-testid="no-sessions">Nenhuma conversa ainda.</p> }
+      </div>
 
-      <main class="conversation">
+      <div class="chat-main">
         @if (detail(); as d) {
-          <div class="row head">
-            <div>
-              <strong>{{ d.session.title }}</strong>
-              <div class="muted small">{{ d.session.project }} · {{ d.session.agent }} em {{ d.session.environment }}</div>
-            </div>
-            <span class="spacer"></span>
-            <button mat-button type="button" [disabled]="d.session.busy" (click)="remove()">Apagar</button>
+          <div style="font-size:14px;font-weight:600;margin-bottom:4px">{{ d.session.title }}</div>
+          <div style="font-size:12px;color:var(--text-2);margin-bottom:16px">{{ d.session.project }} · {{ d.session.agent }} em {{ d.session.environment }}
+            <button class="btn btn-secondary btn-sm" type="button" [disabled]="d.session.busy" (click)="remove()" style="margin-left:8px">Apagar</button>
           </div>
 
-          <div class="messages" #scroller data-testid="messages">
+          <div class="chat-messages" #scroller data-testid="messages">
             @if (d.messages.length === 0) {
-              <p class="muted">
-                Converse sobre o projeto. Quando fizer sentido, peça <em>"proponha uma demanda para..."</em>: o agente sugere e você cria com um clique.
+              <p style="color:var(--text-2)">
+                Converse sobre o projeto. Peça <em>"proponha uma demanda para..."</em> e o agente sugere.
               </p>
             }
             @for (m of d.messages; track m.id) {
-              <div class="msg" [class.user]="m.role === 'User'" [class.failed]="m.failed" data-testid="message">
+              <div data-testid="message">
                 @if (m.role === 'User') {
-                  <div class="bubble user-bubble">{{ m.text }}</div>
+                  <div class="chat-bubble user">{{ m.text }}</div>
                 } @else {
-                  <div class="bubble"><app-markdown [source]="m.text" /></div>
+                  <div class="chat-bubble agent"><app-markdown [source]="m.text" /></div>
                   @for (p of m.proposals; track $index; let i = $index) {
                     <div class="proposal" data-testid="proposal">
-                      <div class="row"><app-badge label="demanda proposta" tone="info" /><strong>{{ p.title }}</strong></div>
-                      @if (p.description) { <p class="muted small">{{ p.description }}</p> }
+                      <div style="font-size:11px;font-weight:600;color:var(--accent);margin-bottom:4px">💡 Proposta de demanda</div>
+                      <div style="font-size:12px">{{ p.title }}</div>
+                      @if (p.description) { <div style="font-size:11px;color:var(--text-2);margin-top:2px">{{ p.description }}</div> }
                       @if (p.demandId) {
-                        <a [routerLink]="['/demands', p.demandId]" data-testid="proposal-created">Demanda criada — abrir →</a>
+                        <a [routerLink]="['/demands', p.demandId]" style="font-size:12px;margin-top:6px;display:inline-block" data-testid="proposal-created">Demanda criada — abrir →</a>
                       } @else {
-                        <div class="row">
-                          <button mat-stroked-button type="button" [disabled]="acting()" (click)="createDemand(m, i, false)" data-testid="proposal-create">Criar demanda</button>
-                          <button mat-flat-button type="button" [disabled]="acting()" (click)="createDemand(m, i, true)" data-testid="proposal-start">Criar e iniciar refinamento</button>
+                        <div style="margin-top:6px;display:flex;gap:6px">
+                          <button class="btn btn-secondary btn-sm" type="button" [disabled]="acting()" (click)="createDemand(m, i, false)" data-testid="proposal-create">Criar demanda</button>
+                          <button class="btn btn-primary btn-sm" type="button" [disabled]="acting()" (click)="createDemand(m, i, true)" data-testid="proposal-start">Criar e iniciar</button>
                         </div>
                       }
                     </div>
@@ -98,51 +94,41 @@ import { MarkdownComponent } from '../shared/markdown.component';
                 }
               </div>
             }
-            @if (d.session.busy) { <p class="muted" data-testid="busy">O agente está respondendo…</p> }
-            @else if (lastIsUser(d)) { <p class="muted small" data-testid="no-reply">Sem resposta a esta mensagem (a API reiniciou?). Envie de novo.</p> }
+            @if (d.session.busy) { <p style="color:var(--text-2)" data-testid="busy">O agente está respondendo…</p> }
+            @else if (lastIsUser(d)) { <p style="font-size:12px;color:var(--text-2)" data-testid="no-reply">Sem resposta. Envie de novo.</p> }
           </div>
 
-          <form class="composer" (ngSubmit)="send()">
-            <mat-form-field appearance="outline" class="grow">
-              <mat-label>Mensagem</mat-label>
-              <textarea matInput rows="2" name="text" [ngModel]="text()" (ngModelChange)="text.set($event)" [disabled]="d.session.busy"
-                (keydown.control.enter)="send()" (keydown.meta.enter)="send()" data-testid="composer"></textarea>
-            </mat-form-field>
-            <button mat-flat-button type="submit" [disabled]="!text().trim() || d.session.busy || sending()" data-testid="send">Enviar</button>
-          </form>
+          <div class="chat-composer">
+            <input class="form-input" style="flex:1" placeholder="Enviar mensagem... (Ctrl+Enter)" [value]="text()" (input)="text.set($any($event.target).value)" [disabled]="detail()?.session?.busy ?? false"
+              (keydown.control.enter)="send()" (keydown.meta.enter)="send()" data-testid="composer">
+            <button class="btn btn-primary" type="button" [disabled]="!text().trim() || (detail()?.session?.busy ?? false) || sending()" (click)="send()" data-testid="send">Enviar</button>
+          </div>
         } @else if (currentId()) {
-          <p class="muted">Carregando conversa…</p>
+          <p style="color:var(--text-2);padding:20px">Carregando conversa…</p>
         } @else {
-          <section class="card empty" data-testid="pick">
-            <strong>Escolha uma conversa ou abra uma nova.</strong>
-            <span class="muted">Dá para conversar com o agente de qualquer máquina, com o contexto de um projeto, e pedir que ele proponha demandas.</span>
-          </section>
+          <div style="display:flex;align-items:center;justify-content:center;height:100%;padding:40px;text-align:center;color:var(--text-2)" data-testid="pick">
+            <div><strong style="color:var(--text-0)">Escolha uma conversa ou abra uma nova.</strong><br>Converse com o agente e peça que ele proponha demandas.</div>
+          </div>
         }
-      </main>
+      </div>
     </div>
   `,
   styles: `
-    .layout { display: grid; grid-template-columns: 320px 1fr; gap: 1.25rem; align-items: start; }
-    .side { display: flex; flex-direction: column; gap: .5rem; }
-    .side .card { display: flex; flex-direction: column; gap: .5rem; padding: .75rem 1rem; background: var(--bg-surface-1); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); }
-    .session { display: block; padding: .65rem .85rem; border: 1px solid var(--border); border-left: 3px solid transparent; border-radius: var(--radius-md); color: inherit; text-decoration: none; background: var(--bg-surface-1); transition: border-color var(--transition), background var(--transition); min-height: 44px; }
-    .session:hover { background: var(--bg-surface-2); border-left-color: var(--border-hover); }
-    .session.active { border-left-color: var(--accent); background: var(--accent-muted); }
-    .session .title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 600; }
-    .conversation { display: flex; flex-direction: column; min-height: 70dvh; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--bg-surface-1); box-shadow: var(--shadow-sm); }
-    .head { padding: .75rem 1rem; border-bottom: 1px solid var(--border); }
-    .messages { flex: 1; overflow-y: auto; padding: 1.25rem; max-height: 62dvh; display: flex; flex-direction: column; gap: .85rem; }
-    .msg { display: flex; flex-direction: column; gap: .4rem; max-width: 85%; }
-    .msg.user { align-self: flex-end; align-items: flex-end; }
-    .bubble { padding: .75rem 1rem; border-radius: var(--radius-xl); background: var(--bg-surface-2); border: 1px solid var(--border); }
-    .user-bubble { background: var(--accent-muted); border-color: var(--border-active); white-space: pre-wrap; border-radius: var(--radius-xl) var(--radius-xl) var(--radius-sm) var(--radius-xl); }
-    .msg.failed .bubble { border-color: var(--danger-border); background: var(--danger-bg); }
-    .proposal { padding: .75rem 1rem; border: 1px solid var(--accent); border-left: 3px solid var(--accent); border-radius: var(--radius-md); background: var(--accent-subtle); }
-    .proposal p { margin: .3rem 0 .5rem; }
-    .composer { display: flex; gap: .75rem; align-items: flex-end; padding: .75rem 1rem; border-top: 1px solid var(--border); background: var(--bg-surface-2); border-radius: 0 0 var(--radius-lg) var(--radius-lg); }
-    .grow { flex: 1; }
-    .empty { margin: 1rem; padding: 2rem 1.5rem; display: flex; flex-direction: column; gap: .5rem; align-items: center; text-align: center; }
-    @media (max-width: 900px) { .layout { grid-template-columns: 1fr; } .conversation { min-height: 50dvh; } .messages { max-height: 50dvh; } }
+    .chat-layout { display: grid; grid-template-columns: 300px 1fr; gap: 0; height: calc(100vh - 56px); overflow: hidden; }
+    .chat-sidebar { background: var(--bg-1); border-right: 1px solid var(--border); padding: 16px; display: flex; flex-direction: column; gap: 4px; overflow-y: auto; }
+    .chat-session { display: block; padding: 10px 12px; border-radius: var(--radius-sm); cursor: pointer; transition: var(--transition); text-decoration: none; color: inherit; }
+    .chat-session:hover { background: var(--bg-hover); }
+    .chat-session.active { background: var(--accent-dim); }
+    .chat-session-title { font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .chat-session-meta { font-size: 11px; color: var(--text-2); margin-top: 2px; }
+    .chat-main { display: flex; flex-direction: column; padding: 20px; overflow: hidden; }
+    .chat-messages { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; padding-bottom: 16px; }
+    .chat-bubble { max-width: 80%; padding: 10px 14px; border-radius: var(--radius); font-size: 13.5px; line-height: 1.5; }
+    .chat-bubble.user { background: var(--accent); color: #fff; align-self: flex-end; border-bottom-right-radius: 4px; white-space: pre-wrap; }
+    .chat-bubble.agent { background: var(--bg-2); border: 1px solid var(--border); align-self: flex-start; border-bottom-left-radius: 4px; }
+    .chat-composer { display: flex; gap: 8px; padding-top: 12px; border-top: 1px solid var(--border); }
+    .proposal { margin-top: 8px; padding: 8px 10px; background: var(--accent-dim); border-radius: var(--radius-sm); border: 1px solid var(--border-active); }
+    @media (max-width: 900px) { .chat-layout { grid-template-columns: 1fr; } .chat-sidebar { display: none; } }
   `,
 })
 export class ChatPage {

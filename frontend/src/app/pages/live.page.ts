@@ -54,105 +54,103 @@ export function elapsed(startedAt: string, now: number): string {
   standalone: true,
   imports: [FormsModule, RouterLink, MatButtonModule, MatFormFieldModule, MatSelectModule, BadgeComponent],
   template: `
-    <div class="page">
-      <div class="row">
-        <h1>Agentes ao vivo</h1>
-        <app-badge [label]="realtime.status() === 'connected' ? 'tempo real' : 'sem tempo real (atualizando a cada 10 s)'"
-          [tone]="realtime.status() === 'connected' ? 'ok' : 'warn'" />
-        <span class="spacer"></span>
-        <button mat-button type="button" (click)="load()">Atualizar</button>
+    <div class="content-area">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Agentes ao vivo</div>
+          <div class="page-subtitle">Status em tempo real de todos os agentes</div>
+        </div>
+        <div class="header-actions">
+          <span class="badge" [class]="realtime.status() === 'connected' ? 'badge-ok' : 'badge-warn'" style="padding:4px 10px">{{ realtime.status() === 'connected' ? '● Conectado' : '● Desconectado' }}</span>
+          <button class="btn btn-secondary" type="button" (click)="load()">Atualizar</button>
+        </div>
       </div>
-      <p class="muted">
-        Os agentes de todas as máquinas, o que cada um está fazendo agora e um atalho para <strong>conversar</strong> com um deles
-        (tirar dúvidas, refinar ideias e criar novas demandas).
-      </p>
 
       @if (data(); as d) {
-        <h2>Agentes conectados</h2>
-        <div class="grid" data-testid="agents">
+        <div class="grid-auto" style="grid-template-columns:repeat(auto-fill,minmax(280px,1fr))" data-testid="agents">
           @for (a of d.agents; track a.environment + a.agent) {
-            <section class="card agent" [attr.data-state]="stateOf(a)" data-testid="agent-card">
-              <div class="row">
-                <strong>{{ a.displayName }}</strong>
-                <app-badge [label]="label(a)" [tone]="tone(a)" />
+            <div class="card card-p agent-live-card" [attr.data-state]="stateOf(a)" data-testid="agent-card">
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+                <div class="agent-avatar">{{ a.displayName?.charAt(0) ?? 'A' }}</div>
+                <div>
+                  <div style="font-size:13px;font-weight:600">{{ a.displayName }}</div>
+                  <div style="font-size:11px;color:var(--text-2)">{{ a.environment }} · {{ a.mode === 'host' ? 'host agent' : 'container' }}@if (a.version) { · v{{ a.version }} }</div>
+                </div>
               </div>
-              <div class="muted small">{{ a.environment }} · {{ a.mode === 'host' ? 'host agent' : 'container da API' }}@if (a.version) { · v{{ a.version }} }</div>
-              @if (a.runningNow > 0) {
-                <div class="small" data-testid="running-now">{{ a.runningNow }} execução(ões) agora</div>
-              }
-              @if (a.usageLimit; as l) {
-                <div class="small warnbox" data-testid="limit">{{ limitText(a) }}</div>
+              <div style="display:flex;gap:6px;margin-bottom:10px">
+                <span class="badge" [class]="'badge-' + tone(a)">{{ label(a) }}</span>
+                @if (a.runningNow > 0) { <span class="badge badge-idle">{{ a.runningNow }} rodando</span> }
+              </div>
+              @if (a.usageLimit) {
+                <div style="font-size:11px;color:var(--warning);margin-bottom:8px" data-testid="limit">⚠ {{ limitText(a) }}</div>
               } @else if (stateOf(a) !== 'ready' && stateOf(a) !== 'busy' && a.detail) {
-                <div class="small muted">{{ a.detail }}</div>
+                <div style="font-size:12px;color:var(--text-2);margin-bottom:8px">{{ a.detail }}</div>
               }
-              <div class="row actions">
-                <button mat-stroked-button type="button" [disabled]="!canChat(a)" (click)="startChat(a)" data-testid="chat-button">Conversar</button>
+              <div style="display:flex;gap:6px">
+                <button class="btn btn-secondary btn-sm" type="button" [disabled]="!canChat(a)" (click)="startChat(a)" data-testid="chat-button">Conversar</button>
               </div>
-            </section>
+            </div>
           }
         </div>
 
         @if (chatTarget(); as t) {
-          <section class="card start" data-testid="chat-start">
+          <div class="card card-p" style="margin-top:16px;display:flex;flex-direction:column;gap:12px" data-testid="chat-start">
             <strong>Conversar com {{ t.displayName }} em {{ t.environment }}</strong>
-            <div class="row">
-              <mat-form-field appearance="outline" class="field">
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+              <mat-form-field appearance="outline" style="min-width:18rem;max-width:100%">
                 <mat-label>Projeto</mat-label>
                 <mat-select [ngModel]="projectId()" (ngModelChange)="projectId.set($event)" data-testid="chat-project">
                   @for (p of projects(); track p.id) { <mat-option [value]="p.id">{{ p.name }}</mat-option> }
                 </mat-select>
               </mat-form-field>
-              <button mat-flat-button type="button" [disabled]="!projectId() || creating()" (click)="openChat()" data-testid="chat-open">Abrir conversa</button>
-              <button mat-button type="button" (click)="chatTarget.set(null)">Cancelar</button>
+              <button class="btn btn-primary" type="button" [disabled]="!projectId() || creating()" (click)="openChat()" data-testid="chat-open">Abrir conversa</button>
+              <button class="btn btn-secondary" type="button" (click)="chatTarget.set(null)">Cancelar</button>
             </div>
-            @if (projects().length === 0) { <p class="muted small">Cadastre um projeto antes de conversar.</p> }
-          </section>
+            @if (projects().length === 0) { <p style="font-size:12px;color:var(--text-2)">Cadastre um projeto antes de conversar.</p> }
+          </div>
         }
 
-        <h2>Executando agora <span class="muted small">({{ d.running.length }})</span></h2>
+        <div class="section-title" style="margin-top:16px">Execuções em andamento <span class="count">{{ d.running.length }}</span></div>
         @if (d.running.length === 0) {
-          <section class="card empty" data-testid="running-empty">
-            <span class="muted">Nenhum agente trabalhando neste momento. Quando uma tarefa andar, ela aparece aqui na hora.</span>
-          </section>
+          <div class="card card-p" style="text-align:center;color:var(--text-2)" data-testid="running-empty">
+            Nenhum agente trabalhando neste momento.
+          </div>
         }
         @for (r of d.running; track r.runId) {
-          <section class="card run" data-testid="run-row">
-            <div class="row">
-              <app-badge [label]="roleLabel(r.role)" tone="info" />
-              <strong>{{ r.task ?? 'Refinamento da demanda' }}</strong>
-              <span class="muted small">{{ r.project }} · {{ r.environment }}</span>
-              <span class="spacer"></span>
-              <span class="mono small">{{ since(r) }}</span>
-              @if (r.workItemId) { <a mat-button [routerLink]="['/tasks', r.workItemId]">Abrir tarefa</a> }
+          <div class="card card-p" style="margin-bottom:8px" data-testid="run-row">
+            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+              <span class="a-dot running" style="margin:0"></span>
+              <span class="badge badge-accent">{{ roleLabel(r.role) }}</span>
+              <div>
+                <div style="font-size:13px;font-weight:500">{{ r.task ?? 'Refinamento da demanda' }}</div>
+                <div style="font-size:11px;color:var(--text-2)">{{ r.project }} · {{ r.environment }} · {{ since(r) }}</div>
+              </div>
+              <div style="margin-left:auto;font-family:var(--mono);font-size:11px;color:var(--text-2)">
+                @if (lastLine(r.runId); as line) { ▸ {{ line }} }
+              </div>
             </div>
-            @if (lastLine(r.runId); as line) { <div class="mono small tail" data-testid="run-tail">{{ line }}</div> }
-          </section>
+          </div>
         }
-        <p class="muted small">Atualizado às {{ whenLabel(d.at) }}.</p>
+        <p style="font-size:12px;color:var(--text-2)">Atualizado às {{ whenLabel(d.at) }}.</p>
       } @else if (error()) {
-        <p class="alert bad">Não foi possível carregar os agentes.</p>
+        <p style="color:var(--danger)">Não foi possível carregar os agentes.</p>
       } @else {
-        <p class="muted">Carregando…</p>
+        <p style="color:var(--text-2)">Carregando…</p>
       }
     </div>
   `,
   styles: `
-    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem; }
-    .card { padding: 1rem 1.25rem; background: var(--bg-surface-1); border: 1px solid var(--border); border-radius: var(--radius-lg); margin-top: .5rem; transition: border-color var(--transition), box-shadow var(--transition); box-shadow: var(--shadow-sm); }
-    .agent { display: flex; flex-direction: column; gap: .4rem; margin-top: 0; border-top: 3px solid var(--border); }
-    .agent:hover { box-shadow: var(--shadow-md); }
-    .agent[data-state='ready'] { border-top-color: var(--success); }
-    .agent[data-state='busy'] { border-top-color: var(--info); }
-    .agent[data-state='limited'], .agent[data-state='not-connected'] { border-top-color: var(--warning); }
-    .agent[data-state='unreachable'], .agent[data-state='not-installed'] { border-top-color: var(--danger); }
-    .warnbox { padding: .4rem .7rem; border-left: 3px solid var(--warning); background: var(--warning-bg); border-radius: var(--radius-sm); }
-    .actions { margin-top: .5rem; }
-    .start { margin-top: 1rem; display: flex; flex-direction: column; gap: .75rem; }
-    .field { min-width: 18rem; max-width: 100%; }
-    .run { border-left: 3px solid var(--info); }
-    .run .tail { margin-top: .4rem; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .empty { margin-top: .5rem; text-align: center; padding: 1.5rem; }
-    @media (max-width: 639px) { .grid { grid-template-columns: 1fr; } .field { min-width: 0; width: 100%; } }
+    .content-area { padding: 24px; max-width: 1200px; }
+    .agent-live-card { border-top: 3px solid var(--border); }
+    .agent-live-card:hover { border-color: var(--border-active); }
+    .agent-live-card[data-state='ready'] { border-top-color: var(--success); }
+    .agent-live-card[data-state='busy'] { border-top-color: var(--info); }
+    .agent-live-card[data-state='limited'], .agent-live-card[data-state='not-connected'] { border-top-color: var(--warning); }
+    .agent-live-card[data-state='unreachable'], .agent-live-card[data-state='not-installed'] { border-top-color: var(--danger); }
+    .a-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .a-dot.running { background: var(--accent); box-shadow: 0 0 8px rgba(139,92,246,.25); animation: pulse 2s infinite; }
+    @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .5; } }
+    @media (max-width: 639px) { .content-area { padding: 16px; } }
   `,
 })
 export class LivePage {

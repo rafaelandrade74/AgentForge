@@ -1,75 +1,85 @@
 import { Component, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { MatButtonModule } from '@angular/material/button';
-import { MatExpansionModule } from '@angular/material/expansion';
-import { MatFormFieldModule } from '@angular/material/form-field';
-import { MatInputModule } from '@angular/material/input';
-import { MatSelectModule } from '@angular/material/select';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { ApiService } from '../core/api.service';
 import { ROLE_LABEL } from '../core/labels';
 import { RoleConfig } from '../core/models';
 
+const ROLE_ICONS: Record<string, { color: string; svg: string }> = {
+  Dev: { color: 'var(--accent)', svg: '<circle cx="9" cy="9" r="7" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M6 9h6M9 6v6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>' },
+  ScrumMaster: { color: 'var(--info)', svg: '<circle cx="9" cy="9" r="7" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M9 5v4l2.5 1.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>' },
+  TechLead: { color: 'var(--warning)', svg: '<path d="M9 2l6.5 11H2.5L9 2z" fill="none" stroke="currentColor" stroke-width="1.5"/>' },
+  Security: { color: 'var(--danger)', svg: '<path d="M9 2a2.5 2.5 0 00-2.5 2.5V6h5V4.5A2.5 2.5 0 009 2zM5 6V4.5a4 4 0 118 0V6h1.5A1.5 1.5 0 0116 7.5v7a1.5 1.5 0 01-1.5 1.5h-11A1.5 1.5 0 012 14.5v-7A1.5 1.5 0 013.5 6H5z"/>' },
+  QA: { color: 'var(--success)', svg: '<circle cx="9" cy="9" r="6" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M6 9l2 2 4-4" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>' },
+};
+
 @Component({
   selector: 'app-prompts-page',
   standalone: true,
-  imports: [FormsModule, MatButtonModule, MatExpansionModule, MatFormFieldModule, MatInputModule, MatSelectModule],
+  imports: [FormsModule],
   template: `
     <div class="page">
-      <h1>Prompts dos papéis</h1>
-      <p class="muted">
-        O agente de cada papel é escolhido na tela <a href="/agents">Agentes</a>. O prompt de sistema é anexado a cada execução do papel. A saída de todo agente precisa terminar com um bloco JSON no
-        formato exigido; o orquestrador acrescenta esse formato ao pedido, mas mantenha-o também no prompt.
-      </p>
-      <mat-accordion multi>
-        @for (c of configs(); track c.id) {
-          <mat-expansion-panel>
-            <mat-expansion-panel-header>
-              <mat-panel-title>{{ roleLabel[c.role] }}</mat-panel-title>
-              <mat-panel-description>{{ c.adapterName }} · {{ c.model || 'modelo padrão' }} · {{ c.maxTurns }} turnos</mat-panel-description>
-            </mat-expansion-panel-header>
-            <form (ngSubmit)="save(c)" class="form">
-              <div class="grid">
-                <mat-form-field appearance="outline">
-                  <mat-label>Modelo</mat-label>
-                  <input matInput [name]="'model-' + c.id" [(ngModel)]="c.model" />
-                </mat-form-field>
-                <mat-form-field appearance="outline">
-                  <mat-label>Limite de turnos</mat-label>
-                  <input matInput type="number" min="1" [name]="'turns-' + c.id" [(ngModel)]="c.maxTurns" required />
-                </mat-form-field>
-                <mat-form-field appearance="outline">
-                  <mat-label>Reasoning effort</mat-label>
-                  <mat-select [name]="'effort-' + c.id" [(ngModel)]="c.reasoningEffort">
-                    <mat-option value="">Padrão do modelo</mat-option>
-                    <mat-option value="low">Low</mat-option>
-                    <mat-option value="medium">Medium</mat-option>
-                    <mat-option value="high">High</mat-option>
-                  </mat-select>
-                </mat-form-field>
-                <mat-form-field appearance="outline">
-                  <mat-label>Ferramentas permitidas</mat-label>
-                  <input matInput [name]="'tools-' + c.id" [(ngModel)]="c.allowedTools" placeholder="Read,Glob,Grep" />
-                </mat-form-field>
-              </div>
-              <mat-form-field appearance="outline" class="full">
-                <mat-label>Prompt de sistema</mat-label>
-                <textarea matInput rows="14" class="mono" [name]="'prompt-' + c.id" [(ngModel)]="c.systemPrompt"></textarea>
-              </mat-form-field>
-              <button mat-flat-button type="submit" [disabled]="saving() === c.id">Salvar {{ roleLabel[c.role] }}</button>
-            </form>
-          </mat-expansion-panel>
-        }
-      </mat-accordion>
+      <div class="page-header">
+        <div>
+          <div class="page-title">Prompts dos papéis</div>
+          <div class="page-subtitle">System prompts versionados por papel</div>
+        </div>
+      </div>
+
+      @for (c of configs(); track c.id) {
+        <div class="accordion-item" [class.open]="openId() === c.id">
+          <div class="accordion-header" (click)="togglePanel(c.id)">
+            <svg width="18" height="18" viewBox="0 0 18 18" [style.color]="roleIcon(c.role).color" [innerHTML]="roleIcon(c.role).svg"></svg>
+            <span>{{ roleLabel[c.role] }}</span>
+            <span class="role-meta">{{ c.adapterName }} · {{ c.model || 'modelo padrão' }} · {{ c.maxTurns }} turnos</span>
+            <span class="accordion-chevron">▾</span>
+          </div>
+          @if (openId() === c.id) {
+            <div class="accordion-body">
+              <form (ngSubmit)="save(c)" class="form-grid">
+                <div class="form-group">
+                  <div class="form-label">Modelo</div>
+                  <input class="form-input" [name]="'model-' + c.id" [(ngModel)]="c.model" />
+                </div>
+                <div class="form-group">
+                  <div class="form-label">Limite de turnos</div>
+                  <input class="form-input" type="number" min="1" [name]="'turns-' + c.id" [(ngModel)]="c.maxTurns" required />
+                </div>
+                <div class="form-group">
+                  <div class="form-label">Reasoning effort</div>
+                  <select class="form-input" [name]="'effort-' + c.id" [(ngModel)]="c.reasoningEffort">
+                    <option value="">Padrão do modelo</option>
+                    <option value="low">low</option>
+                    <option value="medium">medium</option>
+                    <option value="high">high</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <div class="form-label">Ferramentas permitidas</div>
+                  <input class="form-input" [name]="'tools-' + c.id" [(ngModel)]="c.allowedTools" placeholder="Read,Glob,Grep" />
+                </div>
+                <div class="form-group full">
+                  <div class="form-label">System prompt</div>
+                  <textarea class="form-input" rows="8" style="font-size:11.5px" [name]="'prompt-' + c.id" [(ngModel)]="c.systemPrompt"></textarea>
+                </div>
+                <div style="margin-top:4px">
+                  <button type="submit" class="btn btn-primary btn-sm" [disabled]="saving() === c.id">Salvar</button>
+                </div>
+              </form>
+            </div>
+          }
+        </div>
+      }
     </div>
   `,
   styles: `
-    .form { display: flex; flex-direction: column; gap: .75rem; padding-top: .75rem; }
-    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); gap: .75rem 1rem; }
-    .full { width: 100%; }
-    textarea { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: max(16px, .85rem); }
-    :host ::ng-deep .mat-expansion-panel { box-shadow: var(--shadow-sm) !important; border: 1px solid var(--border) !important; margin-bottom: .5rem !important; }
-    @media (max-width: 639px) { .grid { grid-template-columns: 1fr; } }
+    .accordion-item { background: var(--bg-1); border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 8px; overflow: hidden; }
+    .accordion-header { padding: 14px 18px; cursor: pointer; display: flex; align-items: center; gap: 12px; font-size: 13px; font-weight: 600; transition: background var(--transition); }
+    .accordion-header:hover { background: var(--bg-hover); }
+    .accordion-chevron { margin-left: auto; color: var(--text-2); transition: transform .2s; }
+    .accordion-item.open .accordion-chevron { transform: rotate(180deg); }
+    .accordion-body { padding: 0 18px 18px; }
+    .role-meta { font-size: 12px; color: var(--text-2); font-weight: 400; }
   `,
 })
 export class PromptsPage {
@@ -78,13 +88,21 @@ export class PromptsPage {
 
   readonly configs = signal<RoleConfig[]>([]);
   readonly saving = signal<string | null>(null);
+  readonly openId = signal<string | null>(null);
   readonly roleLabel = ROLE_LABEL;
 
   constructor() {
-    // na ordem do fluxo (a API ordena pelo nome do enum)
     const order = Object.keys(ROLE_LABEL);
     this.api.roleConfigs().subscribe((c) =>
       this.configs.set(c.filter((x) => x.role !== 'Human').sort((a, b) => order.indexOf(a.role) - order.indexOf(b.role))));
+  }
+
+  roleIcon(role: string) {
+    return ROLE_ICONS[role] ?? { color: 'var(--text-2)', svg: '' };
+  }
+
+  togglePanel(id: string): void {
+    this.openId.set(this.openId() === id ? null : id);
   }
 
   save(c: RoleConfig): void {

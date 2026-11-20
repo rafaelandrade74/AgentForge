@@ -23,12 +23,12 @@ import { MarkdownComponent } from '../shared/markdown.component';
           <app-badge [label]="demandLabel[d.status]" [tone]="demandTone[d.status]" />
           <span class="spacer"></span>
           @if (d.status === 'New' || d.status === 'Failed') {
-            <button mat-flat-button type="button" (click)="start()">
+            <button class="btn btn-primary" type="button" (click)="start()">
               {{ d.status === 'Failed' ? 'Reexecutar refinamento' : 'Iniciar refinamento' }}
             </button>
           }
           @if (backlogCount() > 0) {
-            <button mat-flat-button type="button" (click)="approvePlan()">Aprovar plano ({{ backlogCount() }})</button>
+            <button class="btn btn-primary" type="button" (click)="approvePlan()">Aprovar plano ({{ backlogCount() }})</button>
           }
         </div>
         @if (d.description) {
@@ -77,9 +77,9 @@ import { MarkdownComponent } from '../shared/markdown.component';
     .desc { max-width: 60rem; }
     h2 { padding-bottom: .4rem; border-bottom: 1px solid var(--border); }
     .items { display: flex; flex-direction: column; gap: .5rem; }
-    .item { display: block; background: var(--bg-surface-1); border: 1px solid var(--border); border-left: 3px solid var(--border); border-radius: var(--radius-md); padding: .7rem 1rem; text-decoration: none; color: inherit; transition: background var(--transition), border-color var(--transition), box-shadow var(--transition); }
-    .item:hover { background: var(--bg-surface-2); border-color: var(--border-hover); box-shadow: var(--shadow-sm); }
-    :host ::ng-deep .item[data-state="Backlog"] { border-left-color: var(--text-tertiary); }
+    .item { display: block; background: var(--bg-1); border: 1px solid var(--border); border-left: 3px solid var(--border); border-radius: var(--radius); padding: .7rem 1rem; text-decoration: none; color: inherit; transition: background .15s, border-color .15s; }
+    .item:hover { background: var(--bg-hover); border-color: var(--border-active); }
+    :host ::ng-deep .item[data-state="Backlog"] { border-left-color: var(--text-2); }
     :host ::ng-deep .item[data-state="InDevelopment"],
     :host ::ng-deep .item[data-state="TechLeadReview"],
     :host ::ng-deep .item[data-state="SecurityReview"],
@@ -87,9 +87,9 @@ import { MarkdownComponent } from '../shared/markdown.component';
     :host ::ng-deep .item[data-state="AwaitingApproval"] { border-left-color: var(--warning); }
     :host ::ng-deep .item[data-state="Done"] { border-left-color: var(--success); }
     :host ::ng-deep .item[data-state="Blocked"] { border-left-color: var(--danger); }
-    :host ::ng-deep .item[data-state="Cancelled"] { border-left-color: var(--text-tertiary); opacity: .6; }
-    .small { font-size: .8rem; }
-    .crit { margin: .4rem 0 0; font-size: .85rem; color: var(--text-secondary); }
+    :host ::ng-deep .item[data-state="Cancelled"] { border-left-color: var(--text-2); opacity: .6; }
+    .small { font-size: 12px; }
+    .crit { margin: .4rem 0 0; font-size: 13px; color: var(--text-1); }
     .bad-text { color: var(--danger); }
   `,
 })

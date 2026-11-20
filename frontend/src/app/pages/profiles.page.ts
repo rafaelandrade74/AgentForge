@@ -123,14 +123,14 @@ const EMPTY: StackProfileInput = { name: '', description: '', image: '', dockerf
     </div>
   `,
   styles: `
-    .card { background: var(--bg-surface-1); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: .85rem 1.25rem 1.25rem; margin-bottom: 1rem; box-shadow: var(--shadow-sm); }
+    .card { background: var(--bg-1); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: .85rem 1.25rem 1.25rem; margin-bottom: 1rem; box-shadow: var(--shadow-card); }
     .card h2 { margin: .25rem 0; padding-bottom: .4rem; border-bottom: 1px solid var(--border); margin-bottom: .75rem; }
     .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); gap: 1rem; padding-top: .5rem; }
     .grid .wide { grid-column: 1 / -1; }
-    .small { font-size: .85rem; }
-    .result { margin-top: .5rem; padding: .5rem .75rem; border-radius: var(--radius-md); background: var(--bg-surface-2); }
+    .small { font-size: 13px; }
+    .result { margin-top: .5rem; padding: .5rem .75rem; border-radius: var(--radius); background: var(--bg-2); }
     .result.ok { border-left: 4px solid var(--success); } .result.bad { border-left: 4px solid var(--danger); }
-    .log { max-height: 16rem; overflow: auto; white-space: pre-wrap; font-size: .8rem; }
+    .log { max-height: 16rem; overflow: auto; white-space: pre-wrap; font-size: 12px; }
     .build-env { margin-bottom: .75rem; }
   `,
 })

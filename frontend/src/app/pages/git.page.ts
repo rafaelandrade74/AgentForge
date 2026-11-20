@@ -97,13 +97,13 @@ import { ActionDialogComponent, BadgeComponent } from '../shared/shared';
     </div>
   `,
   styles: `
-    .card { background: var(--bg-surface-1); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: .85rem 1.25rem 1.25rem; margin-bottom: 1rem; box-shadow: var(--shadow-sm); }
+    .card { background: var(--bg-1); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: .85rem 1.25rem 1.25rem; margin-bottom: 1rem; box-shadow: var(--shadow-card); }
     .card h2 { margin: .25rem 0 .5rem; padding-bottom: .4rem; border-bottom: 1px solid var(--border); } .card h3 { margin: 1rem 0 .25rem; }
-    .small { font-size: .85rem; }
-    .key { word-break: break-all; white-space: pre-wrap; background: var(--bg-base); }
+    .small { font-size: 13px; }
+    .key { word-break: break-all; white-space: pre-wrap; background: var(--bg-0); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px; font-family: var(--mono); font-size: 12px; }
     .steps li { margin-bottom: .6rem; line-height: 1.6; }
     .url { width: 34rem; max-width: 100%; }
-    .result { margin-top: .75rem; padding: .5rem .75rem; border-radius: var(--radius-md); background: var(--bg-surface-2); }
+    .result { margin-top: .75rem; padding: .5rem .75rem; border-radius: var(--radius); background: var(--bg-2); }
     .result.ok { border-left: 4px solid var(--success); } .result.bad { border-left: 4px solid var(--danger); }
   `,
 })

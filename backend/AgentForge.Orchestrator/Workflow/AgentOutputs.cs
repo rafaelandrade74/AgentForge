@@ -10,7 +10,7 @@ public record Parsed<T>(T? Value, string? Error)
     public static Parsed<T> Fail(string error) => new(default, error);
 }
 
-public record PlannedTask(string Key, string Title, string Description, string AcceptanceCriteria, int Estimate, List<string> DependsOn);
+public record PlannedTask(string Key, string Title, string Description, string AcceptanceCriteria, int Estimate, List<string> DependsOn, string? Project = null);
 public record DevReport(string Summary, List<string> Files, string Commit);
 public record FindingData(string? File, int? Line, FindingSeverity Severity, string Message);
 public record ReviewReport(bool Approved, List<FindingData> Findings);
@@ -25,7 +25,7 @@ public static class OutputParsers
 {
     public const int MaxTasks = 30;
 
-    public static Parsed<List<PlannedTask>> ParsePlan(string? json) => Guard(json, root =>
+    public static Parsed<List<PlannedTask>> ParsePlan(string? json, List<Domain.Project>? groupProjects = null) => Guard(json, root =>
     {
         if (!root.TryGetProperty("tasks", out var arr) || arr.ValueKind != JsonValueKind.Array || arr.GetArrayLength() == 0)
             return Parsed<List<PlannedTask>>.Fail("\"tasks\" deve ser uma lista não vazia.");
@@ -43,7 +43,8 @@ public static class OutputParsers
                 ? d.EnumerateArray().Where(x => x.ValueKind == JsonValueKind.String).Select(x => x.GetString()!).ToList()
                 : [];
             var estimate = t.TryGetProperty("estimate", out var e) && e.ValueKind == JsonValueKind.Number && e.TryGetInt32(out var n) ? n : 0;
-            tasks.Add(new PlannedTask(key!, title!, Str(t, "description") ?? "", Criteria(t), estimate, deps));
+            var project = Str(t, "project");
+            tasks.Add(new PlannedTask(key!, title!, Str(t, "description") ?? "", Criteria(t), estimate, deps, project));
         }
 
         var keys = tasks.Select(x => x.Key).ToList();
@@ -53,6 +54,17 @@ public static class OutputParsers
             var unknown = t.DependsOn.FirstOrDefault(k => !keys.Contains(k));
             if (unknown is not null) return Parsed<List<PlannedTask>>.Fail($"A tarefa \"{t.Key}\" depende de \"{unknown}\", que não existe.");
             if (t.DependsOn.Contains(t.Key)) return Parsed<List<PlannedTask>>.Fail($"A tarefa \"{t.Key}\" depende dela mesma.");
+        }
+        if (groupProjects is not null)
+        {
+            var validNames = new HashSet<string>(groupProjects.Select(p => p.Name), StringComparer.OrdinalIgnoreCase);
+            foreach (var t in tasks)
+            {
+                if (string.IsNullOrWhiteSpace(t.Project))
+                    return Parsed<List<PlannedTask>>.Fail($"A tarefa \"{t.Key}\" não tem \"project\" (obrigatório em demandas de grupo).");
+                if (!validNames.Contains(t.Project))
+                    return Parsed<List<PlannedTask>>.Fail($"A tarefa \"{t.Key}\" referencia o projeto \"{t.Project}\" que não faz parte do grupo.");
+            }
         }
         return HasCycle(tasks) ? Parsed<List<PlannedTask>>.Fail("As dependências entre tarefas formam um ciclo.") : Parsed<List<PlannedTask>>.Success(tasks);
     });

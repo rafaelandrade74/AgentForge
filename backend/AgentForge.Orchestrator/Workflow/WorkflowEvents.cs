@@ -6,7 +6,7 @@ public record WorkItemChanged(
     Guid ProjectId, Guid DemandId, Guid WorkItemId, WorkItemState State, int ReworkCount,
     string? BlockedReason, WorkItemState? BlockedFromState, string? BranchName, DateTime At, string? WaitingReason = null);
 
-public record DemandChanged(Guid ProjectId, Guid DemandId, DemandStatus Status, DateTime At);
+public record DemandChanged(Guid? ProjectId, Guid DemandId, DemandStatus Status, DateTime At);
 
 /// <summary>Mudanças de estado de tarefas e demandas, para o tempo real (a API troca a implementação por SignalR).</summary>
 public interface IWorkflowEventPublisher

@@ -1,4 +1,5 @@
-import { Component, inject, signal } from '@angular/core';
+import { NgTemplateOutlet } from '@angular/common';
+import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
@@ -10,21 +11,22 @@ import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { ApiService } from '../core/api.service';
-import { ExecutionEnvironment, GitHubImportResult, Project, ProjectInput, StackProfile } from '../core/models';
+import { ExecutionEnvironment, GitHubImportResult, Project, ProjectGroup, ProjectGroupInput, ProjectInput, StackProfile } from '../core/models';
 import { ActionDialogComponent, BadgeComponent } from '../shared/shared';
 import { GithubImportComponent } from './github-import.component';
 
-const EMPTY: ProjectInput = { name: '', repositoryUrl: '', baseBranch: 'main', buildCommand: '', testCommand: '', autoMode: false, environmentId: null, stackProfileId: null, roleEnvironments: {}, pullRequestBaseBranch: '', hasGitHubToken: false };
+const EMPTY: ProjectInput = { name: '', repositoryUrl: '', baseBranch: 'main', buildCommand: '', testCommand: '', autoMode: false, environmentId: null, stackProfileId: null, projectGroupId: null, roleEnvironments: {}, pullRequestBaseBranch: '', hasGitHubToken: false };
 
 @Component({
   selector: 'app-projects-page',
   standalone: true,
-  imports: [FormsModule, RouterLink, MatButtonModule, MatCardModule, MatCheckboxModule, MatFormFieldModule, MatInputModule, MatSelectModule, BadgeComponent, GithubImportComponent],
+  imports: [FormsModule, RouterLink, MatButtonModule, MatCardModule, MatCheckboxModule, MatFormFieldModule, MatInputModule, MatSelectModule, BadgeComponent, GithubImportComponent, NgTemplateOutlet],
   template: `
     <div class="page">
       <div class="row">
         <h1>Projetos</h1>
         <span class="spacer"></span>
+        <button mat-stroked-button type="button" (click)="toggleGroupForm()">Novo grupo</button>
         <button mat-stroked-button type="button" (click)="importOpen.set(!importOpen())">Importar do GitHub</button>
         <button mat-flat-button type="button" (click)="toggleForm()">{{ formOpen() ? 'Fechar' : 'Novo projeto' }}</button>
       </div>
@@ -58,6 +60,15 @@ const EMPTY: ProjectInput = { name: '', repositoryUrl: '', baseBranch: 'main', b
                 <mat-label>Comando de teste</mat-label>
                 <input matInput name="testCommand" [(ngModel)]="draft.testCommand" placeholder="dotnet test" />
               </mat-form-field>
+              @if (groups().length > 0) {
+                <mat-form-field appearance="outline">
+                  <mat-label>Grupo</mat-label>
+                  <mat-select name="projectGroupId" [(ngModel)]="draft.projectGroupId">
+                    <mat-option [value]="null">Sem grupo</mat-option>
+                    @for (g of groups(); track g.id) { <mat-option [value]="g.id">{{ g.name }}</mat-option> }
+                  </mat-select>
+                </mat-form-field>
+              }
               <mat-form-field appearance="outline">
                 <mat-label>Ambiente de execução</mat-label>
                 <mat-select name="environmentId" [(ngModel)]="draft.environmentId">
@@ -123,42 +134,90 @@ const EMPTY: ProjectInput = { name: '', repositoryUrl: '', baseBranch: 'main', b
         </mat-card>
       }
 
-      <div class="cards">
-        @for (p of projects(); track p.id) {
-          <mat-card>
-            <mat-card-header>
-              <mat-card-title><a [routerLink]="['/projects', p.id]">{{ p.name }}</a></mat-card-title>
-              <mat-card-subtitle class="mono">{{ p.repositoryUrl }}</mat-card-subtitle>
-            </mat-card-header>
-            <mat-card-content>
+      @if (groupFormOpen()) {
+        <mat-card class="form">
+          <mat-card-header><mat-card-title>{{ editingGroupId() ? 'Editar grupo' : 'Novo grupo' }}</mat-card-title></mat-card-header>
+          <mat-card-content>
+            <form (ngSubmit)="saveGroup()" class="grid" style="padding-top:.75rem">
+              <mat-form-field appearance="outline"><mat-label>Nome</mat-label>
+                <input matInput [(ngModel)]="groupDraft.name" name="gname" required /></mat-form-field>
+              <mat-form-field appearance="outline"><mat-label>Descrição</mat-label>
+                <input matInput [(ngModel)]="groupDraft.description" name="gdesc" /></mat-form-field>
               <div class="row">
-                <app-badge [label]="'base: ' + p.baseBranch" />
-                <app-badge [label]="p.autoMode ? 'automático' : 'com aprovações'" [tone]="p.autoMode ? 'warn' : 'ok'" />
-                @if (environmentName(p); as env) { <app-badge [label]="'ambiente: ' + env" tone="info" /> }
-                @if (profileName(p); as prof) { <app-badge [label]="'perfil: ' + prof" tone="info" /> }
+                <button mat-flat-button type="submit" [disabled]="!groupDraft.name">Salvar</button>
+                <button mat-button type="button" (click)="groupFormOpen.set(false)">Cancelar</button>
               </div>
-            </mat-card-content>
-            <mat-card-actions>
-              <a mat-button [routerLink]="['/projects', p.id]">Abrir</a>
-              <a mat-button [routerLink]="['/projects', p.id, 'demands', 'new']">Nova demanda</a>
-              <button mat-button type="button" (click)="edit(p)">Editar</button>
-              <button mat-button type="button" (click)="remove(p)">Excluir</button>
-            </mat-card-actions>
-          </mat-card>
-        } @empty {
-          @if (loaded()) {
-            <p class="muted">Nenhum projeto ainda. Cadastre o primeiro para começar.</p>
+            </form>
+          </mat-card-content>
+        </mat-card>
+      }
+
+      @for (g of groups(); track g.id) {
+        <section class="group-section">
+          <div class="row group-header">
+            <h2><a [routerLink]="['/groups', g.id]">{{ g.name }}</a></h2>
+            @if (g.description) { <span class="muted small">{{ g.description }}</span> }
+            <span class="spacer"></span>
+            <button mat-button type="button" (click)="editGroup(g)">Editar</button>
+            <button mat-button type="button" (click)="removeGroup(g)">Excluir</button>
+          </div>
+          <div class="cards">
+            @for (p of projectsOfGroup(g.id); track p.id) {
+              <ng-container *ngTemplateOutlet="projectCard; context: { $implicit: p }"></ng-container>
+            } @empty {
+              <p class="muted small">Nenhum projeto neste grupo.</p>
+            }
+          </div>
+        </section>
+      }
+
+      @if (ungroupedProjects().length > 0 || (groups().length === 0 && loaded())) {
+        @if (groups().length > 0) { <h2 class="section-title">Sem grupo</h2> }
+        <div class="cards">
+          @for (p of ungroupedProjects(); track p.id) {
+            <ng-container *ngTemplateOutlet="projectCard; context: { $implicit: p }"></ng-container>
+          } @empty {
+            @if (loaded() && groups().length === 0) {
+              <p class="muted">Nenhum projeto ainda. Cadastre o primeiro para começar.</p>
+            }
           }
-        }
-      </div>
+        </div>
+      }
+
+      <ng-template #projectCard let-p>
+        <mat-card>
+          <mat-card-header>
+            <mat-card-title><a [routerLink]="['/projects', p.id]">{{ p.name }}</a></mat-card-title>
+            <mat-card-subtitle class="mono">{{ p.repositoryUrl }}</mat-card-subtitle>
+          </mat-card-header>
+          <mat-card-content>
+            <div class="row">
+              <app-badge [label]="'base: ' + p.baseBranch" />
+              <app-badge [label]="p.autoMode ? 'automático' : 'com aprovações'" [tone]="p.autoMode ? 'warn' : 'ok'" />
+              @if (environmentName(p); as env) { <app-badge [label]="'ambiente: ' + env" tone="info" /> }
+              @if (profileName(p); as prof) { <app-badge [label]="'perfil: ' + prof" tone="info" /> }
+            </div>
+          </mat-card-content>
+          <mat-card-actions>
+            <a mat-button [routerLink]="['/projects', p.id]">Abrir</a>
+            <a mat-button [routerLink]="['/projects', p.id, 'demands', 'new']">Nova demanda</a>
+            <button mat-button type="button" (click)="edit(p)">Editar</button>
+            <button mat-button type="button" (click)="remove(p)">Excluir</button>
+          </mat-card-actions>
+        </mat-card>
+      </ng-template>
     </div>
   `,
   styles: `
     .form { margin: 1rem 0; }
     .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr)); gap: .75rem 1rem; padding-top: 1rem; }
     .grid mat-checkbox, .grid .row { grid-column: 1 / -1; }
-    .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(22rem, 1fr)); gap: 1rem; margin-top: 1rem; }
+    .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(22rem, 1fr)); gap: 1rem; margin-top: .5rem; }
     mat-card-title a { text-decoration: none; color: inherit; }
+    .group-section { margin-top: 1.5rem; }
+    .group-header h2 { margin: 0; }
+    .group-header h2 a { text-decoration: none; color: inherit; }
+    .section-title { margin-top: 1.5rem; }
     @media (max-width: 639px) { .cards { grid-template-columns: 1fr; } }
   `,
 })
@@ -168,8 +227,15 @@ export class ProjectsPage {
   private readonly snack = inject(MatSnackBar);
 
   readonly projects = signal<Project[]>([]);
+  readonly groups = signal<ProjectGroup[]>([]);
   readonly environments = signal<ExecutionEnvironment[]>([]);
   readonly profiles = signal<StackProfile[]>([]);
+  readonly groupFormOpen = signal(false);
+  readonly editingGroupId = signal<string | null>(null);
+  groupDraft: ProjectGroupInput = { name: '', description: null };
+
+  readonly ungroupedProjects = computed(() => this.projects().filter(p => !p.projectGroupId));
+  projectsOfGroup(groupId: string): Project[] { return this.projects().filter(p => p.projectGroupId === groupId); }
   /** Só estes papéis podem rodar em outra máquina (revisam pelo diff); Dev e QA precisam do worktree do projeto. */
   readonly movableRoles = [{ key: 'TechLead', label: 'Tech Lead' }, { key: 'Security', label: 'Security' }];
 
@@ -196,10 +262,34 @@ export class ProjectsPage {
   }
 
   private load(): void {
-    this.api.projects().subscribe((p) => {
-      this.projects.set(p);
-      this.loaded.set(true);
-    });
+    this.api.projects().subscribe((p) => { this.projects.set(p); this.loaded.set(true); });
+    this.api.projectGroups().subscribe((g) => this.groups.set(g));
+  }
+
+  toggleGroupForm(): void {
+    if (this.groupFormOpen()) { this.groupFormOpen.set(false); return; }
+    this.editingGroupId.set(null);
+    this.groupDraft = { name: '', description: null };
+    this.groupFormOpen.set(true);
+  }
+
+  editGroup(g: ProjectGroup): void {
+    this.editingGroupId.set(g.id);
+    this.groupDraft = { name: g.name, description: g.description };
+    this.groupFormOpen.set(true);
+  }
+
+  saveGroup(): void {
+    const id = this.editingGroupId();
+    const req = id ? this.api.updateProjectGroup(id, this.groupDraft) : this.api.createProjectGroup(this.groupDraft);
+    req.subscribe({ next: () => { this.groupFormOpen.set(false); this.load(); this.snack.open('Grupo salvo.', 'OK', { duration: 3000 }); },
+      error: () => this.snack.open('Não foi possível salvar o grupo.', 'OK', { duration: 5000 }) });
+  }
+
+  removeGroup(g: ProjectGroup): void {
+    this.dialog.open(ActionDialogComponent, {
+      data: { title: 'Excluir grupo', message: `Excluir "${g.name}"? Os projetos serão desagrupados (não excluídos).`, confirmLabel: 'Excluir' },
+    }).afterClosed().subscribe(ok => { if (ok) this.api.deleteProjectGroup(g.id).subscribe(() => this.load()); });
   }
 
   onImported(r: GitHubImportResult): void {
@@ -221,7 +311,7 @@ export class ProjectsPage {
   }
 
   edit(p: Project): void {
-    this.openForm(p.id, { name: p.name, repositoryUrl: p.repositoryUrl, baseBranch: p.baseBranch, buildCommand: p.buildCommand, testCommand: p.testCommand, autoMode: p.autoMode, environmentId: p.environmentId ?? null, stackProfileId: p.stackProfileId ?? null, roleEnvironments: p.roleEnvironments ?? {}, pullRequestBaseBranch: p.pullRequestBaseBranch ?? '', hasGitHubToken: p.hasGitHubToken ?? false });
+    this.openForm(p.id, { name: p.name, repositoryUrl: p.repositoryUrl, baseBranch: p.baseBranch, buildCommand: p.buildCommand, testCommand: p.testCommand, autoMode: p.autoMode, environmentId: p.environmentId ?? null, stackProfileId: p.stackProfileId ?? null, projectGroupId: p.projectGroupId ?? null, roleEnvironments: p.roleEnvironments ?? {}, pullRequestBaseBranch: p.pullRequestBaseBranch ?? '', hasGitHubToken: p.hasGitHubToken ?? false });
   }
 
   /** Editando um projeto e trocando a máquina dele: avisa o que acontece com o clone existente. */

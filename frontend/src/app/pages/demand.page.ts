@@ -150,7 +150,7 @@ export class DemandPage {
   private loadAll(): void {
     this.api.demand(this.id()).subscribe((d) => {
       this.demand.set(d);
-      this.api.project(d.projectId).subscribe((p) => this.project.set(p));
+      if (d.projectId) this.api.project(d.projectId).subscribe((p) => this.project.set(p));
     });
     this.loadItems();
     this.loadRuns();

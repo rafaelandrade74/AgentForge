@@ -13,6 +13,7 @@ public static class CrudEndpoints
     public static void MapCrudEndpoints(this IEndpointRouteBuilder app)
     {
         var api = app.MapGroup("/api").RequireAuthorization();
+        MapProjectGroups(api.MapGroup("/project-groups").WithTags("ProjectGroups"));
         MapProjects(api.MapGroup("/projects").WithTags("Projects"));
         MapDemands(api.MapGroup("/demands").WithTags("Demands"));
         MapWorkItems(api.MapGroup("/work-items").WithTags("WorkItems"));
@@ -26,24 +27,70 @@ public static class CrudEndpoints
     internal static async Task<List<ApprovalDto>> ApprovalsAsync(AppDbContext db, CancellationToken ct) =>
         (await db.WorkItems.AsNoTracking().Where(w => w.State == WorkItemState.AwaitingApproval)
             .Join(db.Demands, w => w.DemandId, d => d.Id, (w, d) => new { Item = w, Demand = d })
-            .Join(db.Projects, x => x.Demand.ProjectId, p => p.Id, (x, p) => new
+            .Select(x => new
             {
-                x.Item.Id, x.Item.Title, ProjectId = p.Id, Project = p.Name, DemandId = x.Demand.Id, Demand = x.Demand.Title,
+                x.Item.Id, x.Item.Title,
+                ProjectId = x.Item.ProjectId ?? x.Demand.ProjectId,
+                DemandId = x.Demand.Id, Demand = x.Demand.Title,
                 x.Item.ReworkCount, x.Item.Estimate, x.Item.BranchName, x.Item.CreatedAt,
                 WaitingSince = db.AgentRuns.Where(r => r.WorkItemId == x.Item.Id).Max(r => r.FinishedAt),
             })
             .ToListAsync(ct))
         .OrderBy(a => a.WaitingSince ?? a.CreatedAt)
-        .Select(a => new ApprovalDto(a.Id, a.Title, a.ProjectId, a.Project, a.DemandId, a.Demand, a.ReworkCount, a.Estimate, a.BranchName, a.CreatedAt, a.WaitingSince))
+        .Select(a =>
+        {
+            var proj = a.ProjectId.HasValue ? db.Projects.AsNoTracking().FirstOrDefault(p => p.Id == a.ProjectId) : null;
+            return new ApprovalDto(a.Id, a.Title, a.ProjectId, proj?.Name ?? "", a.DemandId, a.Demand, a.ReworkCount, a.Estimate, a.BranchName, a.CreatedAt, a.WaitingSince);
+        })
         .ToList();
 
     private static IResult Invalid(string field, string message) =>
         Results.ValidationProblem(new Dictionary<string, string[]> { [field] = [message] });
 
+    // ---------- ProjectGroups ----------
+    internal static ProjectGroupDto ToDto(ProjectGroup g, int projectCount) =>
+        new(g.Id, g.Name, g.Description, projectCount, g.CreatedAt);
+
+    private static void MapProjectGroups(RouteGroupBuilder g)
+    {
+        g.MapGet("/", async (AppDbContext db) =>
+        {
+            var groups = await db.ProjectGroups.OrderBy(x => x.Name).ToListAsync();
+            var counts = await db.Projects.Where(p => p.ProjectGroupId != null)
+                .GroupBy(p => p.ProjectGroupId!.Value).Select(x => new { Id = x.Key, Count = x.Count() }).ToDictionaryAsync(x => x.Id, x => x.Count);
+            return groups.Select(x => ToDto(x, counts.GetValueOrDefault(x.Id)));
+        });
+        g.MapGet("/{id:guid}", async (Guid id, AppDbContext db) =>
+            await db.ProjectGroups.FindAsync(id) is { } group
+                ? Results.Ok(ToDto(group, await db.Projects.CountAsync(p => p.ProjectGroupId == id)))
+                : Results.NotFound());
+        g.MapPost("/", async (ProjectGroupInput i, AppDbContext db) =>
+        {
+            if (string.IsNullOrWhiteSpace(i.Name)) return Invalid(nameof(i.Name), "Informe o nome.");
+            if (await db.ProjectGroups.AnyAsync(x => x.Name == i.Name.Trim())) return Results.Conflict(new { error = "Já existe um grupo com este nome." });
+            var group = new ProjectGroup { Name = i.Name.Trim(), Description = i.Description?.Trim() };
+            db.ProjectGroups.Add(group);
+            await db.SaveChangesAsync();
+            return Results.Created($"/api/project-groups/{group.Id}", ToDto(group, 0));
+        });
+        g.MapPut("/{id:guid}", async (Guid id, ProjectGroupInput i, AppDbContext db) =>
+        {
+            if (string.IsNullOrWhiteSpace(i.Name)) return Invalid(nameof(i.Name), "Informe o nome.");
+            if (await db.ProjectGroups.FindAsync(id) is not { } group) return Results.NotFound();
+            if (await db.ProjectGroups.AnyAsync(x => x.Name == i.Name.Trim() && x.Id != id)) return Results.Conflict(new { error = "Já existe um grupo com este nome." });
+            group.Name = i.Name.Trim();
+            group.Description = i.Description?.Trim();
+            await db.SaveChangesAsync();
+            return Results.Ok(ToDto(group, await db.Projects.CountAsync(p => p.ProjectGroupId == id)));
+        });
+        g.MapDelete("/{id:guid}", async (Guid id, AppDbContext db) =>
+            await db.ProjectGroups.Where(x => x.Id == id).ExecuteDeleteAsync() > 0 ? Results.NoContent() : Results.NotFound());
+    }
+
     // ---------- Projects ----------
     internal static ProjectDto ToDto(Project p) =>
         new(p.Id, p.Name, Secrets.MaskUrls(p.RepositoryUrl), p.BaseBranch, p.BuildCommand, p.TestCommand, p.AutoMode, p.CreatedAt, p.EnvironmentId, p.StackProfileId,
-            PullRequestBaseBranch: p.PullRequestBaseBranch, HasGitHubToken: p.ProtectedGitHubToken.Length > 0);
+            PullRequestBaseBranch: p.PullRequestBaseBranch, HasGitHubToken: p.ProtectedGitHubToken.Length > 0, ProjectGroupId: p.ProjectGroupId);
 
     internal static ProjectDto ToDtoWithRoles(Project p, IReadOnlyDictionary<string, Guid>? roles) =>
         ToDto(p) with { RoleEnvironments = roles is { Count: > 0 } ? new Dictionary<string, Guid>(roles) : null };
@@ -106,6 +153,7 @@ public static class CrudEndpoints
         p.AutoMode = i.AutoMode;
         p.EnvironmentId = i.EnvironmentId;
         p.StackProfileId = i.StackProfileId;
+        p.ProjectGroupId = i.ProjectGroupId;
     }
 
     private static async Task<IResult?> ValidateEnvironmentAsync(ProjectInput i, AppDbContext db) =>
@@ -115,6 +163,8 @@ public static class CrudEndpoints
                 ? Invalid(nameof(i.StackProfileId), "Perfil de stack não encontrado.")
             : i.StackProfileId is not null && i.EnvironmentId is null
                 ? Invalid(nameof(i.StackProfileId), "O perfil de stack roda em container num ambiente com host agent com Docker: escolha também o ambiente.")
+            : i.ProjectGroupId is { } gid && !await db.ProjectGroups.AnyAsync(g => g.Id == gid)
+                ? Invalid(nameof(i.ProjectGroupId), "Grupo não encontrado.")
             : null;
 
     private static IResult? Validate(ProjectInput i) =>
@@ -180,24 +230,34 @@ public static class CrudEndpoints
     }
 
     // ---------- Demands ----------
-    internal static DemandDto ToDto(Demand d) => new(d.Id, d.ProjectId, d.Title, d.Description, d.Status, d.CreatedAt);
+    internal static DemandDto ToDto(Demand d) => new(d.Id, d.ProjectId, d.Title, d.Description, d.Status, d.CreatedAt, d.ProjectGroupId);
 
-    private static async Task<IResult?> ValidateAsync(DemandInput i, AppDbContext db) =>
-        string.IsNullOrWhiteSpace(i.Title) ? Invalid(nameof(i.Title), "Informe o título.")
-        : !await db.Projects.AnyAsync(p => p.Id == i.ProjectId) ? Invalid(nameof(i.ProjectId), "Projeto não encontrado.")
-        : null;
+    private static async Task<IResult?> ValidateAsync(DemandInput i, AppDbContext db)
+    {
+        if (string.IsNullOrWhiteSpace(i.Title)) return Invalid(nameof(i.Title), "Informe o título.");
+        if (i.ProjectId is null && i.ProjectGroupId is null)
+            return Invalid(nameof(i.ProjectId), "Informe o projeto ou o grupo.");
+        if (i.ProjectId is not null && i.ProjectGroupId is not null)
+            return Invalid(nameof(i.ProjectId), "Informe o projeto ou o grupo, não ambos.");
+        if (i.ProjectId is { } pid && !await db.Projects.AnyAsync(p => p.Id == pid))
+            return Invalid(nameof(i.ProjectId), "Projeto não encontrado.");
+        if (i.ProjectGroupId is { } gid && !await db.ProjectGroups.AnyAsync(g => g.Id == gid))
+            return Invalid(nameof(i.ProjectGroupId), "Grupo não encontrado.");
+        return null;
+    }
 
     private static void MapDemands(RouteGroupBuilder g)
     {
-        g.MapGet("/", async (Guid? projectId, AppDbContext db) =>
-            (await db.Demands.Where(d => projectId == null || d.ProjectId == projectId)
+        g.MapGet("/", async (Guid? projectId, Guid? projectGroupId, AppDbContext db) =>
+            (await db.Demands.Where(d => (projectId == null || d.ProjectId == projectId)
+                    && (projectGroupId == null || d.ProjectGroupId == projectGroupId))
                 .OrderByDescending(d => d.CreatedAt).ToListAsync()).Select(ToDto));
         g.MapGet("/{id:guid}", async (Guid id, AppDbContext db) =>
             await db.Demands.FindAsync(id) is { } d ? Results.Ok(ToDto(d)) : Results.NotFound());
         g.MapPost("/", async (DemandInput i, AppDbContext db) =>
         {
             if (await ValidateAsync(i, db) is { } bad) return bad;
-            var d = new Demand { ProjectId = i.ProjectId, Title = i.Title.Trim(), Description = i.Description, Status = i.Status };
+            var d = new Demand { ProjectId = i.ProjectId, ProjectGroupId = i.ProjectGroupId, Title = i.Title.Trim(), Description = i.Description, Status = i.Status };
             db.Demands.Add(d);
             await db.SaveChangesAsync();
             return Results.Created($"/api/demands/{d.Id}", ToDto(d));
@@ -207,6 +267,7 @@ public static class CrudEndpoints
             if (await ValidateAsync(i, db) is { } bad) return bad;
             if (await db.Demands.FindAsync(id) is not { } d) return Results.NotFound();
             d.ProjectId = i.ProjectId;
+            d.ProjectGroupId = i.ProjectGroupId;
             d.Title = i.Title.Trim();
             d.Description = i.Description;
             d.Status = i.Status;
@@ -221,7 +282,7 @@ public static class CrudEndpoints
     internal static WorkItemDto ToDto(WorkItem w) =>
         new(w.Id, w.DemandId, w.Title, w.Description, w.AcceptanceCriteria, w.Estimate, w.State, w.ReworkCount,
             w.BranchName, w.BlockedReason, w.BlockedFromState, w.Dependencies.Select(d => d.Id).ToList(), w.CreatedAt, w.WaitingReason, w.PullRequestUrl, w.PullRequestNumber,
-            w.PushedAt, w.PushError);
+            w.PushedAt, w.PushError, w.ProjectId);
 
     private static async Task<(IResult? Error, List<WorkItem> Deps)> ResolveAsync(WorkItemInput i, Guid? selfId, AppDbContext db)
     {
@@ -238,7 +299,7 @@ public static class CrudEndpoints
         g.MapGet("/", async (Guid? demandId, Guid? projectId, WorkItemState? state, AppDbContext db) =>
             (await db.WorkItems.Include(w => w.Dependencies)
                 .Where(w => (demandId == null || w.DemandId == demandId) && (state == null || w.State == state)
-                            && (projectId == null || db.Demands.Any(d => d.Id == w.DemandId && d.ProjectId == projectId)))
+                            && (projectId == null || w.ProjectId == projectId || db.Demands.Any(d => d.Id == w.DemandId && d.ProjectId == projectId)))
                 .OrderBy(w => w.CreatedAt).ToListAsync()).Select(ToDto));
         g.MapGet("/{id:guid}", async (Guid id, AppDbContext db) =>
             await db.WorkItems.Include(w => w.Dependencies).FirstOrDefaultAsync(w => w.Id == id) is { } w
@@ -249,7 +310,7 @@ public static class CrudEndpoints
             if (error is not null) return error;
             var w = new WorkItem
             {
-                DemandId = i.DemandId, Title = i.Title.Trim(), Description = i.Description,
+                DemandId = i.DemandId, ProjectId = i.ProjectId, Title = i.Title.Trim(), Description = i.Description,
                 AcceptanceCriteria = i.AcceptanceCriteria, Estimate = i.Estimate, State = i.State, Dependencies = deps,
             };
             db.WorkItems.Add(w);

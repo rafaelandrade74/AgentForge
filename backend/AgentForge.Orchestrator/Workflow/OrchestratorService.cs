@@ -150,9 +150,10 @@ public sealed class OrchestratorService(
             using var scope = scopes.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
             var projectId = work.IsDemand
-                ? await db.Demands.Where(d => d.Id == work.Id).Select(d => (Guid?)d.ProjectId).FirstOrDefaultAsync(ct)
+                ? await db.Demands.Where(d => d.Id == work.Id).Select(d => d.ProjectId).FirstOrDefaultAsync(ct)
                 : await db.WorkItems.Where(w => w.Id == work.Id)
-                    .Join(db.Demands, w => w.DemandId, d => d.Id, (w, d) => (Guid?)d.ProjectId).FirstOrDefaultAsync(ct);
+                    .Select(w => w.ProjectId ?? db.Demands.Where(d => d.Id == w.DemandId).Select(d => d.ProjectId).FirstOrDefault())
+                    .FirstOrDefaultAsync(ct);
             if (projectId is null) return fallback;
 
             var environmentId = await db.Projects.Where(p => p.Id == projectId).Select(p => p.EnvironmentId).FirstOrDefaultAsync(ct);
@@ -209,8 +210,13 @@ public sealed class OrchestratorService(
         return delay;
     }
 
-    private static async Task<Guid> ProjectIdOfAsync(AppDbContext db, Guid workItemId) =>
-        await db.WorkItems.Where(w => w.Id == workItemId).Join(db.Demands, w => w.DemandId, d => d.Id, (w, d) => d.ProjectId).FirstAsync();
+    private static async Task<Guid> ProjectIdOfAsync(AppDbContext db, Guid workItemId)
+    {
+        var row = await db.WorkItems.Where(w => w.Id == workItemId)
+            .Join(db.Demands, w => w.DemandId, d => d.Id, (w, d) => new { w.ProjectId, DemandProjectId = d.ProjectId })
+            .FirstAsync();
+        return row.ProjectId ?? row.DemandProjectId ?? throw new InvalidOperationException($"WorkItem {workItemId} sem projeto.");
+    }
 
     private void ScheduleRetry(Work work, TimeSpan delay)
     {

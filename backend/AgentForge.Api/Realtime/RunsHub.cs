@@ -50,7 +50,7 @@ public class SignalRAgentEventPublisher(IHubContext<RunsHub> hub, ILogger<Signal
 public class SignalRWorkflowEventPublisher(IHubContext<RunsHub> hub, ILogger<SignalRWorkflowEventPublisher> logger) : IWorkflowEventPublisher
 {
     public Task WorkItemChangedAsync(WorkItemChanged evt) => SendAsync(evt.ProjectId, "workItemChanged", evt);
-    public Task DemandChangedAsync(DemandChanged evt) => SendAsync(evt.ProjectId, "demandChanged", evt);
+    public Task DemandChangedAsync(DemandChanged evt) => evt.ProjectId is { } pid ? SendAsync(pid, "demandChanged", evt) : Task.CompletedTask;
 
     private async Task SendAsync(Guid projectId, string method, object payload)
     {

@@ -1,5 +1,14 @@
 namespace AgentForge.Domain;
 
+/// <summary>Agrupa repositórios relacionados (ex.: api, front, migrations). Demandas no grupo geram tarefas nos projetos membros.</summary>
+public class ProjectGroup
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public string Name { get; set; } = "";
+    public string? Description { get; set; }
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+}
+
 public class Project
 {
     public Guid Id { get; set; } = Guid.NewGuid();
@@ -21,6 +30,8 @@ public class Project
     public Guid? EnvironmentId { get; set; }
     /// <summary>Se definido, os agentes deste projeto rodam num container deste perfil (só em ambiente com host agent com Docker).</summary>
     public Guid? StackProfileId { get; set; }
+    /// <summary>Grupo ao qual este projeto pertence. Null = projeto avulso.</summary>
+    public Guid? ProjectGroupId { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }
 
@@ -49,7 +60,10 @@ public class ExecutionEnvironment
 public class Demand
 {
     public Guid Id { get; set; } = Guid.NewGuid();
-    public Guid ProjectId { get; set; }
+    /// <summary>Projeto da demanda (demanda de projeto único). Null quando a demanda é de grupo.</summary>
+    public Guid? ProjectId { get; set; }
+    /// <summary>Grupo da demanda (demanda multi-repo). Null quando a demanda é de projeto único.</summary>
+    public Guid? ProjectGroupId { get; set; }
     public string Title { get; set; } = "";
     public string Description { get; set; } = "";
     public DemandStatus Status { get; set; } = DemandStatus.New;
@@ -65,6 +79,8 @@ public class WorkItem
 {
     public Guid Id { get; set; } = Guid.NewGuid();
     public Guid DemandId { get; set; }
+    /// <summary>Projeto-alvo desta tarefa. Obrigatório em demandas de grupo; null em demandas de projeto (inferido de Demand.ProjectId).</summary>
+    public Guid? ProjectId { get; set; }
     public string Title { get; set; } = "";
     public string Description { get; set; } = "";
     public string AcceptanceCriteria { get; set; } = "";

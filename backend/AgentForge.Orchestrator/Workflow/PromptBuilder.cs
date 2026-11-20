@@ -34,6 +34,15 @@ public static class PromptBuilder
         Use "passed" apenas se TODOS os critérios passaram.
         """;
 
+    private const string PlanFormatGroup = """
+        Termine a resposta com UM bloco ```json neste formato (e nada depois dele):
+        {"tasks":[{"key":"t1","project":"nome do projeto","title":"...","description":"...","acceptanceCriteria":["..."],"dependsOn":[],"estimate":3}]}
+        - "key" é um identificador curto e único; "project" é o NOME EXATO de um dos projetos listados acima.
+        - "dependsOn" lista as keys das tarefas que precisam estar prontas antes (podem ser de outro projeto).
+        - Tarefas pequenas e independentes sempre que possível; sem ciclos de dependência; no máximo 30 tarefas.
+        - Declare em "dependsOn" TODA tarefa cujo trabalho usa, testa ou documenta o código de outra.
+        """;
+
     public static string ScrumMaster(Demand demand, Project project) => $"""
         Demanda: {demand.Title}
 
@@ -43,6 +52,20 @@ public static class PromptBuilder
         Quebre a demanda em tarefas pequenas, cada uma com critérios de aceite verificáveis e ordem de dependência.
 
         {PlanFormat}
+        """;
+
+    public static string ScrumMasterGroup(Demand demand, List<Project> projects) => $"""
+        Demanda: {demand.Title}
+
+        {demand.Description}
+
+        Esta demanda abrange múltiplos projetos (repositórios). Projetos disponíveis:
+        {string.Join("\n", projects.Select(p => $"- {p.Name} (branch base: {p.BaseBranch})"))}
+
+        Quebre a demanda em tarefas. Cada tarefa deve ser atribuída a UM dos projetos acima pelo campo "project".
+        Tarefas pequenas e independentes sempre que possível; respeite a ordem de dependência entre projetos.
+
+        {PlanFormatGroup}
         """;
 
     public static string Dev(WorkItem item, Project project, IEnumerable<string> dependencyTitles, IReadOnlyList<ReviewFinding> openFindings)

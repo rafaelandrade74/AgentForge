@@ -6,6 +6,18 @@ export type AgentRole = 'ScrumMaster' | 'Dev' | 'TechLead' | 'Security' | 'Qa' |
 export type RunStatus = 'Pending' | 'Running' | 'Succeeded' | 'Failed' | 'Cancelled';
 export type Severity = 'Info' | 'Low' | 'Medium' | 'High' | 'Critical';
 
+export interface ProjectGroup {
+  id: string;
+  name: string;
+  description: string | null;
+  projectCount: number;
+  createdAt: string;
+}
+export interface ProjectGroupInput {
+  name: string;
+  description?: string | null;
+}
+
 export interface Project {
   id: string;
   name: string;
@@ -26,13 +38,16 @@ export interface Project {
   hasGitHubToken?: boolean;
   /** Só na gravação: ausente mantém o token guardado; "" apaga; um valor substitui. */
   githubToken?: string;
+  /** Grupo ao qual este projeto pertence; null = projeto avulso. */
+  projectGroupId?: string | null;
   createdAt: string;
 }
 export type ProjectInput = Omit<Project, 'id' | 'createdAt'>;
 
 export interface Demand {
   id: string;
-  projectId: string;
+  projectId: string | null;
+  projectGroupId?: string | null;
   title: string;
   description: string;
   status: DemandStatus;
@@ -42,6 +57,8 @@ export interface Demand {
 export interface WorkItem {
   id: string;
   demandId: string;
+  /** Projeto-alvo (obrigatório em demandas de grupo). */
+  projectId?: string | null;
   title: string;
   description: string;
   acceptanceCriteria: string;

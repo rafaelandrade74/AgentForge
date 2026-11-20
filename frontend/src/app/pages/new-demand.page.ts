@@ -1,6 +1,6 @@
 import { Component, inject, input, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
@@ -43,6 +43,7 @@ import { ApiService } from '../core/api.service';
 export class NewDemandPage {
   private readonly api = inject(ApiService);
   private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
   private readonly snack = inject(MatSnackBar);
 
   readonly id = input.required<string>();
@@ -50,9 +51,14 @@ export class NewDemandPage {
   title = '';
   description = '';
 
+  private get groupId(): string | null { return this.route.snapshot.queryParamMap.get('projectGroupId'); }
+
   submit(start: boolean): void {
     this.busy.set(true);
-    this.api.createDemand({ projectId: this.id(), title: this.title.trim(), description: this.description }).subscribe({
+    const body = this.groupId
+      ? { projectId: null as any, projectGroupId: this.groupId, title: this.title.trim(), description: this.description }
+      : { projectId: this.id(), title: this.title.trim(), description: this.description };
+    this.api.createDemand(body).subscribe({
       next: (demand) => {
         const go = () => this.router.navigate(['/demands', demand.id]);
         if (!start) return void go();

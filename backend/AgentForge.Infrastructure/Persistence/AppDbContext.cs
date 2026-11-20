@@ -5,6 +5,7 @@ namespace AgentForge.Infrastructure.Persistence;
 
 public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(options)
 {
+    public virtual DbSet<ProjectGroup> ProjectGroups { get; set; } = null!;
     public virtual DbSet<Project> Projects { get; set; } = null!;
     public virtual DbSet<Demand> Demands { get; set; } = null!;
     public virtual DbSet<WorkItem> WorkItems { get; set; } = null!;
@@ -24,6 +25,13 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
 
     protected override void OnModelCreating(ModelBuilder b)
     {
+        b.Entity<ProjectGroup>(e =>
+        {
+            e.HasIndex(x => x.Name).IsUnique();
+            e.Property(x => x.Name).HasMaxLength(200);
+            e.Property(x => x.Description).HasMaxLength(500);
+        });
+
         b.Entity<Project>(e =>
         {
             e.Property(x => x.Name).HasMaxLength(200);
@@ -34,6 +42,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             // um ambiente em uso não pode ser apagado (o clone do projeto mora nele)
             e.HasOne<ExecutionEnvironment>().WithMany().HasForeignKey(x => x.EnvironmentId).OnDelete(DeleteBehavior.Restrict);
             e.HasOne<StackProfile>().WithMany().HasForeignKey(x => x.StackProfileId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<ProjectGroup>().WithMany().HasForeignKey(x => x.ProjectGroupId).OnDelete(DeleteBehavior.SetNull);
         });
 
         b.Entity<ProjectRoleEnvironment>(e =>
@@ -82,6 +91,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         b.Entity<Demand>(e =>
         {
             e.HasOne<Project>().WithMany().HasForeignKey(x => x.ProjectId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne<ProjectGroup>().WithMany().HasForeignKey(x => x.ProjectGroupId).OnDelete(DeleteBehavior.Cascade);
             e.Property(x => x.Title).HasMaxLength(300);
             e.Property(x => x.BranchName).HasMaxLength(200);
             e.Property(x => x.PullRequestUrl).HasMaxLength(500);
@@ -91,6 +101,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         b.Entity<WorkItem>(e =>
         {
             e.HasOne<Demand>().WithMany().HasForeignKey(x => x.DemandId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne<Project>().WithMany().HasForeignKey(x => x.ProjectId).OnDelete(DeleteBehavior.Restrict);
             e.Property(x => x.Title).HasMaxLength(300);
             e.Property(x => x.BranchName).HasMaxLength(200);
             e.Property(x => x.WaitingReason).HasMaxLength(500);

@@ -11,6 +11,7 @@ export const routes: Routes = [
     canActivate: [authGuard],
     children: [
       { path: '', loadComponent: () => import('./pages/projects.page').then((m) => m.ProjectsPage) },
+      { path: 'groups/:id', loadComponent: () => import('./pages/project-group.page').then((m) => m.ProjectGroupPage) },
       { path: 'projects/:id', loadComponent: () => import('./pages/project.page').then((m) => m.ProjectPage) },
       { path: 'projects/:id/demands/new', loadComponent: () => import('./pages/new-demand.page').then((m) => m.NewDemandPage) },
       { path: 'demands/:id', loadComponent: () => import('./pages/demand.page').then((m) => m.DemandPage) },

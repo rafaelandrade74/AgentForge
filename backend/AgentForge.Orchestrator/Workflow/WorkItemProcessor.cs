@@ -37,7 +37,9 @@ public partial class WorkItemProcessor(
         var item = await db.WorkItems.Include(w => w.Dependencies).FirstOrDefaultAsync(w => w.Id == id, ct);
         if (item is null) return StepResult.Stop;
         var demand = await db.Demands.FirstAsync(d => d.Id == item.DemandId, ct);
-        var project = await db.Projects.FirstAsync(p => p.Id == demand.ProjectId, ct);
+        var projectId = item.ProjectId ?? demand.ProjectId
+            ?? throw new InvalidOperationException($"WorkItem {id} sem projeto (demand {demand.Id} é de grupo mas a tarefa não tem ProjectId).");
+        var project = await db.Projects.FirstAsync(p => p.Id == projectId, ct);
 
         return item.State switch
         {
@@ -408,7 +410,8 @@ public partial class WorkItemProcessor(
         item.State = WorkItemState.Blocked;
         item.BlockedReason = "Erro interno: " + message;
         await db.SaveChangesAsync();
-        var projectId = await db.Demands.Where(d => d.Id == item.DemandId).Select(d => d.ProjectId).FirstAsync();
-        await events.PublishChangeAsync(projectId, item);
+        var pid = item.ProjectId ?? await db.Demands.Where(d => d.Id == item.DemandId).Select(d => d.ProjectId).FirstAsync()
+            ?? throw new InvalidOperationException($"WorkItem {id} sem projeto.");
+        await events.PublishChangeAsync(pid, item);
     }
 }

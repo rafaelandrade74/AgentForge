@@ -255,7 +255,10 @@ namespace AgentForge.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<Guid>("ProjectId")
+                    b.Property<Guid?>("ProjectGroupId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("ProjectId")
                         .HasColumnType("uuid");
 
                     b.Property<int?>("PullRequestNumber")
@@ -283,6 +286,8 @@ namespace AgentForge.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(300)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("ProjectGroupId");
 
                     b.HasIndex("ProjectId");
 
@@ -370,6 +375,9 @@ namespace AgentForge.Infrastructure.Persistence.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
 
+                    b.Property<Guid?>("ProjectGroupId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("ProtectedGitHubToken")
                         .IsRequired()
                         .HasMaxLength(2000)
@@ -396,9 +404,37 @@ namespace AgentForge.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("EnvironmentId");
 
+                    b.HasIndex("ProjectGroupId");
+
                     b.HasIndex("StackProfileId");
 
                     b.ToTable("Projects");
+                });
+
+            modelBuilder.Entity("AgentForge.Domain.ProjectGroup", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Name")
+                        .IsUnique();
+
+                    b.ToTable("ProjectGroups");
                 });
 
             modelBuilder.Entity("AgentForge.Domain.ProjectRoleEnvironment", b =>
@@ -580,6 +616,9 @@ namespace AgentForge.Infrastructure.Persistence.Migrations
                     b.Property<int>("Estimate")
                         .HasColumnType("integer");
 
+                    b.Property<Guid?>("ProjectId")
+                        .HasColumnType("uuid");
+
                     b.Property<int?>("PullRequestNumber")
                         .HasColumnType("integer");
 
@@ -614,6 +653,8 @@ namespace AgentForge.Infrastructure.Persistence.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("DemandId");
+
+                    b.HasIndex("ProjectId");
 
                     b.ToTable("WorkItems");
                 });
@@ -666,11 +707,15 @@ namespace AgentForge.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("AgentForge.Domain.Demand", b =>
                 {
+                    b.HasOne("AgentForge.Domain.ProjectGroup", null)
+                        .WithMany()
+                        .HasForeignKey("ProjectGroupId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
                     b.HasOne("AgentForge.Domain.Project", null)
                         .WithMany()
                         .HasForeignKey("ProjectId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Cascade);
                 });
 
             modelBuilder.Entity("AgentForge.Domain.Project", b =>
@@ -679,6 +724,11 @@ namespace AgentForge.Infrastructure.Persistence.Migrations
                         .WithMany()
                         .HasForeignKey("EnvironmentId")
                         .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("AgentForge.Domain.ProjectGroup", null)
+                        .WithMany()
+                        .HasForeignKey("ProjectGroupId")
+                        .OnDelete(DeleteBehavior.SetNull);
 
                     b.HasOne("AgentForge.Domain.StackProfile", null)
                         .WithMany()
@@ -722,6 +772,11 @@ namespace AgentForge.Infrastructure.Persistence.Migrations
                         .HasForeignKey("DemandId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.HasOne("AgentForge.Domain.Project", null)
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Restrict);
                 });
 
             modelBuilder.Entity("WorkItemDependencies", b =>

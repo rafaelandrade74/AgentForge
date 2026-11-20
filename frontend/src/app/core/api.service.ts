@@ -2,7 +2,7 @@ import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 import {
-  AgentInfo, AgentTestResult, Approval, ApiTokenInfo, CreatedApiToken, Demand, EnvironmentInput, EnvironmentList, EnvironmentLoadReport, EnvironmentTest, ExecutionEnvironment, Finding, GitAccessResult, GitHubImportRequest, GitHubImportResult, GitHubRepo, GitSshStatus, LoginSession, McpToolInfo, MigrationResult, BuildImageResult, PullRequestResult, PushResult, LiveAgents, ChatSession, ChatDetail, ChatMessage, ProposalCreated, Project, ProjectInput, RoleConfig, Run, RunSummary, StackProfile, StackProfileInput, UsageLimitInfo, WorkItem,
+  AgentInfo, AgentTestResult, Approval, ApiTokenInfo, CreatedApiToken, Demand, EnvironmentInput, EnvironmentList, EnvironmentLoadReport, EnvironmentTest, ExecutionEnvironment, Finding, GitAccessResult, GitHubImportRequest, GitHubImportResult, GitHubRepo, GitSshStatus, LoginSession, McpToolInfo, MigrationResult, BuildImageResult, PullRequestResult, PushResult, LiveAgents, ChatSession, ChatDetail, ChatMessage, ProposalCreated, Project, ProjectGroup, ProjectGroupInput, ProjectInput, RoleConfig, Run, RunSummary, StackProfile, StackProfileInput, UsageLimitInfo, WorkItem,
 } from './models';
 
 /** Parâmetros de query com o ambiente escolhido; sem ambiente (padrão do servidor) a URL fica exatamente como antes. */
@@ -14,6 +14,14 @@ function envParams(environmentId?: string | null, extra: Record<string, string> 
 @Injectable({ providedIn: 'root' })
 export class ApiService {
   private readonly http = inject(HttpClient);
+
+  // grupos de projetos
+  projectGroups = () => this.http.get<ProjectGroup[]>('/api/project-groups');
+  projectGroup = (id: string) => this.http.get<ProjectGroup>(`/api/project-groups/${id}`);
+  createProjectGroup = (p: ProjectGroupInput) => this.http.post<ProjectGroup>('/api/project-groups', p);
+  updateProjectGroup = (id: string, p: ProjectGroupInput) => this.http.put<ProjectGroup>(`/api/project-groups/${id}`, p);
+  deleteProjectGroup = (id: string) => this.http.delete<void>(`/api/project-groups/${id}`);
+  groupDemands = (groupId: string) => this.http.get<Demand[]>('/api/demands', { params: { projectGroupId: groupId } });
 
   // projetos
   projects = () => this.http.get<Project[]>('/api/projects');
@@ -27,7 +35,7 @@ export class ApiService {
   // demandas
   demands = (projectId: string) => this.http.get<Demand[]>('/api/demands', { params: { projectId } });
   demand = (id: string) => this.http.get<Demand>(`/api/demands/${id}`);
-  createDemand = (d: { projectId: string; title: string; description: string }) =>
+  createDemand = (d: { projectId?: string | null; projectGroupId?: string | null; title: string; description: string }) =>
     this.http.post<Demand>('/api/demands', d);
   openPullRequest = (workItemId: string, baseBranch?: string) =>
     this.http.post<PullRequestResult>(`/api/work-items/${workItemId}/pull-request`, { baseBranch: baseBranch || null });

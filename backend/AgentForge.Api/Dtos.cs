@@ -5,27 +5,30 @@ namespace AgentForge.Api;
 /// <param name="RoleEnvironments">Papel ("TechLead" | "Security") → ambiente onde ele roda em vez do ambiente do projeto. Omitido = não muda; vazio = limpa.</param>
 /// <param name="PullRequestBaseBranch">Branch de destino dos PRs (ex.: develop). Omitido = não muda; vazio = a branch base do projeto.</param>
 /// <param name="GitHubToken">Token para abrir PRs. Omitido = mantém o guardado; vazio = apaga. Nunca é devolvido.</param>
+public record ProjectGroupInput(string Name, string? Description = null);
+public record ProjectGroupDto(Guid Id, string Name, string? Description, int ProjectCount, DateTime CreatedAt);
+
 public record ProjectInput(string Name, string RepositoryUrl, string BaseBranch = "main",
     string BuildCommand = "", string TestCommand = "", bool AutoMode = false,
     Guid? EnvironmentId = null, Guid? StackProfileId = null, Dictionary<string, Guid?>? RoleEnvironments = null,
-    string? PullRequestBaseBranch = null, string? GitHubToken = null);
+    string? PullRequestBaseBranch = null, string? GitHubToken = null, Guid? ProjectGroupId = null);
 public record ProjectDto(Guid Id, string Name, string RepositoryUrl, string BaseBranch,
     string BuildCommand, string TestCommand, bool AutoMode, DateTime CreatedAt, Guid? EnvironmentId = null, Guid? StackProfileId = null,
-    Dictionary<string, Guid>? RoleEnvironments = null, string PullRequestBaseBranch = "", bool HasGitHubToken = false);
+    Dictionary<string, Guid>? RoleEnvironments = null, string PullRequestBaseBranch = "", bool HasGitHubToken = false, Guid? ProjectGroupId = null);
 
-public record DemandInput(Guid ProjectId, string Title, string Description = "", DemandStatus Status = DemandStatus.New);
-public record DemandDto(Guid Id, Guid ProjectId, string Title, string Description, DemandStatus Status, DateTime CreatedAt);
+public record DemandInput(Guid? ProjectId, string Title, string Description = "", DemandStatus Status = DemandStatus.New, Guid? ProjectGroupId = null);
+public record DemandDto(Guid Id, Guid? ProjectId, string Title, string Description, DemandStatus Status, DateTime CreatedAt, Guid? ProjectGroupId = null);
 
 public record WorkItemInput(Guid DemandId, string Title, string Description = "", string AcceptanceCriteria = "",
-    int Estimate = 0, WorkItemState State = WorkItemState.Backlog, List<Guid>? DependsOnIds = null);
+    int Estimate = 0, WorkItemState State = WorkItemState.Backlog, List<Guid>? DependsOnIds = null, Guid? ProjectId = null);
 public record WorkItemDto(Guid Id, Guid DemandId, string Title, string Description, string AcceptanceCriteria,
     int Estimate, WorkItemState State, int ReworkCount, string? BranchName, string? BlockedReason, WorkItemState? BlockedFromState,
     List<Guid> DependsOnIds, DateTime CreatedAt, string? WaitingReason = null, string? PullRequestUrl = null, int? PullRequestNumber = null,
-    DateTime? PushedAt = null, string? PushError = null);
+    DateTime? PushedAt = null, string? PushError = null, Guid? ProjectId = null);
 
 /// <summary>Tarefa que espera a aprovação humana da entrega, com o projeto e a demanda (lista de todos os projetos).</summary>
 /// <param name="WaitingSince">Quando o último agente terminou (a entrega ficou pronta para revisão); nulo se não houve execução.</param>
-public record ApprovalDto(Guid Id, string Title, Guid ProjectId, string Project, Guid DemandId, string Demand, int ReworkCount,
+public record ApprovalDto(Guid Id, string Title, Guid? ProjectId, string Project, Guid DemandId, string Demand, int ReworkCount,
     int Estimate, string? BranchName, DateTime CreatedAt, DateTime? WaitingSince);
 
 public record AgentRunDto(Guid Id, Guid? DemandId, Guid? WorkItemId, AgentRole Role, string Prompt, string Output,

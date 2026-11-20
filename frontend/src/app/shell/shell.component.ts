@@ -1,6 +1,7 @@
 import { Component, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { debounceTime, interval } from 'rxjs';
+import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { ApiService } from '../core/api.service';
 import { usageLimitText } from '../core/usage-limit';
 import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
@@ -11,7 +12,7 @@ import { AgentsService } from '../core/agents.service';
 import { RealtimeService } from '../core/realtime.service';
 import { ThemeService } from '../core/theme.service';
 
-interface NavItem { path: string; label: string; group: 'main' | 'config'; svgContent: string; }
+interface NavItem { path: string; label: string; group: 'main' | 'config'; svgContent: SafeHtml; }
 
 @Component({
   selector: 'app-shell',
@@ -122,7 +123,6 @@ interface NavItem { path: string; label: string; group: 'main' | 'config'; svgCo
     </main>
   `,
   styles: `
-    /* ── shell grid layout (artifact exact) ── */
     :host {
       display: grid;
       grid-template-columns: 240px 1fr;
@@ -131,7 +131,6 @@ interface NavItem { path: string; label: string; group: 'main' | 'config'; svgCo
       overflow: hidden;
     }
 
-    /* ── topbar ── */
     .topbar {
       grid-column: 1 / -1;
       background: var(--bg-1);
@@ -219,7 +218,6 @@ interface NavItem { path: string; label: string; group: 'main' | 'config'; svgCo
       padding: 4px;
     }
 
-    /* ── sidebar ── */
     .sidebar {
       background: var(--bg-1);
       border-right: 1px solid var(--border);
@@ -282,7 +280,6 @@ interface NavItem { path: string; label: string; group: 'main' | 'config'; svgCo
     }
     .sidebar-footer .env-dot { width: 6px; height: 6px; }
 
-    /* ── backdrop (mobile) ── */
     .backdrop {
       position: fixed;
       inset: 0;
@@ -290,14 +287,12 @@ interface NavItem { path: string; label: string; group: 'main' | 'config'; svgCo
       background: rgba(0,0,0,.5);
     }
 
-    /* ── main content ── */
     .content {
       overflow-y: auto;
       padding: 24px;
       background: var(--bg-0);
     }
 
-    /* ── banners ── */
     .banner {
       display: flex; gap: .75rem; align-items: center; justify-content: center;
       flex-wrap: wrap; padding: .5rem 1rem; font-size: .85rem;
@@ -307,7 +302,6 @@ interface NavItem { path: string; label: string; group: 'main' | 'config'; svgCo
     .banner--limit { background: var(--accent-dim); color: var(--accent); border-bottom: 1px solid var(--border); }
     .banner-btn { font-size: .8rem !important; }
 
-    /* ── responsive ── */
     @media (max-width: 900px) {
       :host { grid-template-columns: 1fr; }
       .sidebar {
@@ -320,6 +314,13 @@ interface NavItem { path: string; label: string; group: 'main' | 'config'; svgCo
       .sidebar.open { display: flex; }
       .sidebar-toggle { display: grid; place-items: center; }
       .brand { min-width: unset; }
+      .content { padding: 16px; }
+    }
+    @media (max-width: 500px) {
+      .topbar { padding-inline: 10px; gap: 6px; }
+      .content { padding: 12px 8px; }
+      .env-pill { display: none; }
+      .brand span { display: none; }
     }
 
     @media (pointer: coarse) {
@@ -342,19 +343,22 @@ export class ShellComponent {
   readonly pending = signal(0);
   readonly sidebarOpen = signal(false);
 
+  private readonly sanitizer = inject(DomSanitizer);
+  private svg(html: string): SafeHtml { return this.sanitizer.bypassSecurityTrustHtml(html); }
+
   readonly mainNav: NavItem[] = [
-    { path: '/', label: 'Projetos', group: 'main', svgContent: '<path d="M2 4.5A1.5 1.5 0 013.5 3h3.59a1.5 1.5 0 011.06.44l1.41 1.41a1.5 1.5 0 001.06.44H14.5A1.5 1.5 0 0116 6.79V13.5a1.5 1.5 0 01-1.5 1.5h-11A1.5 1.5 0 012 13.5V4.5z"/>' },
-    { path: '/approvals', label: 'Aprovações', group: 'main', svgContent: '<path d="M9 1.5a7.5 7.5 0 100 15 7.5 7.5 0 000-15zM8 5h2v4.59l2.7 2.71-1.4 1.41L8 10.41V5z"/>' },
-    { path: '/live', label: 'Ao vivo', group: 'main', svgContent: '<circle cx="5" cy="9" r="2"/><circle cx="13" cy="9" r="2"/><circle cx="9" cy="4" r="2" opacity=".5"/><circle cx="9" cy="14" r="2" opacity=".5"/>' },
-    { path: '/chat', label: 'Chat', group: 'main', svgContent: '<path d="M3 3.5A1.5 1.5 0 014.5 2h9A1.5 1.5 0 0115 3.5v8a1.5 1.5 0 01-1.5 1.5H6l-3 3V3.5z"/>' },
+    { path: '/', label: 'Projetos', group: 'main', svgContent: this.svg('<path d="M2 4.5A1.5 1.5 0 013.5 3h3.59a1.5 1.5 0 011.06.44l1.41 1.41a1.5 1.5 0 001.06.44H14.5A1.5 1.5 0 0116 6.79V13.5a1.5 1.5 0 01-1.5 1.5h-11A1.5 1.5 0 012 13.5V4.5z" fill="currentColor"/>') },
+    { path: '/approvals', label: 'Aprovações', group: 'main', svgContent: this.svg('<path d="M9 1.5a7.5 7.5 0 100 15 7.5 7.5 0 000-15zM8 5h2v4.59l2.7 2.71-1.4 1.41L8 10.41V5z" fill="currentColor"/>') },
+    { path: '/live', label: 'Ao vivo', group: 'main', svgContent: this.svg('<circle cx="5" cy="9" r="2" fill="currentColor"/><circle cx="13" cy="9" r="2" fill="currentColor"/><circle cx="9" cy="4" r="2" fill="currentColor" opacity=".5"/><circle cx="9" cy="14" r="2" fill="currentColor" opacity=".5"/>') },
+    { path: '/chat', label: 'Chat', group: 'main', svgContent: this.svg('<path d="M3 3.5A1.5 1.5 0 014.5 2h9A1.5 1.5 0 0115 3.5v8a1.5 1.5 0 01-1.5 1.5H6l-3 3V3.5z" fill="currentColor"/>') },
   ];
   readonly configNav: NavItem[] = [
-    { path: '/agents', label: 'Agentes', group: 'config', svgContent: '<path d="M9 2a2.5 2.5 0 00-2.5 2.5V6h5V4.5A2.5 2.5 0 009 2zM5 6V4.5a4 4 0 118 0V6h1.5A1.5 1.5 0 0116 7.5v7a1.5 1.5 0 01-1.5 1.5h-11A1.5 1.5 0 012 14.5v-7A1.5 1.5 0 013.5 6H5z"/>' },
-    { path: '/prompts', label: 'Prompts', group: 'config', svgContent: '<path d="M9 1.5l1.3 4h4.2l-3.4 2.5 1.3 4L9 9.5 5.6 12l1.3-4L3.5 5.5h4.2L9 1.5z"/>' },
-    { path: '/environments', label: 'Ambientes', group: 'config', svgContent: '<rect x="2" y="3" width="14" height="12" rx="2"/><path d="M5.5 7.5l2.5 2-2.5 2" stroke="var(--bg-1)" stroke-width="1.3" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M9.5 11.5h3" stroke="var(--bg-1)" stroke-width="1.3" fill="none" stroke-linecap="round"/>' },
-    { path: '/profiles', label: 'Perfis', group: 'config', svgContent: '<path d="M14.5 9A5.5 5.5 0 119 3.5V1L12 4 9 7V4.5A4 4 0 1013 9h1.5z"/>' },
-    { path: '/git', label: 'Git', group: 'config', svgContent: '<path d="M3 3h4v2H5v8h2v2H3V3zm8 0h4v12h-4v-2h2V5h-2V3z" opacity=".8"/><circle cx="9" cy="9" r="1.5"/>' },
-    { path: '/integration', label: 'Integração', group: 'config', svgContent: '<path d="M9 2v5m0 0L6.5 4.5M9 7l2.5-2.5M4 9h10M9 11v5m0 0l2.5-2.5M9 16L6.5 13.5" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round"/>' },
+    { path: '/agents', label: 'Agentes', group: 'config', svgContent: this.svg('<path d="M9 2a2.5 2.5 0 00-2.5 2.5V6h5V4.5A2.5 2.5 0 009 2zM5 6V4.5a4 4 0 118 0V6h1.5A1.5 1.5 0 0116 7.5v7a1.5 1.5 0 01-1.5 1.5h-11A1.5 1.5 0 012 14.5v-7A1.5 1.5 0 013.5 6H5z" fill="currentColor"/>') },
+    { path: '/prompts', label: 'Prompts', group: 'config', svgContent: this.svg('<path d="M9 1.5l1.3 4h4.2l-3.4 2.5 1.3 4L9 9.5 5.6 12l1.3-4L3.5 5.5h4.2L9 1.5z" fill="currentColor"/>') },
+    { path: '/environments', label: 'Ambientes', group: 'config', svgContent: this.svg('<rect x="2" y="3" width="14" height="12" rx="2" fill="currentColor"/><path d="M5.5 7.5l2.5 2-2.5 2" stroke="var(--bg-1)" stroke-width="1.3" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M9.5 11.5h3" stroke="var(--bg-1)" stroke-width="1.3" fill="none" stroke-linecap="round"/>') },
+    { path: '/profiles', label: 'Perfis', group: 'config', svgContent: this.svg('<path d="M14.5 9A5.5 5.5 0 119 3.5V1L12 4 9 7V4.5A4 4 0 1013 9h1.5z" fill="currentColor"/>') },
+    { path: '/git', label: 'Git', group: 'config', svgContent: this.svg('<path d="M3 3h4v2H5v8h2v2H3V3zm8 0h4v12h-4v-2h2V5h-2V3z" fill="currentColor" opacity=".8"/><circle cx="9" cy="9" r="1.5" fill="currentColor"/>') },
+    { path: '/integration', label: 'Integração', group: 'config', svgContent: this.svg('<path d="M9 2v5m0 0L6.5 4.5M9 7l2.5-2.5M4 9h10M9 11v5m0 0l2.5-2.5M9 16L6.5 13.5" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round"/>') },
   ];
 
   get banners() {

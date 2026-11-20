@@ -2,13 +2,7 @@ import { NgTemplateOutlet } from '@angular/common';
 import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
-import { MatButtonModule } from '@angular/material/button';
-import { MatCardModule } from '@angular/material/card';
-import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatDialog } from '@angular/material/dialog';
-import { MatFormFieldModule } from '@angular/material/form-field';
-import { MatInputModule } from '@angular/material/input';
-import { MatSelectModule } from '@angular/material/select';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { ApiService } from '../core/api.service';
 import { ExecutionEnvironment, GitHubImportResult, Project, ProjectGroup, ProjectGroupInput, ProjectInput, StackProfile } from '../core/models';
@@ -20,7 +14,7 @@ const EMPTY: ProjectInput = { name: '', repositoryUrl: '', baseBranch: 'main', b
 @Component({
   selector: 'app-projects-page',
   standalone: true,
-  imports: [FormsModule, RouterLink, MatButtonModule, MatCheckboxModule, MatFormFieldModule, MatInputModule, MatSelectModule, BadgeComponent, GithubImportComponent, NgTemplateOutlet],
+  imports: [FormsModule, RouterLink, BadgeComponent, GithubImportComponent, NgTemplateOutlet],
   template: `
     <div class="page">
       <div class="page-header">
@@ -30,7 +24,7 @@ const EMPTY: ProjectInput = { name: '', repositoryUrl: '', baseBranch: 'main', b
         </div>
         <div class="header-actions">
           <button class="btn btn-secondary" type="button" (click)="toggleGroupForm()">Novo grupo</button>
-          <button class="btn btn-secondary" type="button" (click)="importOpen.set(!importOpen())">Importar do GitHub</button>
+          <button class="btn btn-secondary" type="button" (click)="toggleImport()">Importar do GitHub</button>
           <button class="btn btn-primary" type="button" (click)="toggleForm()">{{ formOpen() ? 'Fechar' : 'Novo projeto' }}</button>
         </div>
       </div>
@@ -106,11 +100,11 @@ const EMPTY: ProjectInput = { name: '', repositoryUrl: '', baseBranch: 'main', b
               </p>
             }
             <div class="form-group full">
-              <mat-checkbox name="autoMode" [(ngModel)]="draft.autoMode">Modo automático (sem aprovações humanas)</mat-checkbox>
+              <label class="checkbox-row"><input type="checkbox" name="autoMode" [(ngModel)]="draft.autoMode" /> Modo automático (sem aprovações humanas)</label>
             </div>
-            <div class="form-group full" style="display:flex;gap:8px">
-              <button class="btn btn-primary" type="submit" [disabled]="f.invalid || saving()">Salvar</button>
+            <div class="form-group full" style="display:flex;gap:10px;justify-content:flex-end;padding-top:8px;border-top:1px solid var(--border)">
               <button class="btn btn-secondary" type="button" (click)="closeForm()">Cancelar</button>
+              <button class="btn btn-primary" type="submit" [disabled]="f.invalid || saving()">Salvar</button>
             </div>
           </form>
         </div>
@@ -246,8 +240,17 @@ export class ProjectsPage {
     this.api.projectGroups().subscribe((g) => this.groups.set(g));
   }
 
+  toggleImport(): void {
+    if (this.importOpen()) { this.importOpen.set(false); return; }
+    this.formOpen.set(false);
+    this.groupFormOpen.set(false);
+    this.importOpen.set(true);
+  }
+
   toggleGroupForm(): void {
     if (this.groupFormOpen()) { this.groupFormOpen.set(false); return; }
+    this.formOpen.set(false);
+    this.importOpen.set(false);
     this.editingGroupId.set(null);
     this.groupDraft = { name: '', description: null };
     this.groupFormOpen.set(true);
@@ -286,8 +289,10 @@ export class ProjectsPage {
   }
 
   toggleForm(): void {
-    if (this.formOpen()) this.closeForm();
-    else this.openForm(null, { ...EMPTY });
+    if (this.formOpen()) { this.closeForm(); return; }
+    this.importOpen.set(false);
+    this.groupFormOpen.set(false);
+    this.openForm(null, { ...EMPTY });
   }
 
   edit(p: Project): void {

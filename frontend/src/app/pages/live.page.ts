@@ -122,7 +122,11 @@ export function elapsed(startedAt: string, now: number): string {
               <span class="a-dot running" style="margin:0"></span>
               <span class="badge badge-accent">{{ roleLabel(r.role) }}</span>
               <div>
-                <div style="font-size:13px;font-weight:500">{{ r.task ?? 'Refinamento da demanda' }}</div>
+                @if (r.workItemId) {
+                  <a [routerLink]="['/tasks', r.workItemId]" style="font-size:13px;font-weight:500;color:var(--accent);text-decoration:none" data-testid="run-task-link">{{ r.task ?? 'Refinamento da demanda' }}</a>
+                } @else {
+                  <div style="font-size:13px;font-weight:500">{{ r.task ?? 'Refinamento da demanda' }}</div>
+                }
                 <div style="font-size:11px;color:var(--text-2)">{{ r.project }} · {{ r.environment }} · {{ since(r) }}</div>
               </div>
               <div style="margin-left:auto;font-family:var(--mono);font-size:11px;color:var(--text-2)">

@@ -17,7 +17,11 @@ import { MarkdownComponent } from '../shared/markdown.component';
   template: `
     <div class="page">
       @if (demand(); as d) {
-        <a [routerLink]="['/projects', d.projectId]">← {{ project()?.name ?? 'Projeto' }}</a>
+        @if (d.projectId) {
+          <a [routerLink]="['/projects', d.projectId]">← {{ project()?.name ?? 'Projeto' }}</a>
+        } @else if (d.projectGroupId) {
+          <a [routerLink]="['/groups', d.projectGroupId]">← {{ groupName() ?? 'Grupo' }}</a>
+        }
         <div class="row">
           <h1>{{ d.title }}</h1>
           <app-badge [label]="demandLabel[d.status]" [tone]="demandTone[d.status]" />
@@ -101,6 +105,7 @@ export class DemandPage {
   readonly id = input.required<string>();
   readonly demand = signal<Demand | null>(null);
   readonly project = signal<Project | null>(null);
+  readonly groupName = signal<string | null>(null);
   readonly items = signal<WorkItem[]>([]);
   readonly runs = signal<RunSummary[]>([]);
   readonly live = signal<LiveLine[]>([]);
@@ -161,6 +166,7 @@ export class DemandPage {
     this.api.demand(this.id()).subscribe((d) => {
       this.demand.set(d);
       if (d.projectId) this.api.project(d.projectId).subscribe((p) => this.project.set(p));
+      else if (d.projectGroupId) this.api.projectGroup(d.projectGroupId).subscribe((g) => this.groupName.set(g.name));
     });
     this.loadItems();
     this.loadRuns();

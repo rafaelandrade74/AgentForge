@@ -23,8 +23,8 @@ public class ClaudeCodeAdapterTests
     {
         var args = _adapter.BuildArguments(new AgentRequest(AgentRole.Dev, "x", ".", ReasoningEffort: "high", MaxTurns: 5));
         var list = args.ToList();
-        Assert.Contains("--reasoning-effort", list);
-        Assert.Equal("high", list[list.IndexOf("--reasoning-effort") + 1]);
+        Assert.Contains("--effort", list);
+        Assert.Equal("high", list[list.IndexOf("--effort") + 1]);
     }
 
     [Fact]
@@ -32,7 +32,7 @@ public class ClaudeCodeAdapterTests
     {
         var args = _adapter.BuildArguments(new AgentRequest(AgentRole.Dev, "x", ".", MaxTurns: 0));
         Assert.Equal(["-p", "--output-format", "stream-json", "--verbose"], args);
-        Assert.DoesNotContain("--reasoning-effort", args);
+        Assert.DoesNotContain("--effort", args);
     }
 
     [Fact]

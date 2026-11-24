@@ -180,6 +180,13 @@ public sealed class AgentCliService(
         var run = await runner.RunAsync(request, ct);
         var message = run.Output.Trim();
         if (message.Length > 300) message = message[..300] + "…";
+
+        if (run.Status != AgentRunStatus.Succeeded && LooksLikeAuthFailure(run.Output))
+        {
+            var cacheKey = CacheKey(key, adapter.Name);
+            _probes[cacheKey] = new Probe(true, probe.Version, new AgentAuthState(false, probe.Auth.Method, "Token revogado ou expirado. Reconecte o agente."), DateTime.UtcNow);
+        }
+
         return Store(key, name, new AgentTestResult(run.Status == AgentRunStatus.Succeeded,
             message.Length == 0 ? "(sem resposta)" : message, (long)clock.Elapsed.TotalMilliseconds, run.CostUsd, DateTime.UtcNow));
     }
@@ -382,4 +389,14 @@ public sealed class AgentCliService(
 
     private static LoginSessionInfo Snapshot(LoginSession s) =>
         new(s.Id, s.State == LoginState.WaitingForCode ? s.UrlValue : s.UrlValue, s.State, s.Message);
+
+    private static readonly string[] AuthFailurePatterns =
+    [
+        "OAuth token revoked", "token revoked", "log in again", "authenticate",
+        "Failed to authenticate", "unauthorized", "invalid_grant", "token expired",
+        "session expired", "re-authenticate", "authentication failed",
+    ];
+
+    private static bool LooksLikeAuthFailure(string output) =>
+        AuthFailurePatterns.Any(p => output.Contains(p, StringComparison.OrdinalIgnoreCase));
 }

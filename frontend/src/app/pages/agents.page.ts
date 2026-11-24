@@ -222,6 +222,9 @@ export class AgentsPage {
   private finishTest(name: string, result: AgentTestResult): void {
     this.testing.update((t) => ({ ...t, [name]: false }));
     this.setList((this.list() ?? []).map((x) => (x.name === name ? { ...x, lastTest: result } : x)));
+    if (!result.ok) {
+      this.api.agent(name, true, this.environmentId()).subscribe((info) => this.replace(info));
+    }
   }
 
   // ---- login por link

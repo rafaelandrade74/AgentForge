@@ -87,6 +87,9 @@ export function elapsed(startedAt: string, now: number): string {
                 <div style="font-size:12px;color:var(--text-2);margin-bottom:8px">{{ a.detail }}</div>
               }
               <div style="display:flex;gap:6px">
+                @if (a.reachable && a.installed && !a.authenticated) {
+                  <a class="btn btn-primary btn-sm" [routerLink]="['/agents']" [queryParams]="{ environmentId: a.environmentId }" data-testid="reconnect-button">Reconectar</a>
+                }
                 <button class="btn btn-secondary btn-sm" type="button" [disabled]="!canChat(a)" (click)="startChat(a)" data-testid="chat-button">Conversar</button>
               </div>
             </div>

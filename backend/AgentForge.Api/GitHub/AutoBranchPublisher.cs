@@ -1,4 +1,5 @@
 using AgentForge.Domain;
+using AgentForge.Execution;
 using AgentForge.Infrastructure.Persistence;
 using AgentForge.Orchestrator.Workflow;
 using Microsoft.EntityFrameworkCore;
@@ -25,7 +26,8 @@ public sealed class AutoBranchPublisher(AppDbContext db, PullRequestService pull
         catch (PullRequestException ex)
         {
             logger.LogWarning("Publicação automática do branch da tarefa {Task} falhou", workItemId);
-            item.PushError = ex.Message.Length > 480 ? ex.Message[..480] : ex.Message;
+            var msg = Secrets.MaskUrls(ex.Message);
+            item.PushError = msg.Length > 480 ? msg[..480] : msg;
             await db.SaveChangesAsync(CancellationToken.None);
         }
     }
@@ -43,7 +45,8 @@ public sealed class AutoBranchPublisher(AppDbContext db, PullRequestService pull
         catch (PullRequestException ex)
         {
             logger.LogWarning("Publicação automática do branch da demanda {Demand} falhou", demandId);
-            demand.PushError = ex.Message.Length > 480 ? ex.Message[..480] : ex.Message;
+            var msg = Secrets.MaskUrls(ex.Message);
+            demand.PushError = msg.Length > 480 ? msg[..480] : msg;
             await db.SaveChangesAsync(CancellationToken.None);
         }
     }

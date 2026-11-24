@@ -3,6 +3,7 @@ using System.Text.Json.Nodes;
 using AgentForge.Api.Endpoints;
 using AgentForge.Api.GitHub;
 using AgentForge.Domain;
+using AgentForge.Execution;
 using AgentForge.Infrastructure.Persistence;
 using AgentForge.Orchestrator.Agents;
 using AgentForge.Orchestrator.Workflow;
@@ -256,7 +257,7 @@ public sealed class McpToolRegistry
                 return new
                 {
                     run.Id, run.Role, run.Status, run.CostUsd, run.DurationMs,
-                    output = run.Output.Length <= max ? run.Output : run.Output[..max] + "\n… (truncado)",
+                    output = Secrets.MaskUrls(run.Output.Length <= max ? run.Output : run.Output[..max] + "\n… (truncado)"),
                 };
             });
 

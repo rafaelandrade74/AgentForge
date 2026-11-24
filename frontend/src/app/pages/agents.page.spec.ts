@@ -12,7 +12,7 @@ const agent = (over: Partial<AgentInfo> = {}): AgentInfo => ({
 });
 
 const roleConfig = (role: RoleConfig['role']): RoleConfig => ({
-  id: `id-${role}`, role, adapterName: 'claude-code', systemPrompt: '', allowedTools: '', model: '', maxTurns: 20,
+  id: `id-${role}`, role, adapterName: 'claude-code', systemPrompt: '', allowedTools: '', model: '', maxTurns: 20, reasoningEffort: '',
 });
 
 describe('AgentsPage', () => {

@@ -344,7 +344,7 @@ public static class CrudEndpoints
 
     // ---------- AgentRuns (criadas pelo orquestrador; a API só consulta) ----------
     internal static AgentRunDto ToDto(AgentRun r) =>
-        new(r.Id, r.DemandId, r.WorkItemId, r.Role, r.Prompt, r.Output, r.CostUsd, r.DurationMs, r.Status, r.StartedAt, r.FinishedAt);
+        new(r.Id, r.DemandId, r.WorkItemId, r.Role, r.Prompt, Secrets.MaskUrls(r.Output), r.CostUsd, r.DurationMs, r.Status, r.StartedAt, r.FinishedAt);
 
     private static void MapAgentRuns(RouteGroupBuilder g)
     {

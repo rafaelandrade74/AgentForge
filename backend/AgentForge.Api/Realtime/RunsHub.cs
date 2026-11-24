@@ -1,3 +1,4 @@
+using AgentForge.Execution;
 using AgentForge.Orchestrator.Agents;
 using AgentForge.Orchestrator.Workflow;
 using Microsoft.AspNetCore.Authorization;
@@ -36,8 +37,9 @@ public class SignalRAgentEventPublisher(IHubContext<RunsHub> hub, ILogger<Signal
     {
         try
         {
-            if (evt.ProjectId is { } projectId) await hub.Clients.Group(RunsHub.Group(projectId)).SendAsync("runEvent", evt, ct);
-            await hub.Clients.Group(RunsHub.LiveGroup).SendAsync("liveRunEvent", evt, ct);
+            var safe = evt with { Text = Secrets.MaskUrls(evt.Text) };
+            if (safe.ProjectId is { } projectId) await hub.Clients.Group(RunsHub.Group(projectId)).SendAsync("runEvent", safe, ct);
+            await hub.Clients.Group(RunsHub.LiveGroup).SendAsync("liveRunEvent", safe, ct);
         }
         catch (Exception ex)
         {

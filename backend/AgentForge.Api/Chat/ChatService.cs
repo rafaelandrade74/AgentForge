@@ -87,7 +87,7 @@ public sealed class ChatService(IServiceScopeFactory scopes, IHubContext<RunsHub
             ChatMessage reply;
             if (run.Status == AgentRunStatus.Succeeded)
             {
-                var (shown, proposals) = ChatReply.Split(run.Output, run.Json);
+                var (shown, proposals) = ChatReply.Split(Secrets.MaskUrls(run.Output), run.Json);
                 reply = new ChatMessage
                 {
                     ChatSessionId = sessionId, Role = ChatRole.Assistant, Text = shown, CostUsd = run.CostUsd,
@@ -103,7 +103,7 @@ public sealed class ChatService(IServiceScopeFactory scopes, IHubContext<RunsHub
                     Text = run.UsageLimit is { } limit
                         ? $"O agente está sem uso disponível agora ({UsageLimitText.KindLabel(limit.Kind)}). " +
                           (limit.ResetsAt is { } at ? $"Libera por volta de {at:dd/MM HH:mm} UTC. " : "Tente de novo em alguns minutos. ") + "Reenvie a mensagem depois."
-                        : "Não consegui responder: " + (string.IsNullOrWhiteSpace(run.Output) ? "o agente terminou sem resposta." : Truncate(run.Output, 1500)),
+                        : "Não consegui responder: " + (string.IsNullOrWhiteSpace(run.Output) ? "o agente terminou sem resposta." : Truncate(Secrets.MaskUrls(run.Output), 1500)),
                 };
             }
             db.ChatMessages.Add(reply);

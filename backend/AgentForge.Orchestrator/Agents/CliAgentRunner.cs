@@ -163,14 +163,14 @@ public class CliAgentRunner(
         }
 
         run.Status = status;
-        run.Output = output;
+        run.Output = Secrets.MaskUrls(output);
         run.CostUsd = result?.CostUsd ?? 0;
         run.DurationMs = clock.ElapsedMilliseconds;
         run.FinishedAt = DateTime.UtcNow;
         if (!request.Ephemeral) await db.SaveChangesAsync(CancellationToken.None);
         await Emit("run_finished", status.ToString());
 
-        return new AgentRunResult(run.Id, status, output, result?.Json, run.CostUsd, clock.Elapsed, exitCode, environmentDown, usageLimit, result?.SessionId);
+        return new AgentRunResult(run.Id, status, run.Output, result?.Json, run.CostUsd, clock.Elapsed, exitCode, environmentDown, usageLimit, result?.SessionId);
     }
 
     /// <summary>

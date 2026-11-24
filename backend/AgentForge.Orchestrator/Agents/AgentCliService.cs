@@ -138,8 +138,11 @@ public sealed class AgentCliService(
             else
             {
                 var status = await QuickAsync(target.Launcher, adapter.Executable, account.StatusArguments, ct);
-                probe = new Probe(true, version.Stdout.Trim().Split('\n')[0].Trim(),
-                    account.ParseStatus(status.Stdout, status.ExitCode), DateTime.UtcNow);
+                var auth = account.ParseStatus(status.Stdout, status.ExitCode);
+                if (!auth.Authenticated)
+                    logger.LogWarning("Agente {Agent} não autenticado no ambiente {Env}. ExitCode={Exit}, stdout={Out}, stderr={Err}",
+                        adapter.Name, key, status.ExitCode, Secrets.MaskUrls(status.Stdout.Trim()), Secrets.MaskUrls(status.Stderr.Trim()));
+                probe = new Probe(true, version.Stdout.Trim().Split('\n')[0].Trim(), auth, DateTime.UtcNow);
             }
         }
         _probes[cacheKey] = probe;
